@@ -811,11 +811,18 @@ const PHARMAINNOX = {
 
 function initMap() {
   if (S.map) return;
-  S.map = L.map('routeMap', { zoomControl: true, scrollWheelZoom: true }).setView([PHARMAINNOX.lat, PHARMAINNOX.lng], 10);
-  L.maplibreGL({
-    style: 'https://tiles.openfreemap.org/styles/liberty',
-    attribution: 'OpenFreeMap · © OpenMapTiles · Data from OpenStreetMap contributors'
+  S.map = L.map('routeMap', {
+    zoomControl: true,
+    scrollWheelZoom: true,
+    preferCanvas: true
+  }).setView([PHARMAINNOX.lat, PHARMAINNOX.lng], 10);
+
+  // Mapa base simples e estável. A rota é desenhada separadamente pelo OSRM.
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
   }).addTo(S.map);
+
   S.markersLayer = L.layerGroup().addTo(S.map);
   S.routeLayer = L.layerGroup().addTo(S.map);
 }
@@ -830,9 +837,9 @@ function markerIcon(label, isOrigin = false) {
   return L.divIcon({
     className: 'route-marker-wrap',
     html: `<div class="route-marker ${isOrigin ? 'origin' : ''}">${escapeHtml(label)}</div>`,
-    iconSize: [34, 34],
-    iconAnchor: [17, 17],
-    popupAnchor: [0, -18]
+    iconSize: [38, 38],
+    iconAnchor: [19, 19],
+    popupAnchor: [0, -20]
   });
 }
 
@@ -852,35 +859,118 @@ function saveGeoCache() {
 let lastNominatimRequest = 0;
 async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-async function geocodeAddress(address, fallbackCity = '') {
-  const full = [address, fallbackCity].filter(Boolean).join(', ');
-  const keyCache = cacheKeyForGeo(full);
-  if (S.geocodeCache[keyCache]) return S.geocodeCache[keyCache];
+function buildGeoQueries(address, fallbackCity = '') {
+  const a = String(address || '').trim();
+  const c = String(fallbackCity || '').trim();
+  const queries = [
+    [a, c, 'SP', 'Brasil'].filter(Boolean).join(', '),
+    [a, c, 'Brasil'].filter(Boolean).join(', '),
+    [a, 'SP', 'Brasil'].filter(Boolean).join(', '),
+    `${a}, Brasil`
+  ];
+  return [...new Set(queries.map(q => q.trim()).filter(Boolean))];
+}
 
+async function geocodeNominatim(query) {
   const wait = Math.max(0, 1100 - (Date.now() - lastNominatimRequest));
   if (wait) await sleep(wait);
   lastNominatimRequest = Date.now();
 
   const url = 'https://nominatim.openstreetmap.org/search?' + new URLSearchParams({
     format: 'jsonv2',
-    q: `${full}, Brasil`,
+    q: query,
     countrycodes: 'br',
-    limit: '1',
+    limit: '3',
     addressdetails: '1'
   });
 
   const res = await fetch(url, { headers: { 'Accept-Language': 'pt-BR' } });
   if (!res.ok) throw new Error(`Geocodificação HTTP ${res.status}`);
   const data = await res.json();
-  if (!Array.isArray(data) || !data.length) return null;
+  if (!Array.isArray(data)) return [];
 
-  const result = { lat: Number(data[0].lat), lng: Number(data[0].lon), displayName: data[0].display_name || full };
-  if (Number.isFinite(result.lat) && Number.isFinite(result.lng)) {
-    S.geocodeCache[keyCache] = result;
-    saveGeoCache();
-    return result;
+  return data.map(item => ({
+    lat: Number(item.lat),
+    lng: Number(item.lon),
+    displayName: item.display_name || query,
+    type: item.type || '',
+    importance: Number(item.importance) || 0
+  })).filter(x => Number.isFinite(x.lat) && Number.isFinite(x.lng));
+}
+
+async function geocodePhoton(query) {
+  const url = 'https://photon.komoot.io/api/?' + new URLSearchParams({
+    q: query,
+    limit: '5',
+    lang: 'pt'
+  });
+  const res = await fetch(url, { headers: { 'Accept-Language': 'pt-BR' } });
+  if (!res.ok) return [];
+  const data = await res.json();
+  if (!Array.isArray(data?.features)) return [];
+  return data.features.map(f => ({
+    lat: Number(f.geometry?.coordinates?.[1]),
+    lng: Number(f.geometry?.coordinates?.[0]),
+    displayName: f.properties?.name || query,
+    type: f.properties?.type || '',
+    importance: Number(f.properties?.importance) || 0
+  })).filter(x => Number.isFinite(x.lat) && Number.isFinite(x.lng));
+}
+
+function scoreGeoResult(result, city = '') {
+  const text = normalizeText(`${result.displayName || ''} ${result.type || ''}`);
+  const cityText = normalizeText(city);
+  let score = Number(result.importance || 0);
+  if (cityText && text.includes(cityText)) score += 3;
+  if (['house', 'building', 'residential', 'commercial'].includes(result.type)) score += 1.5;
+  return score;
+}
+
+async function geocodeAddress(address, fallbackCity = '') {
+  const full = [address, fallbackCity].filter(Boolean).join(', ');
+  const keyCache = cacheKeyForGeo(full);
+  if (S.geocodeCache[keyCache]) return S.geocodeCache[keyCache];
+
+  const queries = buildGeoQueries(address, fallbackCity);
+  let candidates = [];
+
+  // Primeiro tenta Nominatim com mais de uma forma de consulta.
+  for (const query of queries) {
+    try {
+      const results = await geocodeNominatim(query);
+      candidates.push(...results);
+      if (results.length) break;
+    } catch (e) {
+      console.warn('Nominatim falhou:', e);
+    }
   }
-  return null;
+
+  // Fallback para Photon quando Nominatim não localizar o endereço.
+  if (!candidates.length) {
+    try {
+      for (const query of queries.slice(0, 2)) {
+        candidates.push(...await geocodePhoton(query));
+        if (candidates.length) break;
+      }
+    } catch (e) {
+      console.warn('Photon falhou:', e);
+    }
+  }
+
+  if (!candidates.length) return null;
+
+  const best = candidates
+    .sort((a, b) => scoreGeoResult(b, fallbackCity) - scoreGeoResult(a, fallbackCity))[0];
+
+  const result = {
+    lat: best.lat,
+    lng: best.lng,
+    displayName: best.displayName || full
+  };
+
+  S.geocodeCache[keyCache] = result;
+  saveGeoCache();
+  return result;
 }
 
 function formatDuration(seconds) {
@@ -913,20 +1003,54 @@ function googleDirectionsUrl(orderedStops) {
   return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&travelmode=driving&waypoints=${encodeURIComponent(waypoints)}`;
 }
 
-async function calculateRoute(points) {
+async function osrmRoute(points) {
   const coords = points.map(p => `${p.lng},${p.lat}`).join(';');
-  if (points.length < 2) return null;
-  const url = `https://router.project-osrm.org/trip/v1/driving/${coords}?source=first&destination=first&roundtrip=true&steps=false&geometries=geojson&overview=full`;
+  const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false&alternatives=false&continue_straight=false`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Roteamento HTTP ${res.status}`);
   const data = await res.json();
-  if (data.code !== 'Ok' || !data.trips?.length) throw new Error(data.message || 'Não foi possível calcular a rota.');
-  data.waypoints?.forEach((wp, i) => {
-    const p = points[i];
-    if (p) p._waypointIndex = Number.isFinite(wp.waypoint_index) ? wp.waypoint_index : i;
-  });
-  const orderedFinal = points.slice().sort((a, b) => (a._waypointIndex ?? 0) - (b._waypointIndex ?? 0));
-  return { trip: data.trips[0], ordered: orderedFinal };
+  if (data.code !== 'Ok' || !data.routes?.length) {
+    throw new Error(data.message || 'Não foi possível encontrar uma rota pelas ruas.');
+  }
+  return data.routes[0];
+}
+
+async function calculateRoute(points) {
+  if (points.length < 2) return null;
+
+  // 1) Tenta otimizar a ordem das paradas.
+  if (points.length <= 80) {
+    try {
+      const coords = points.map(p => `${p.lng},${p.lat}`).join(';');
+      const url = `https://router.project-osrm.org/trip/v1/driving/${coords}?source=first&destination=first&roundtrip=true&steps=false&geometries=geojson&overview=full`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.code === 'Ok' && data.trips?.length) {
+          data.waypoints?.forEach((wp, i) => {
+            const p = points[i];
+            if (p) p._waypointIndex = Number.isFinite(wp.waypoint_index) ? wp.waypoint_index : i;
+          });
+          const ordered = points.slice().sort((a, b) => (a._waypointIndex ?? 0) - (b._waypointIndex ?? 0));
+          // Recalcula a geometria usando a ordem otimizada e volta para a Pharmainox.
+          try {
+            const routePoints = ordered.concat([{ ...points[0], isReturn: true }]);
+            const route = await osrmRoute(routePoints);
+            return { route, ordered, optimized: true };
+          } catch (e) {
+            console.warn('Geometria otimizada falhou; usando ordem das paradas.', e);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Otimização OSRM falhou; usando rota pela ordem das paradas.', e);
+    }
+  }
+
+  // 2) Fallback robusto: mantém a ordem atual, mas sempre calcula pelas ruas.
+  const routePoints = points.concat([{ ...points[0], isReturn: true }]);
+  const route = await osrmRoute(routePoints);
+  return { route, ordered: points.slice(), optimized: false };
 }
 
 function routeIssueLabel(state) {
@@ -957,7 +1081,10 @@ function renderRouteIssues(groupedRows) {
         </div>
         <div class="route-address-editor">
           <input id="${id}" type="text" value="${escapeHtml(current)}" placeholder="Digite o endereço completo...">
-          <button class="button secondary mini-button" onclick="saveRouteAddress('${escapeHtml(code)}','${id}','${escapeHtml(s.city)}')">Salvar endereço</button>
+          <div class="route-address-actions">
+            <button class="button secondary mini-button" onclick="saveRouteAddress('${escapeHtml(code)}','${id}','${escapeHtml(s.city)}')">Salvar endereço</button>
+            <button class="button secondary mini-button" onclick="openAddressSearch('${id}','${escapeHtml(s.city)}')">Google Maps</button>
+          </div>
         </div>
       </div>`;
   }).join('');
@@ -998,7 +1125,6 @@ async function renderRoute() {
 
   const grouped = groupRouteStops(dateKey);
   const baseValid = grouped.filter(s => s.resolution.state === 'ok');
-  // Contagem da rota: somente linhas com AGENDAMENTO na data e TIPO = COLETA ou ENTREGA.
   const scheduledRows = S.log.filter(r => key(r._scheduleDate) === dateKey && isRouteType(r._type));
   const uniqueOrders = new Set(scheduledRows.map(r => r._order).filter(Boolean));
   const ordersCount = uniqueOrders.size || scheduledRows.length;
@@ -1049,24 +1175,26 @@ async function renderRoute() {
 
   const points = [{ ...PHARMAINNOX, isOrigin: true }, ...geoPoints];
   let ordered = geoPoints.slice();
-  let trip = null;
+  let route = null;
+  let optimized = false;
 
   try {
-    if (points.length > 1) {
+    if (points.length > 2) {
       const calc = await calculateRoute(points);
       if (runId !== S.routeRunId) return;
-      trip = calc.trip;
+      route = calc.route;
+      optimized = calc.optimized;
       ordered = calc.ordered.filter(p => !p.isOrigin);
-      $('routeDistance').textContent = formatDistance(trip.distance);
-      $('routeDuration').textContent = formatDuration(trip.duration);
-      $('routeBadge').textContent = 'Rota calculada';
+      $('routeDistance').textContent = formatDistance(route.distance);
+      $('routeDuration').textContent = formatDuration(route.duration);
+      $('routeBadge').textContent = optimized ? 'Rota otimizada pelas ruas' : 'Rota calculada pelas ruas';
     }
   } catch (e) {
-    console.error(e);
+    console.error('Erro no roteamento:', e);
     $('routeBadge').textContent = 'Rota não calculada';
     $('routeDistance').textContent = '—';
     $('routeDuration').textContent = '—';
-    toast('Não foi possível calcular a rota automaticamente. Os pontos encontrados continuam disponíveis no mapa.');
+    toast('Os endereços foram localizados, mas o serviço de rotas não conseguiu ligar todas as paradas. O mapa não desenhará linhas retas falsas.');
   }
 
   const orderedForMarkers = ordered.length ? ordered : geoPoints;
@@ -1086,17 +1214,17 @@ async function renderRoute() {
     bounds.push([s.lat, s.lng]);
   });
 
-  if (trip?.geometry?.coordinates?.length) {
-    const latlngs = trip.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
-    L.polyline(latlngs, { weight: 5, opacity: 0.82 }).addTo(S.routeLayer);
+  // Nunca desenha uma linha reta como se fosse uma rota rodoviária.
+  // A geometria abaixo é a geometria real retornada pelo OSRM.
+  if (route?.geometry?.coordinates?.length) {
+    const latlngs = route.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+    L.polyline(latlngs, { weight: 10, opacity: 0.35, color: '#ffffff', lineCap: 'round', lineJoin: 'round' }).addTo(S.routeLayer);
+    L.polyline(latlngs, { weight: 5, opacity: 0.95, color: '#2f80ed', lineCap: 'round', lineJoin: 'round' }).addTo(S.routeLayer);
     latlngs.forEach(p => bounds.push(p));
-  } else if (orderedForMarkers.length) {
-    const latlngs = [[PHARMAINNOX.lat, PHARMAINNOX.lng], ...orderedForMarkers.map(s => [s.lat, s.lng]), [PHARMAINNOX.lat, PHARMAINNOX.lng]];
-    L.polyline(latlngs, { weight: 4, dashArray: '8 8', opacity: 0.7 }).addTo(S.routeLayer);
   }
 
-  if (bounds.length) S.map.fitBounds(bounds, { padding: [25, 25] });
-  setTimeout(() => S.map.invalidateSize(), 150);
+  if (bounds.length) S.map.fitBounds(bounds, { padding: [35, 35], maxZoom: 13 });
+  setTimeout(() => S.map.invalidateSize(), 200);
 
   const googleUrl = googleDirectionsUrl(orderedForMarkers);
   if (googleUrl) {
@@ -1138,13 +1266,29 @@ function saveRouteAddress(code, inputId, fallbackCity) {
   S.manualAddresses[manualKey(normalizedCode)] = {
     endereco: address,
     cidade: fallbackCity || '',
-    origem: 'manual'
+    origem: 'manual',
+    atualizadoEm: new Date().toISOString()
   };
+  // Remove possíveis coordenadas antigas para que o endereço recém-cadastrado seja pesquisado novamente.
+  delete S.geocodeCache[cacheKeyForGeo([address, fallbackCity].filter(Boolean).join(', '))];
   saveManualAddresses();
-  toast(`Endereço salvo para o fornecedor ${normalizedCode}.`);
+  saveGeoCache();
+  toast(`Endereço salvo para o fornecedor ${normalizedCode}. Revalidando no mapa…`);
   renderRoute();
 }
 window.saveRouteAddress = saveRouteAddress;
+
+function openAddressSearch(inputId, city = '') {
+  const address = $(inputId)?.value.trim();
+  const query = [address, city].filter(Boolean).join(', ');
+  if (!query) {
+    toast('Digite um endereço para pesquisar.');
+    return;
+  }
+  const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${query}, Brasil`)}`;
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+window.openAddressSearch = openAddressSearch;
 
 function exportManualAddresses() {
   const blob = new Blob([JSON.stringify(S.manualAddresses, null, 2)], { type: 'application/json;charset=utf-8' });
@@ -1297,6 +1441,12 @@ document.addEventListener('DOMContentLoaded', () => {
   $('importManualAddresses').addEventListener('click', () => $('manualAddressFile').click());
   $('manualAddressFile').addEventListener('change', e => { if (e.target.files[0]) importManualAddresses(e.target.files[0]); e.target.value = ''; });
   $('clearManualAddresses').addEventListener('click', clearManualAddresses);
+  $('clearGeoCache').addEventListener('click', () => {
+    S.geocodeCache = {};
+    saveGeoCache();
+    toast('Cache do mapa limpo. Revalidando os endereços…');
+    renderRoute();
+  });
 
   $('clear').addEventListener('click', () => {
     $('year').value = 'todos';

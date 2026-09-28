@@ -37,3 +37,19 @@ body{margin:0;background:#f4f7fb;color:#172033;font:14px Segoe UI,Arial,sans-ser
 .source-file-list{display:flex;flex-wrap:wrap;gap:8px;min-height:28px}.source-fuel{background:#edf5ff}.source-log{background:#f2f7ef;color:#3d6b36}
 .upload-status{grid-column:1/-1;margin:0!important;padding-top:4px}
 @media(max-width:800px){.upload-sources{grid-template-columns:1fr}}
+
+/* Mapa de rota - acabamento visual */
+.route-map-card{background:linear-gradient(180deg,#fff 0%,#fbfdff 100%)}
+.route-map{height:600px;border-radius:16px;overflow:hidden;border:1px solid #d9e3ef;box-shadow:inset 0 0 0 1px rgba(255,255,255,.7)}
+.route-map .leaflet-control-zoom{border:0!important;box-shadow:0 4px 14px rgba(15,38,68,.16)!important}
+.route-map .leaflet-control-zoom a{width:34px!important;height:34px!important;line-height:34px!important;color:#17375e!important}
+.route-map .leaflet-control-attribution{font-size:9px!important;background:rgba(255,255,255,.88)!important;padding:2px 5px!important}
+.route-marker-wrap{filter:drop-shadow(0 3px 5px rgba(12,34,60,.25))}
+.route-marker{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:#2f80ed;color:#fff;font-weight:800;font-size:12px;border:3px solid #fff;box-shadow:0 3px 10px rgba(15,45,80,.28)}
+.route-marker.origin{background:#071b3a;width:40px;height:40px;border-radius:12px;font-size:11px}
+.route-stop:hover{border-color:#bcd5f2;box-shadow:0 3px 12px rgba(47,128,237,.08)}
+.map-attribution-note{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:10px;color:#8290a4}
+@media(max-width:1200px){.route-map{height:540px}}
+@media(max-width:700px){.route-map{height:440px}}
+.route-address-actions{display:flex;gap:7px;flex-wrap:wrap}.route-address-actions .mini-button{flex:0 0 auto}
+@media(max-width:700px){.route-address-actions{display:grid;grid-template-columns:1fr 1fr}.route-address-actions .mini-button{width:100%}}
