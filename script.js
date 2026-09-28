@@ -661,10 +661,17 @@ function isGoodAddress(addr) {
   const value = String(addr || '').trim();
   if (!value) return false;
   if (value.toLowerCase() === 'endereço não encontrado') return false;
-  // Evita tratar uma cidade isolada como endereço válido.
   if (value.length < 8) return false;
-  if (!/\d/.test(value) && !/\bS\/?N\b/i.test(value) && !/\bKM\b/i.test(value)) return false;
-  return true;
+  // Para endereços da base, ainda exigimos algum indicador concreto de localização.
+  return /\d/.test(value) || /\bS\/?N\b/i.test(value) || /\bKM\b/i.test(value);
+}
+
+function isGoodManualAddress(addr) {
+  const value = String(addr || '').trim();
+  if (!value) return false;
+  if (value.toLowerCase() === 'endereço não encontrado') return false;
+  // Cadastro manual pode ser uma referência válida sem número (ex.: condomínio, rodovia, galpão, ponto conhecido).
+  return value.length >= 5;
 }
 
 function manualKey(code) { return normalizeCode(code); }
@@ -687,7 +694,7 @@ function saveManualAddresses() {
 
 function getManualAddress(code) {
   const item = S.manualAddresses[manualKey(code)];
-  return item && isGoodAddress(item.endereco) ? item : null;
+  return item && isGoodManualAddress(item.endereco) ? item : null;
 }
 
 function resolveSupplier(code, name) {
@@ -968,8 +975,11 @@ async function osrmRoute(points) {
 async function calculateRoute(points) {
   if (points.length < 2) return null;
 
-  // 1) Tenta otimizar a ordem das paradas.
-  if (points.length <= 80) {
+  let ordered = points.slice();
+  let optimized = false;
+
+  // 1) Tenta otimizar a sequência quando o volume é compatível com o serviço público.
+  if (points.length <= 60) {
     try {
       const coords = points.map(p => `${p.lng},${p.lat}`).join(';');
       const url = `https://router.project-osrm.org/trip/v1/driving/${coords}?source=first&destination=first&roundtrip=true&steps=false&geometries=geojson&overview=full`;
@@ -981,26 +991,53 @@ async function calculateRoute(points) {
             const p = points[i];
             if (p) p._waypointIndex = Number.isFinite(wp.waypoint_index) ? wp.waypoint_index : i;
           });
-          const ordered = points.slice().sort((a, b) => (a._waypointIndex ?? 0) - (b._waypointIndex ?? 0));
-          // Recalcula a geometria usando a ordem otimizada e volta para a Pharmainox.
-          try {
-            const routePoints = ordered.concat([{ ...points[0], isReturn: true }]);
-            const route = await osrmRoute(routePoints);
-            return { route, ordered, optimized: true };
-          } catch (e) {
-            console.warn('Geometria otimizada falhou; usando ordem das paradas.', e);
-          }
+          ordered = points.slice().sort((a, b) => (a._waypointIndex ?? 0) - (b._waypointIndex ?? 0));
+          optimized = true;
         }
       }
     } catch (e) {
-      console.warn('Otimização OSRM falhou; usando rota pela ordem das paradas.', e);
+      console.warn('Otimização OSRM falhou; usando ordem atual.', e);
     }
   }
 
-  // 2) Fallback robusto: mantém a ordem atual, mas sempre calcula pelas ruas.
-  const routePoints = points.concat([{ ...points[0], isReturn: true }]);
-  const route = await osrmRoute(routePoints);
-  return { route, ordered: points.slice(), optimized: false };
+  // 2) Calcula a geometria seguindo as ruas. Primeiro tenta uma chamada única.
+  const routePoints = ordered.concat([{ ...points[0], isReturn: true }]);
+  try {
+    const route = await osrmRoute(routePoints);
+    return { route, ordered, optimized };
+  } catch (e) {
+    console.warn('Rota completa falhou; usando cálculo por trechos.', e);
+  }
+
+  // 3) Fallback robusto: calcula trecho a trecho. Assim, um limite do serviço
+  // para uma rota muito grande não derruba o mapa inteiro.
+  const legs = [];
+  let totalDistance = 0;
+  let totalDuration = 0;
+  const geometry = [];
+
+  for (let i = 0; i < routePoints.length - 1; i++) {
+    const legPoints = [routePoints[i], routePoints[i + 1]];
+    const leg = await osrmRoute(legPoints);
+    legs.push(leg);
+    totalDistance += Number(leg.distance) || 0;
+    totalDuration += Number(leg.duration) || 0;
+    const coords = leg.geometry?.coordinates || [];
+    if (!coords.length) continue;
+    if (geometry.length) geometry.push(...coords.slice(1));
+    else geometry.push(...coords);
+  }
+
+  if (!geometry.length) throw new Error('Não foi possível obter a geometria dos trechos da rota.');
+  return {
+    route: {
+      distance: totalDistance,
+      duration: totalDuration,
+      geometry: { type: 'LineString', coordinates: geometry }
+    },
+    ordered,
+    optimized
+  };
 }
 
 function routeIssueLabel(state) {
@@ -1144,7 +1181,7 @@ async function renderRoute() {
     $('routeBadge').textContent = 'Rota não calculada';
     $('routeDistance').textContent = '—';
     $('routeDuration').textContent = '—';
-    toast('Os endereços foram localizados, mas o serviço de rotas não conseguiu ligar todas as paradas. O mapa não desenhará linhas retas falsas.');
+    toast('Os endereços foram localizados, mas o roteamento não conseguiu ligar todas as paradas. Verifique se algum ponto está fora da malha rodoviária e use o Google Maps para conferir.');
   }
 
   const orderedForMarkers = ordered.length ? ordered : geoPoints;
@@ -1202,7 +1239,7 @@ function populateRouteDate() {
   $('routeDate').value = dates.includes(today) ? today : dates[dates.length - 1];
 }
 
-function saveRouteAddress(code, inputId, fallbackCity) {
+async function saveRouteAddress(code, inputId, fallbackCity) {
   const address = $(inputId)?.value.trim();
   if (!address) {
     toast('Digite um endereço antes de salvar.');
@@ -1213,17 +1250,36 @@ function saveRouteAddress(code, inputId, fallbackCity) {
     toast('Este fornecedor está sem código. Para cadastrar manualmente, precisamos do código.');
     return;
   }
+  if (!isGoodManualAddress(address)) {
+    toast('Digite um endereço ou referência válida.');
+    return;
+  }
+
   S.manualAddresses[manualKey(normalizedCode)] = {
     endereco: address,
     cidade: fallbackCity || '',
     origem: 'manual',
     atualizadoEm: new Date().toISOString()
   };
-  // Remove possíveis coordenadas antigas para que o endereço recém-cadastrado seja pesquisado novamente.
-  delete S.geocodeCache[cacheKeyForGeo([address, fallbackCity].filter(Boolean).join(', '))];
+
+  const geoKey = cacheKeyForGeo([address, fallbackCity].filter(Boolean).join(', '));
+  delete S.geocodeCache[geoKey];
   saveManualAddresses();
   saveGeoCache();
-  toast(`Endereço salvo para o fornecedor ${normalizedCode}. Revalidando no mapa…`);
+
+  // Tenta localizar imediatamente o endereço recém-cadastrado.
+  try {
+    const geo = await geocodeAddress(address, fallbackCity);
+    if (!geo) {
+      toast(`Endereço salvo para ${normalizedCode}, mas o mapa não conseguiu localizar esse endereço. Confira no Google Maps.`);
+    } else {
+      toast(`Endereço salvo e localizado para ${normalizedCode}. Atualizando rota…`);
+    }
+  } catch (e) {
+    console.warn('Falha ao geocodificar endereço manual:', e);
+    toast(`Endereço salvo para ${normalizedCode}. Houve falha ao localizar no mapa; tente revalidar.`);
+  }
+
   renderRoute();
 }
 window.saveRouteAddress = saveRouteAddress;
