@@ -30,7 +30,13 @@ const S = {
   routeRunId: 0,
   geocodeCache: {},
   manualAddresses: {},
-  sources: { fuel: [], log: [] }
+  journey: [],
+  filteredJourney: [],
+  vehicleFiles: {
+    FVB2C57: { journey: null, fuel: null },
+    FCL9986: { journey: null, fuel: null }
+  },
+  sources: { fuel: [], journey: [], log: [] }
 };
 
 const $ = id => document.getElementById(id);
@@ -115,18 +121,29 @@ function sourceType(rows) {
   const hasVehicle = keys.some(k => k === 'veiculo' || k.includes('veiculo') || k.includes('placa'));
   const hasKm = keys.some(k =>
     k.includes('quilometragem') ||
+    k.includes('kilometragem') ||
     k.includes('km_incial') ||
     k.includes('km_inicial') ||
     k.includes('km_final')
   );
   const hasFuelValue = keys.some(k => k.includes('valor_total') || k.includes('valor_abastecido'));
   const hasDailyDate = keys.some(k => k.includes('data e hora inicial e final'));
+  const hasCheckStatus = keys.some(k =>
+    k.includes('na pharmainox esse veiculo esta') ||
+    k.includes('veiculo esta') ||
+    k === 'status'
+  );
+  const hasCheckDate = keys.some(k => k === 'data' || k.includes('data'));
 
   const hasRouteSignals =
     keys.some(k => k === 'pedido_' || k === 'pedido' || k.includes('pedido')) &&
     keys.some(k => k === 'fornecedor' || k.includes('fornecedor')) &&
     (keys.some(k => k === 'agendamento' || k.includes('agendamento')) ||
      keys.some(k => k === 'tipo' || k.includes('tipo')));
+
+  if (hasCheckStatus && hasVehicle && hasKm && hasCheckDate && !hasFuelValue) {
+    return 'journey';
+  }
 
   if (hasVehicle && hasKm && hasFuelValue && (hasDailyDate || keys.some(k => k.includes('valor_total')))) {
     return 'fuel';
@@ -140,6 +157,10 @@ function isFuel(rows) {
   return sourceType(rows) === 'fuel';
 }
 
+function isJourney(rows) {
+  return sourceType(rows) === 'journey';
+}
+
 function fuelValueFromRow(r) {
   return number(get(r, [
     'valor_abastecido',
@@ -149,9 +170,10 @@ function fuelValueFromRow(r) {
   ]));
 }
 
-function vehicleFromRow(r, fileName) {
+function vehicleFromRow(r, fileName, fallbackVehicle = '') {
   return String(
     get(r, ['veiculo', 'placa']) ||
+    fallbackVehicle ||
     positional(r, 2) ||
     fileName.match(/[A-Z]{3}[0-9][A-Z0-9][0-9]{2}/i)?.[0] ||
     fileName.match(/fvb2c57|fcl9986/i)?.[0] ||
@@ -159,14 +181,14 @@ function vehicleFromRow(r, fileName) {
   ).toUpperCase().trim();
 }
 
-function normalizeFuel(rows, fileName) {
+function normalizeFuel(rows, fileName, expectedVehicle = '') {
   return rows.map((r, idx) => {
     const d = parseDate(
       get(r, ['data e hora inicial e final', 'data', 'data hora', 'data/hora']) ||
       positional(r, 0)
     );
 
-    const vehicle = vehicleFromRow(r, fileName);
+    const vehicle = vehicleFromRow(r, fileName, expectedVehicle);
 
     const km = mileage(
       get(r, [
@@ -174,6 +196,7 @@ function normalizeFuel(rows, fileName) {
         'km_inicial x km_final',
         'quilometragem',
         'quilometragem atual',
+        'kilometragem',
         'km'
       ]) ||
       positional(r, 3)
@@ -182,7 +205,6 @@ function normalizeFuel(rows, fileName) {
     const value = fuelValueFromRow(r);
     const price = fuelPriceForDate(d);
 
-    // Regra de negócio: litros = valor abastecido / preço do litro do ano.
     const liters = Number.isFinite(value) && value > 0 && price > 0
       ? value / price
       : NaN;
@@ -199,6 +221,56 @@ function normalizeFuel(rows, fileName) {
       sourceRow: idx + 2
     };
   }).filter(r => Number.isFinite(r.value) || Number.isFinite(r.km));
+}
+
+function journeyStatusFromRow(r) {
+  return String(get(r, [
+    'na pharmainox esse veiculo esta',
+    'veiculo esta',
+    'status'
+  ]) || positional(r, 1) || '').trim();
+}
+
+function normalizeJourney(rows, fileName, expectedVehicle = '') {
+  return rows.map((r, idx) => {
+    const d = parseDate(get(r, ['data', 'data hora', 'data/hora']) || positional(r, 7));
+    const vehicle = vehicleFromRow(r, fileName, expectedVehicle);
+    const status = journeyStatusFromRow(r);
+    const statusKey = cleanKey(status);
+    const km = mileage(get(r, ['kilometragem', 'quilometragem', 'km atual', 'km']) || positional(r, 3));
+
+    return {
+      date: d,
+      dateText: d ? d.toLocaleDateString('pt-BR') : '',
+      vehicle,
+      status,
+      statusKey,
+      km,
+      sourceFile: fileName,
+      sourceRow: idx + 2
+    };
+  }).filter(r =>
+    r.date &&
+    r.vehicle &&
+    Number.isFinite(r.km) &&
+    (r.statusKey === 'saindo' || r.statusKey === 'chegando')
+  );
+}
+
+function validateExpectedVehicle(rows, expectedVehicle) {
+  const found = [...new Set(rows.map(r => String(get(r, ['placa', 'veiculo']) || positional(r, 2) || '').toUpperCase().trim()).filter(Boolean))];
+  if (!found.length) return true;
+  return found.length === 1 && found[0] === expectedVehicle;
+}
+
+function validateVehicleFile(rows, expectedVehicle, expectedType, fileName) {
+  const type = sourceType(rows);
+  if (type !== expectedType) {
+    throw new Error(`O arquivo "${fileName}" não corresponde à categoria ${expectedType}.`);
+  }
+  if (!validateExpectedVehicle(rows, expectedVehicle)) {
+    throw new Error(`O arquivo "${fileName}" não é da placa ${expectedVehicle}.`);
+  }
 }
 
 function normalizeLog(rows) {
@@ -266,14 +338,16 @@ function apply() {
   const start = $('start').value;
   const end = $('end').value;
 
-  S.filteredFuel = S.fuel.filter(r => {
-    const k = key(r.date);
-    return (y === 'todos' || r.date?.getFullYear() == y) &&
-      (v === 'todos' || r.vehicle === v) &&
+  const inFilter = (date, vehicle = '') => {
+    const k = key(date);
+    return (y === 'todos' || date?.getFullYear() == y) &&
+      (v === 'todos' || vehicle === v) &&
       (!start || k >= start) &&
       (!end || k <= end);
-  });
+  };
 
+  S.filteredFuel = S.fuel.filter(r => inFilter(r.date, r.vehicle));
+  S.filteredJourney = S.journey.filter(r => inFilter(r.date, r.vehicle));
   S.filteredLog = S.log.filter(r => {
     const k = key(r._date);
     return (y === 'todos' || r._date?.getFullYear() == y) &&
@@ -281,91 +355,114 @@ function apply() {
       (!end || k <= end);
   });
 
-  S.filteredDaily = buildDailyMetrics(S.filteredFuel);
+  S.filteredDaily = buildDailyMetrics(S.filteredJourney, S.filteredFuel);
 }
 
-function buildDailyMetrics(fuelRows) {
-  const cleanRows = fuelRows
-    .filter(r => r.date && r.vehicle)
+function buildDailyMetrics(journeyRows, fuelRows) {
+  const journeyClean = journeyRows
+    .filter(r => r.date && r.vehicle && Number.isFinite(r.km))
     .slice()
     .sort((a, b) => a.date - b.date);
 
-  const byDay = new Map();
+  const fuelByDay = new Map();
+  fuelRows
+    .filter(r => r.date && r.vehicle)
+    .forEach(r => {
+      const groupKey = `${r.vehicle}__${key(r.date)}`;
+      if (!fuelByDay.has(groupKey)) {
+        fuelByDay.set(groupKey, { totalValue: 0, liters: 0, refuels: 0 });
+      }
+      const g = fuelByDay.get(groupKey);
+      if (Number.isFinite(r.value)) g.totalValue += r.value;
+      if (Number.isFinite(r.liters)) g.liters += r.liters;
+      g.refuels += 1;
+    });
 
-  cleanRows.forEach(r => {
+  const byDay = new Map();
+  journeyClean.forEach(r => {
     const dateKey = key(r.date);
     const groupKey = `${r.vehicle}__${dateKey}`;
-
     if (!byDay.has(groupKey)) {
       byDay.set(groupKey, {
         vehicle: r.vehicle,
         dateKey,
         date: new Date(r.date),
-        rows: [],
-        totalValue: 0,
-        liters: 0
+        leaving: [],
+        arriving: []
       });
     }
-
     const g = byDay.get(groupKey);
-    g.rows.push(r);
-
-    if (Number.isFinite(r.value)) g.totalValue += r.value;
-    if (Number.isFinite(r.liters)) g.liters += r.liters;
+    if (r.statusKey === 'saindo') g.leaving.push(r);
+    if (r.statusKey === 'chegando') g.arriving.push(r);
   });
 
   return [...byDay.values()]
     .map(g => {
-      const rows = g.rows.slice().sort((a, b) => a.date - b.date);
-      const first = rows[0];
-      const last = rows[rows.length - 1];
+      g.leaving.sort((a, b) => a.date - b.date);
+      g.arriving.sort((a, b) => a.date - b.date);
 
-      const kmInitial = Number.isFinite(first?.km) ? first.km : NaN;
-      const kmFinal = Number.isFinite(last?.km) ? last.km : NaN;
+      const start = g.leaving[0] || null;
+      const end = g.arriving[g.arriving.length - 1] || null;
 
+      const kmInitial = Number.isFinite(start?.km) ? start.km : NaN;
+      const kmFinal = Number.isFinite(end?.km) ? end.km : NaN;
       let kmDriven = NaN;
-      let status = 'Sem par inicial/final';
+      let status = 'Sem saída e chegada';
 
-      if (rows.length >= 2 && Number.isFinite(kmInitial) && Number.isFinite(kmFinal)) {
+      if (!start && !end) {
+        status = 'Sem saída e chegada';
+      } else if (!start) {
+        status = 'Sem registro de SAINDO';
+      } else if (!end) {
+        status = 'Sem registro de CHEGANDO';
+      } else if (kmFinal < kmInitial) {
+        status = 'KM inconsistente';
+      } else {
         kmDriven = kmFinal - kmInitial;
-
-        if (kmDriven >= 0) {
-          status = 'Calculado';
-        } else {
-          kmDriven = NaN;
-          status = 'KM inconsistente';
-        }
+        status = 'Calculado';
       }
 
-      const kmPerLiter = Number.isFinite(kmDriven) && g.liters > 0
-        ? kmDriven / g.liters
+      const fuel = fuelByDay.get(`${g.vehicle}__${g.dateKey}`) || {
+        totalValue: 0,
+        liters: 0,
+        refuels: 0
+      };
+
+      const kmPerLiter = Number.isFinite(kmDriven) && kmDriven > 0 && fuel.liters > 0
+        ? kmDriven / fuel.liters
         : NaN;
 
-      const litersPer100 = Number.isFinite(kmDriven) && kmDriven > 0 && g.liters > 0
-        ? (g.liters / kmDriven) * 100
+      const litersPer100 = Number.isFinite(kmDriven) && kmDriven > 0 && fuel.liters > 0
+        ? (fuel.liters / kmDriven) * 100
         : NaN;
 
       return {
         vehicle: g.vehicle,
         dateKey: g.dateKey,
         date: g.date,
-        start: first?.date || null,
-        end: last?.date || null,
+        start: start?.date || null,
+        end: end?.date || null,
         kmInitial,
         kmFinal,
         kmDriven,
-        totalValue: g.totalValue,
-        liters: g.liters,
+        totalValue: fuel.totalValue,
+        liters: fuel.liters,
         kmPerLiter,
         litersPer100,
-        refuels: rows.length,
-        status
+        refuels: fuel.refuels,
+        status,
+        leavingCount: g.leaving.length,
+        arrivingCount: g.arriving.length
       };
     })
     .sort((a, b) => a.date - b.date || a.vehicle.localeCompare(b.vehicle));
 }
 
 function summarizeConsumption(dailyRows) {
+  const distanceValid = dailyRows.filter(r =>
+    Number.isFinite(r.kmDriven) && r.kmDriven >= 0
+  );
+
   const complete = dailyRows.filter(r =>
     Number.isFinite(r.kmDriven) &&
     r.kmDriven > 0 &&
@@ -383,15 +480,20 @@ function summarizeConsumption(dailyRows) {
     0
   );
 
-  const totalDistance = complete.reduce((sum, r) => sum + r.kmDriven, 0);
+  const totalDistance = distanceValid.reduce(
+    (sum, r) => sum + (Number.isFinite(r.kmDriven) ? r.kmDriven : 0),
+    0
+  );
+
   const completeLiters = complete.reduce((sum, r) => sum + r.liters, 0);
 
   return {
     totalValue,
     totalLiters,
     totalDistance,
-    avgKmL: completeLiters > 0 ? totalDistance / completeLiters : NaN,
-    validDays: complete.length,
+    avgKmL: completeLiters > 0 ? complete.reduce((sum, r) => sum + r.kmDriven, 0) / completeLiters : NaN,
+    validDays: distanceValid.length,
+    completeConsumptionDays: complete.length,
     incompleteDays: dailyRows.length - complete.length,
     totalDays: dailyRows.length
   };
@@ -473,7 +575,7 @@ function update() {
   $('distance').textContent = fmt(summary.totalDistance) + ' km';
   $('kml').textContent = fmt(summary.avgKmL);
 
-  const dates = f.filter(r => r.date).map(r => r.date).sort((a, b) => a - b);
+  const dates = (S.filteredJourney.length ? S.filteredJourney : f).filter(r => r.date).map(r => r.date).sort((a, b) => a - b);
   $('period').textContent = dates.length
     ? `${dateTime(dates[0])} → ${dateTime(dates[dates.length - 1])}`
     : '—';
@@ -1331,43 +1433,93 @@ function clearManualAddresses() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Fontes separadas: placas/veículos e pedidos/logística.
-  $('fuelFiles').addEventListener('change', e => {
-    S.fuelFiles = [...e.target.files];
-    $('fuelFileList').innerHTML = S.fuelFiles.map(f => `<span class="chip source-fuel">${escapeHtml(f.name)}</span>`).join('');
-    $('status').textContent = `${S.fuelFiles.length} arquivo(s) de placas e ${S.logFiles?.length || 0} arquivo(s) de pedidos selecionados.`;
-  });
+  const setFileLabel = (id, file, kind) => {
+    const el = $(id);
+    if (!el) return;
+    el.innerHTML = file
+      ? `<span class="chip ${kind}">${escapeHtml(file.name)}</span>`
+      : '';
+  };
+
+  const updateSourceStatus = () => {
+    const slots = [
+      S.vehicleFiles.FVB2C57.journey,
+      S.vehicleFiles.FVB2C57.fuel,
+      S.vehicleFiles.FCL9986.journey,
+      S.vehicleFiles.FCL9986.fuel
+    ];
+    const selected = slots.filter(Boolean).length;
+    const logCount = S.logFiles?.length || 0;
+    $('status').textContent = `${selected}/4 arquivos de veículos e ${logCount} arquivo(s) de pedidos selecionados.`;
+  };
+
+  const bindVehicleFile = (inputId, listId, vehicle, kind) => {
+    $(inputId).addEventListener('change', e => {
+      const file = e.target.files?.[0] || null;
+      S.vehicleFiles[vehicle][kind] = file;
+      setFileLabel(listId, file, kind === 'journey' ? 'source-journey' : 'source-fuel');
+      updateSourceStatus();
+    });
+  };
+
+  bindVehicleFile('fvbJourneyFile', 'fvbJourneyList', 'FVB2C57', 'journey');
+  bindVehicleFile('fvbFuelFile', 'fvbFuelList', 'FVB2C57', 'fuel');
+  bindVehicleFile('fclJourneyFile', 'fclJourneyList', 'FCL9986', 'journey');
+  bindVehicleFile('fclFuelFile', 'fclFuelList', 'FCL9986', 'fuel');
 
   $('logFiles').addEventListener('change', e => {
     S.logFiles = [...e.target.files];
     $('logFileList').innerHTML = S.logFiles.map(f => `<span class="chip source-log">${escapeHtml(f.name)}</span>`).join('');
-    $('status').textContent = `${S.fuelFiles?.length || 0} arquivo(s) de placas e ${S.logFiles.length} arquivo(s) de pedidos selecionados.`;
+    updateSourceStatus();
   });
 
   $('update').addEventListener('click', async () => {
-    const fuelFiles = S.fuelFiles || [];
+    const slots = [
+      ['FVB2C57', 'journey'],
+      ['FVB2C57', 'fuel'],
+      ['FCL9986', 'journey'],
+      ['FCL9986', 'fuel']
+    ];
+    const missing = slots
+      .filter(([vehicle, kind]) => !S.vehicleFiles[vehicle][kind])
+      .map(([vehicle, kind]) => `${vehicle} ${kind === 'journey' ? 'jornada' : 'abastecimento'}`);
     const logFiles = S.logFiles || [];
-    if (!fuelFiles.length || !logFiles.length) {
-      toast('Adicione pelo menos 1 arquivo de placas e 1 arquivo de pedidos.');
+
+    if (missing.length || !logFiles.length) {
+      const msg = missing.length
+        ? `Faltam: ${missing.join(', ')}${logFiles.length ? '' : ' e o arquivo de pedidos'}.`
+        : 'Adicione pelo menos 1 arquivo de pedidos.';
+      toast(msg);
       return;
     }
 
     try {
       S.fuel = [];
+      S.journey = [];
       S.log = [];
-      S.sources = { fuel: [], log: [] };
+      S.sources = { fuel: [], journey: [], log: [] };
 
-      // Os arquivos já vêm separados pela área de upload.
-      // Não misturamos mais as fontes nem dependemos da identificação automática para cruzá-las.
-      for (const file of fuelFiles) {
+      const vehicleConfigs = [
+        ['FVB2C57', 'journey', 'journey'],
+        ['FVB2C57', 'fuel', 'fuel'],
+        ['FCL9986', 'journey', 'journey'],
+        ['FCL9986', 'fuel', 'fuel']
+      ];
+
+      for (const [vehicle, kind, expectedType] of vehicleConfigs) {
+        const file = S.vehicleFiles[vehicle][kind];
         const rows = await read(file);
-        const type = sourceType(rows);
-        if (type !== 'fuel') {
-          throw new Error(`O arquivo "${file.name}" não parece ser uma base de placa/veículo.`);
+        validateVehicleFile(rows, vehicle, expectedType, file.name);
+
+        if (expectedType === 'journey') {
+          const normalized = normalizeJourney(rows, file.name, vehicle);
+          S.journey.push(...normalized);
+          S.sources.journey.push({ vehicle, file: file.name, rows: normalized.length });
+        } else {
+          const normalized = normalizeFuel(rows, file.name, vehicle);
+          S.fuel.push(...normalized);
+          S.sources.fuel.push({ vehicle, file: file.name, rows: normalized.length });
         }
-        const normalized = normalizeFuel(rows, file.name);
-        S.fuel.push(...normalized);
-        S.sources.fuel.push({ file: file.name, rows: normalized.length });
       }
 
       for (const file of logFiles) {
@@ -1381,11 +1533,8 @@ document.addEventListener('DOMContentLoaded', () => {
         S.sources.log.push({ file: file.name, rows: normalized.length });
       }
 
-      const unknownFiles = [];
-
-      // Evita somar a mesma linha duas vezes quando a exportação vier duplicada.
-      const seen = new Set();
-
+      // Remove duplicações exatas dos abastecimentos.
+      const seenFuel = new Set();
       S.fuel = S.fuel.filter(r => {
         const signature = [
           r.date?.getTime() || '',
@@ -1393,17 +1542,35 @@ document.addEventListener('DOMContentLoaded', () => {
           r.km,
           Number.isFinite(r.value) ? r.value.toFixed(2) : ''
         ].join('|');
-
-        if (seen.has(signature)) return false;
-
-        seen.add(signature);
+        if (seenFuel.has(signature)) return false;
+        seenFuel.add(signature);
         return true;
       });
 
-      $('fuelFileList').innerHTML = S.sources.fuel.map(x => `<span class="chip source-fuel">${escapeHtml(x.file)} · ${x.rows.toLocaleString('pt-BR')} registros</span>`).join('');
+      // Remove duplicações exatas da jornada.
+      const seenJourney = new Set();
+      S.journey = S.journey.filter(r => {
+        const signature = [
+          r.date?.getTime() || '',
+          r.vehicle,
+          r.statusKey,
+          r.km
+        ].join('|');
+        if (seenJourney.has(signature)) return false;
+        seenJourney.add(signature);
+        return true;
+      });
+
+      $('fvbJourneyList').innerHTML = `<span class="chip source-journey">${escapeHtml(S.vehicleFiles.FVB2C57.journey.name)} · ${S.sources.journey.find(x => x.vehicle === 'FVB2C57')?.rows?.toLocaleString('pt-BR') || 0} registros</span>`;
+      $('fvbFuelList').innerHTML = `<span class="chip source-fuel">${escapeHtml(S.vehicleFiles.FVB2C57.fuel.name)} · ${S.sources.fuel.find(x => x.vehicle === 'FVB2C57')?.rows?.toLocaleString('pt-BR') || 0} registros</span>`;
+      $('fclJourneyList').innerHTML = `<span class="chip source-journey">${escapeHtml(S.vehicleFiles.FCL9986.journey.name)} · ${S.sources.journey.find(x => x.vehicle === 'FCL9986')?.rows?.toLocaleString('pt-BR') || 0} registros</span>`;
+      $('fclFuelList').innerHTML = `<span class="chip source-fuel">${escapeHtml(S.vehicleFiles.FCL9986.fuel.name)} · ${S.sources.fuel.find(x => x.vehicle === 'FCL9986')?.rows?.toLocaleString('pt-BR') || 0} registros</span>`;
       $('logFileList').innerHTML = S.sources.log.map(x => `<span class="chip source-log">${escapeHtml(x.file)} · ${x.rows.toLocaleString('pt-BR')} registros</span>`).join('');
 
-      const vehicles = [...new Set(S.fuel.map(r => r.vehicle))].sort();
+      const vehicles = [...new Set([
+        ...S.fuel.map(r => r.vehicle),
+        ...S.journey.map(r => r.vehicle)
+      ])].sort();
 
       $('vehicle').innerHTML =
         '<option value="todos">Todos</option>' +
@@ -1419,18 +1586,18 @@ document.addEventListener('DOMContentLoaded', () => {
       ).length;
 
       const sourceText = [
-        ...S.sources.fuel.map(x => `Placas: ${x.file} (${x.rows} registros)`),
+        ...S.sources.journey.map(x => `KM ${x.vehicle}: ${x.file} (${x.rows} registros)`),
+        ...S.sources.fuel.map(x => `Abastecimento ${x.vehicle}: ${x.file} (${x.rows} registros)`),
         ...S.sources.log.map(x => `Pedidos: ${x.file} (${x.rows} registros)`)
       ].join(' · ');
 
       toast(
-        `Atualizado. ${sourceText || 'Nenhuma fonte identificada.'} · ` +
-        `Rota: ${scheduled} registros com AGENDAMENTO em COLETA/ENTREGA.`
+        `Atualizado. ${sourceText} · Rota: ${scheduled} registros com AGENDAMENTO em COLETA/ENTREGA.`
       );
 
     } catch (e) {
       console.error(e);
-      toast('Não foi possível ler algum arquivo. Verifique o formato CSV/XLSX.');
+      toast(e?.message || 'Não foi possível ler algum arquivo. Verifique os arquivos selecionados.');
     }
   });
 
@@ -1463,7 +1630,7 @@ document.addEventListener('DOMContentLoaded', () => {
       Valor: r.value,
       PrecoPorLitro: Number.isFinite(r.price) ? r.price : '',
       Litros: Number.isFinite(r.liters) ? r.liters : '',
-      KM: r.km
+      KM_Abastecimento: r.km
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();

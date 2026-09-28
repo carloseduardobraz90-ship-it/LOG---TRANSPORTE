@@ -47,28 +47,85 @@
       </div>
     </header>
 
-    <section class="upload panel upload-sources">
-      <div class="upload-source-card">
+    <section class="upload panel upload-sources upload-sources-vehicles">
+      <div class="upload-section-title">
         <div>
-          <p class="eyebrow">VEÍCULOS</p>
-          <b>Arquivos das placas</b>
-          <p>Adicione aqui somente as bases de abastecimento, quilometragem e consumo dos veículos.</p>
+          <p class="eyebrow">ARQUIVOS DOS VEÍCULOS</p>
+          <h2>4 arquivos obrigatórios</h2>
+          <p>Para cada veículo, use um arquivo de <b>Jornada / KM</b> e um arquivo de <b>Abastecimentos</b>. O sistema não mistura mais essas fontes.</p>
         </div>
-        <label for="fuelFiles" class="button secondary">Adicionar placas</label>
-        <input id="fuelFiles" type="file" accept=".csv,.xlsx,.xls" multiple hidden>
-        <div id="fuelFileList" class="source-file-list"></div>
+        <span class="source-rule">KM = SAINDO → CHEGANDO</span>
       </div>
-      <div class="upload-source-card">
+
+      <div class="vehicle-source-group">
+        <div class="vehicle-source-title">
+          <div><span class="vehicle-pill">FVB2C57</span><b>Veículo FVB2C57</b></div>
+          <small>Jornada separada do abastecimento</small>
+        </div>
+        <div class="vehicle-source-grid">
+          <div class="upload-source-card vehicle-card">
+            <div>
+              <p class="eyebrow">JORNADA / KM</p>
+              <b>Saída e chegada</b>
+              <p>Usado exclusivamente para KM inicial, KM final e KM rodado.</p>
+            </div>
+            <label for="fvbJourneyFile" class="button secondary">Adicionar jornada</label>
+            <input id="fvbJourneyFile" type="file" accept=".csv,.xlsx,.xls" hidden>
+            <div id="fvbJourneyList" class="source-file-list"></div>
+          </div>
+          <div class="upload-source-card vehicle-card">
+            <div>
+              <p class="eyebrow">ABASTECIMENTOS</p>
+              <b>Valores e litros</b>
+              <p>Usado exclusivamente para valor abastecido, preço/L e litros.</p>
+            </div>
+            <label for="fvbFuelFile" class="button secondary">Adicionar abastecimento</label>
+            <input id="fvbFuelFile" type="file" accept=".csv,.xlsx,.xls" hidden>
+            <div id="fvbFuelList" class="source-file-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="vehicle-source-group">
+        <div class="vehicle-source-title">
+          <div><span class="vehicle-pill">FCL9986</span><b>Veículo FCL9986</b></div>
+          <small>Jornada separada do abastecimento</small>
+        </div>
+        <div class="vehicle-source-grid">
+          <div class="upload-source-card vehicle-card">
+            <div>
+              <p class="eyebrow">JORNADA / KM</p>
+              <b>Saída e chegada</b>
+              <p>Usado exclusivamente para KM inicial, KM final e KM rodado.</p>
+            </div>
+            <label for="fclJourneyFile" class="button secondary">Adicionar jornada</label>
+            <input id="fclJourneyFile" type="file" accept=".csv,.xlsx,.xls" hidden>
+            <div id="fclJourneyList" class="source-file-list"></div>
+          </div>
+          <div class="upload-source-card vehicle-card">
+            <div>
+              <p class="eyebrow">ABASTECIMENTOS</p>
+              <b>Valores e litros</b>
+              <p>Usado exclusivamente para valor abastecido, preço/L e litros.</p>
+            </div>
+            <label for="fclFuelFile" class="button secondary">Adicionar abastecimento</label>
+            <input id="fclFuelFile" type="file" accept=".csv,.xlsx,.xls" hidden>
+            <div id="fclFuelList" class="source-file-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="upload-source-card logistics-upload-card">
         <div>
           <p class="eyebrow">LOGÍSTICA</p>
           <b>Arquivo dos pedidos</b>
-          <p>Adicione aqui a base de pedidos usada nos indicadores logísticos, fornecedores e mapa da rota.</p>
+          <p>Base usada nos indicadores logísticos, fornecedores e mapa da rota.</p>
         </div>
         <label for="logFiles" class="button secondary">Adicionar pedidos</label>
         <input id="logFiles" type="file" accept=".csv,.xlsx,.xls" multiple hidden>
         <div id="logFileList" class="source-file-list"></div>
       </div>
-      <p id="status" class="upload-status">Adicione pelo menos 1 arquivo de placas e 1 arquivo de pedidos.</p>
+      <p id="status" class="upload-status">Selecione os 4 arquivos dos veículos e pelo menos 1 arquivo de pedidos.</p>
     </section>
 
     <section class="filters panel">
@@ -155,10 +212,10 @@
 
     <section class="kpis">
       <article class="kpi"><span>Valor abastecido</span><strong id="value">R$ 0,00</strong><small>Soma dos registros filtrados</small></article>
-      <article class="kpi"><span>Litros calculados</span><strong id="liters">—</strong><small>VALOR_ABASTECIDO ÷ R$ 7,49</small></article>
+      <article class="kpi"><span>Litros calculados</span><strong id="liters">—</strong><small>VALOR_ABASTECIDO ÷ preço do litro do ano</small></article>
       <article class="kpi"><span>Abastecimentos</span><strong id="refuels">0</strong><small>Dos arquivos de placas</small></article>
       <article class="kpi"><span>Registros logísticos</span><strong id="logCount">0</strong><small>Base geral filtrada</small></article>
-      <article class="kpi"><span>KM percorridos</span><strong id="distance">0 km</strong><small>KM final − KM inicial de cada dia completo</small></article>
+      <article class="kpi"><span>KM percorridos</span><strong id="distance">0 km</strong><small>KM final (CHEGANDO) − KM inicial (SAINDO)</small></article>
       <article class="kpi"><span>KM/L</span><strong id="kml">—</strong><small>KM rodados ÷ litros calculados</small></article>
       <article class="kpi"><span>Início / término</span><strong id="period" class="period-value">—</strong><small>Primeiro e último apontamento</small></article>
     </section>
@@ -182,15 +239,15 @@
       <div class="panel-head">
         <div>
           <h2>Resumo diário de consumo</h2>
-          <span class="data-source-note">KM final − KM inicial · Litros = VALOR_ABASTECIDO ÷ R$ 7,49 · KM/L = KM rodados ÷ litros</span>
+          <span class="data-source-note">KM = SAINDO → CHEGANDO · Litros = VALOR_ABASTECIDO ÷ preço do ano · KM/L = KM rodados ÷ litros</span>
         </div>
       </div>
       <div class="table-wrap">
         <table class="daily-table">
           <thead>
             <tr>
-              <th>Data</th><th>Veículo</th><th>Início</th><th>KM inicial</th>
-              <th>Final</th><th>KM final</th><th>KM rodados</th>
+              <th>Data</th><th>Veículo</th><th>Saída</th><th>KM inicial</th>
+              <th>Chegada</th><th>KM final</th><th>KM rodados</th>
               <th>Valor abastecido</th><th>Litros</th><th>KM/L</th><th>L/100 km</th><th>Status</th>
             </tr>
           </thead>
