@@ -1313,6 +1313,12 @@ document.addEventListener('DOMContentLoaded', () => {
   $('importManualAddresses').addEventListener('click', () => $('manualAddressFile').click());
   $('manualAddressFile').addEventListener('change', e => { if (e.target.files[0]) importManualAddresses(e.target.files[0]); e.target.value = ''; });
   $('clearManualAddresses').addEventListener('click', clearManualAddresses);
+  $('clearGeoCache').addEventListener('click', () => {
+    S.geocodeCache = {};
+    saveGeoCache();
+    toast('Cache do mapa limpo. Os endereços serão revalidados na próxima rota.');
+    renderRoute();
+  });
 
   $('clear').addEventListener('click', () => {
     $('year').value = 'todos';
