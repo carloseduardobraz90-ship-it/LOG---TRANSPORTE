@@ -695,27 +695,46 @@ function isGoodAddress(addr) {
   const value = String(addr || '').trim();
   if (!value) return false;
   if (value.toLowerCase() === 'endereço não encontrado') return false;
-  // Evita tratar uma cidade isolada como endereço válido.
-  if (value.length < 8) return false;
-  if (!/\d/.test(value) && !/\bS\/?N\b/i.test(value) && !/\bKM\b/i.test(value)) return false;
+
+  // Endereços manuais não precisam obrigatoriamente ter número.
+  // O Nominatim consegue localizar rodovias, S/N, nomes de ruas,
+  // bairros e até referências por cidade. O importante é haver
+  // informação suficiente para tentar a geocodificação.
+  if (value.length < 5) return false;
   return true;
 }
 
-function manualKey(code) { return normalizeCode(code); }
+function manualKey(code) {
+  return normalizeCode(code);
+}
 
 function loadManualAddresses() {
   try {
-    S.manualAddresses = JSON.parse(localStorage.getItem('pharmainox_manual_addresses_v1') || '{}') || {};
-  } catch {
+    const raw = localStorage.getItem('pharmainox_manual_addresses_v1');
+    const parsed = raw ? JSON.parse(raw) : {};
+    S.manualAddresses = parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (e) {
+    console.warn('Não foi possível carregar os endereços manuais:', e);
     S.manualAddresses = {};
   }
 }
 
 function saveManualAddresses() {
   try {
-    localStorage.setItem('pharmainox_manual_addresses_v1', JSON.stringify(S.manualAddresses));
-  } catch {
-    toast('O navegador não permitiu salvar os endereços neste computador.');
+    const payload = JSON.stringify(S.manualAddresses);
+    localStorage.setItem('pharmainox_manual_addresses_v1', payload);
+
+    // Confirma a gravação. Isso evita mostrar "salvo" quando o navegador
+    // bloqueou ou descartou o localStorage.
+    const saved = localStorage.getItem('pharmainox_manual_addresses_v1');
+    if (saved !== payload) {
+      throw new Error('O navegador não confirmou a gravação.');
+    }
+    return true;
+  } catch (e) {
+    console.error('Erro ao salvar endereço manual:', e);
+    toast('Não foi possível salvar neste navegador. Use "Exportar endereços" para manter uma cópia.');
+    return false;
   }
 }
 
@@ -1119,12 +1138,25 @@ function saveRouteAddress(code, inputId, fallbackCity) {
     toast('Este fornecedor está sem código. Para cadastrar manualmente, precisamos do código.');
     return;
   }
+  const previous = S.manualAddresses[manualKey(normalizedCode)];
+
   S.manualAddresses[manualKey(normalizedCode)] = {
     endereco: address,
     cidade: fallbackCity || '',
-    origem: 'manual'
+    origem: 'manual',
+    atualizadoEm: new Date().toISOString()
   };
-  saveManualAddresses();
+
+  if (!saveManualAddresses()) {
+    // Se a persistência falhar, não fingimos que o cadastro foi concluído.
+    if (previous) {
+      S.manualAddresses[manualKey(normalizedCode)] = previous;
+    } else {
+      delete S.manualAddresses[manualKey(normalizedCode)];
+    }
+    return;
+  }
+
   toast(`Endereço salvo para o fornecedor ${normalizedCode}.`);
   renderRoute();
 }
