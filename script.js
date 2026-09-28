@@ -1171,15 +1171,24 @@ function clearManualAddresses() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  $('files').addEventListener('change', e => {
-    S.files = [...e.target.files];
-    $('fileList').innerHTML = S.files.map(f => `<span class="chip">${escapeHtml(f.name)}</span>`).join('');
-    $('status').textContent = `${S.files.length} arquivo(s) selecionado(s).`;
+  // Fontes separadas: placas/veículos e pedidos/logística.
+  $('fuelFiles').addEventListener('change', e => {
+    S.fuelFiles = [...e.target.files];
+    $('fuelFileList').innerHTML = S.fuelFiles.map(f => `<span class="chip source-fuel">${escapeHtml(f.name)}</span>`).join('');
+    $('status').textContent = `${S.fuelFiles.length} arquivo(s) de placas e ${S.logFiles?.length || 0} arquivo(s) de pedidos selecionados.`;
+  });
+
+  $('logFiles').addEventListener('change', e => {
+    S.logFiles = [...e.target.files];
+    $('logFileList').innerHTML = S.logFiles.map(f => `<span class="chip source-log">${escapeHtml(f.name)}</span>`).join('');
+    $('status').textContent = `${S.fuelFiles?.length || 0} arquivo(s) de placas e ${S.logFiles.length} arquivo(s) de pedidos selecionados.`;
   });
 
   $('update').addEventListener('click', async () => {
-    if (S.files.length < 2) {
-      toast('Selecione pelo menos 1 base de pedidos e 1 arquivo de veículo.');
+    const fuelFiles = S.fuelFiles || [];
+    const logFiles = S.logFiles || [];
+    if (!fuelFiles.length || !logFiles.length) {
+      toast('Adicione pelo menos 1 arquivo de placas e 1 arquivo de pedidos.');
       return;
     }
 
@@ -1188,24 +1197,31 @@ document.addEventListener('DOMContentLoaded', () => {
       S.log = [];
       S.sources = { fuel: [], log: [] };
 
-      const unknownFiles = [];
-
-      for (const file of S.files) {
+      // Os arquivos já vêm separados pela área de upload.
+      // Não misturamos mais as fontes nem dependemos da identificação automática para cruzá-las.
+      for (const file of fuelFiles) {
         const rows = await read(file);
         const type = sourceType(rows);
-
-        if (type === 'fuel') {
-          const normalized = normalizeFuel(rows, file.name);
-          S.fuel.push(...normalized);
-          S.sources.fuel.push({ file: file.name, rows: normalized.length });
-        } else if (type === 'log') {
-          const normalized = normalizeLog(rows);
-          S.log.push(...normalized);
-          S.sources.log.push({ file: file.name, rows: normalized.length });
-        } else {
-          unknownFiles.push(file.name);
+        if (type !== 'fuel') {
+          throw new Error(`O arquivo "${file.name}" não parece ser uma base de placa/veículo.`);
         }
+        const normalized = normalizeFuel(rows, file.name);
+        S.fuel.push(...normalized);
+        S.sources.fuel.push({ file: file.name, rows: normalized.length });
       }
+
+      for (const file of logFiles) {
+        const rows = await read(file);
+        const type = sourceType(rows);
+        if (type !== 'log') {
+          throw new Error(`O arquivo "${file.name}" não parece ser uma base de pedidos/logística.`);
+        }
+        const normalized = normalizeLog(rows);
+        S.log.push(...normalized);
+        S.sources.log.push({ file: file.name, rows: normalized.length });
+      }
+
+      const unknownFiles = [];
 
       // Evita somar a mesma linha duas vezes quando a exportação vier duplicada.
       const seen = new Set();
@@ -1224,16 +1240,8 @@ document.addEventListener('DOMContentLoaded', () => {
         return true;
       });
 
-      const sourceMap = new Map();
-
-      S.sources.fuel.forEach(x => sourceMap.set(x.file, { label: 'VEÍCULO', cls: 'source-fuel' }));
-      S.sources.log.forEach(x => sourceMap.set(x.file, { label: 'ROTA', cls: 'source-log' }));
-      unknownFiles.forEach(file => sourceMap.set(file, { label: 'NÃO IDENTIFICADO', cls: 'source-unknown' }));
-
-      $('fileList').innerHTML = S.files.map(file => {
-        const src = sourceMap.get(file.name);
-        return `<span class="chip ${src?.cls || 'source-unknown'}">${escapeHtml(file.name)}${src ? ` · ${src.label}` : ''}</span>`;
-      }).join('');
+      $('fuelFileList').innerHTML = S.sources.fuel.map(x => `<span class="chip source-fuel">${escapeHtml(x.file)} · ${x.rows.toLocaleString('pt-BR')} registros</span>`).join('');
+      $('logFileList').innerHTML = S.sources.log.map(x => `<span class="chip source-log">${escapeHtml(x.file)} · ${x.rows.toLocaleString('pt-BR')} registros</span>`).join('');
 
       const vehicles = [...new Set(S.fuel.map(r => r.vehicle))].sort();
 
@@ -1251,9 +1259,8 @@ document.addEventListener('DOMContentLoaded', () => {
       ).length;
 
       const sourceText = [
-        ...S.sources.fuel.map(x => `Veículo: ${x.file} (${x.rows} registros)`),
-        ...S.sources.log.map(x => `Rota: ${x.file} (${x.rows} registros)`),
-        ...unknownFiles.map(x => `Não identificado: ${x}`)
+        ...S.sources.fuel.map(x => `Placas: ${x.file} (${x.rows} registros)`),
+        ...S.sources.log.map(x => `Pedidos: ${x.file} (${x.rows} registros)`)
       ].join(' · ');
 
       toast(

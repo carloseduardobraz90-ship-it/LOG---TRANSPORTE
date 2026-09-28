@@ -29,3 +29,11 @@ body{margin:0;background:#f4f7fb;color:#172033;font:14px Segoe UI,Arial,sans-ser
 .daily-table td{white-space:nowrap}
 .data-source-note{display:block;line-height:1.45}
 @media(max-width:900px){.daily-table{font-size:11px}.daily-table th,.daily-table td{padding:8px}}
+
+/* Fontes de dados separadas */
+.upload-sources{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.upload-source-card{border:1px solid #e3eaf3;border-radius:12px;padding:16px;background:#fbfcfe;display:grid;gap:12px;align-content:start}
+.upload-source-card p{margin:5px 0;color:#7b8799}.upload-source-card .eyebrow{color:#2f80ed;margin:0 0 5px}
+.source-file-list{display:flex;flex-wrap:wrap;gap:8px;min-height:28px}.source-fuel{background:#edf5ff}.source-log{background:#f2f7ef;color:#3d6b36}
+.upload-status{grid-column:1/-1;margin:0!important;padding-top:4px}
+@media(max-width:800px){.upload-sources{grid-template-columns:1fr}}
