@@ -1,4 +1,19 @@
-const FUEL_PRICE_PER_LITER = 7.49;
+// Preço do combustível por ano.
+// 2025 = R$ 6,49/L | 2026 = R$ 7,49/L
+const FUEL_PRICES_PER_YEAR = {
+  2025: 6.49,
+  2026: 7.49
+};
+
+const DEFAULT_FUEL_PRICE_PER_LITER = 7.49;
+
+function fuelPriceForDate(date) {
+  const year = date instanceof Date && !isNaN(date)
+    ? date.getFullYear()
+    : null;
+
+  return FUEL_PRICES_PER_YEAR[year] ?? DEFAULT_FUEL_PRICE_PER_LITER;
+}
 
 const S = {
   files: [],
@@ -165,10 +180,11 @@ function normalizeFuel(rows, fileName) {
     );
 
     const value = fuelValueFromRow(r);
+    const price = fuelPriceForDate(d);
 
-    // Regra de negócio: litros = valor abastecido / R$ 7,49.
-    const liters = Number.isFinite(value) && value > 0
-      ? value / FUEL_PRICE_PER_LITER
+    // Regra de negócio: litros = valor abastecido / preço do litro do ano.
+    const liters = Number.isFinite(value) && value > 0 && price > 0
+      ? value / price
       : NaN;
 
     return {
@@ -176,7 +192,7 @@ function normalizeFuel(rows, fileName) {
       dateText: d ? d.toLocaleDateString('pt-BR') : '',
       vehicle,
       value,
-      price: FUEL_PRICE_PER_LITER,
+      price,
       liters,
       km,
       sourceFile: fileName,
@@ -222,7 +238,7 @@ async function read(file) {
     const text = await file.text();
     const firstLine = text.split(/\r?\n/, 1)[0] || '';
     const fs = (firstLine.match(/;/g) || []).length >= (firstLine.match(/,/g) || []).length ? ';' : ',';
-    const wb = XLSX.read(text, { type: 'string', FS: fs, raw: false });
+    const wb = XLSX.read(text, { type: 'string', FS: fs, raw: true });
     return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
   }
   const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
@@ -649,7 +665,7 @@ function update() {
         <td>${r.dateText}</td>
         <td>${escapeHtml(r.vehicle)}</td>
         <td>${money(r.value)}</td>
-        <td>${money(FUEL_PRICE_PER_LITER)}</td>
+        <td>${money(r.price)}</td>
         <td>${litersText}</td>
         <td>${Number.isFinite(r.km) ? r.km.toLocaleString('pt-BR') : '—'}</td>
       </tr>`;
@@ -695,46 +711,27 @@ function isGoodAddress(addr) {
   const value = String(addr || '').trim();
   if (!value) return false;
   if (value.toLowerCase() === 'endereço não encontrado') return false;
-
-  // Endereços manuais não precisam obrigatoriamente ter número.
-  // O Nominatim consegue localizar rodovias, S/N, nomes de ruas,
-  // bairros e até referências por cidade. O importante é haver
-  // informação suficiente para tentar a geocodificação.
-  if (value.length < 5) return false;
+  // Evita tratar uma cidade isolada como endereço válido.
+  if (value.length < 8) return false;
+  if (!/\d/.test(value) && !/\bS\/?N\b/i.test(value) && !/\bKM\b/i.test(value)) return false;
   return true;
 }
 
-function manualKey(code) {
-  return normalizeCode(code);
-}
+function manualKey(code) { return normalizeCode(code); }
 
 function loadManualAddresses() {
   try {
-    const raw = localStorage.getItem('pharmainox_manual_addresses_v1');
-    const parsed = raw ? JSON.parse(raw) : {};
-    S.manualAddresses = parsed && typeof parsed === 'object' ? parsed : {};
-  } catch (e) {
-    console.warn('Não foi possível carregar os endereços manuais:', e);
+    S.manualAddresses = JSON.parse(localStorage.getItem('pharmainox_manual_addresses_v1') || '{}') || {};
+  } catch {
     S.manualAddresses = {};
   }
 }
 
 function saveManualAddresses() {
   try {
-    const payload = JSON.stringify(S.manualAddresses);
-    localStorage.setItem('pharmainox_manual_addresses_v1', payload);
-
-    // Confirma a gravação. Isso evita mostrar "salvo" quando o navegador
-    // bloqueou ou descartou o localStorage.
-    const saved = localStorage.getItem('pharmainox_manual_addresses_v1');
-    if (saved !== payload) {
-      throw new Error('O navegador não confirmou a gravação.');
-    }
-    return true;
-  } catch (e) {
-    console.error('Erro ao salvar endereço manual:', e);
-    toast('Não foi possível salvar neste navegador. Use "Exportar endereços" para manter uma cópia.');
-    return false;
+    localStorage.setItem('pharmainox_manual_addresses_v1', JSON.stringify(S.manualAddresses));
+  } catch {
+    toast('O navegador não permitiu salvar os endereços neste computador.');
   }
 }
 
@@ -1138,25 +1135,12 @@ function saveRouteAddress(code, inputId, fallbackCity) {
     toast('Este fornecedor está sem código. Para cadastrar manualmente, precisamos do código.');
     return;
   }
-  const previous = S.manualAddresses[manualKey(normalizedCode)];
-
   S.manualAddresses[manualKey(normalizedCode)] = {
     endereco: address,
     cidade: fallbackCity || '',
-    origem: 'manual',
-    atualizadoEm: new Date().toISOString()
+    origem: 'manual'
   };
-
-  if (!saveManualAddresses()) {
-    // Se a persistência falhar, não fingimos que o cadastro foi concluído.
-    if (previous) {
-      S.manualAddresses[manualKey(normalizedCode)] = previous;
-    } else {
-      delete S.manualAddresses[manualKey(normalizedCode)];
-    }
-    return;
-  }
-
+  saveManualAddresses();
   toast(`Endereço salvo para o fornecedor ${normalizedCode}.`);
   renderRoute();
 }
@@ -1313,12 +1297,6 @@ document.addEventListener('DOMContentLoaded', () => {
   $('importManualAddresses').addEventListener('click', () => $('manualAddressFile').click());
   $('manualAddressFile').addEventListener('change', e => { if (e.target.files[0]) importManualAddresses(e.target.files[0]); e.target.value = ''; });
   $('clearManualAddresses').addEventListener('click', clearManualAddresses);
-  $('clearGeoCache').addEventListener('click', () => {
-    S.geocodeCache = {};
-    saveGeoCache();
-    toast('Cache do mapa limpo. Os endereços serão revalidados na próxima rota.');
-    renderRoute();
-  });
 
   $('clear').addEventListener('click', () => {
     $('year').value = 'todos';
