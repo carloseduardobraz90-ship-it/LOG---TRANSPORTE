@@ -20,3 +20,10 @@ JORNADA / KM
 ABASTECIMENTO
 - Usa exclusivamente os arquivos de abastecimento para valor, litros, preço/L e KM do abastecimento.
 - Preço: 2025 = R$ 6,49/L; 2026 = R$ 7,49/L.
+
+
+V3
+- Os 4 arquivos dos veículos podem ser adicionados juntos em um único seletor.
+- O sistema identifica veículo e tipo pelo conteúdo interno; o nome do arquivo não é usado.
+- Os gráficos de tempo possuem seletor de Mês, Semana ou Ano.
+- Os gráficos exibem rótulos de dados diretamente na tela.

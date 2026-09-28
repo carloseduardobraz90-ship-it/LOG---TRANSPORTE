@@ -32,10 +32,7 @@ const S = {
   manualAddresses: {},
   journey: [],
   filteredJourney: [],
-  vehicleFiles: {
-    FVB2C57: { journey: null, fuel: null },
-    FCL9986: { journey: null, fuel: null }
-  },
+  vehicleUploads: [],
   sources: { fuel: [], journey: [], log: [] }
 };
 
@@ -556,286 +553,89 @@ function monthLabel(k) {
   return `${names[Number(m) - 1]}/${y}`;
 }
 
-function make(id, name, type, labels, data, label, indexAxis) {
-  destroy(name);
-
-  const canvas = $(id);
-  if (!canvas) return;
-
-  const isDoughnut = type === 'doughnut';
-
-  S.charts[name] = new Chart(canvas, {
-    type,
-    data: {
-      labels,
-      datasets: [{
-        label,
-        data,
-        borderWidth: type === 'line' ? 2 : 1,
-        tension: type === 'line' ? 0.28 : 0,
-        fill: false,
-        pointRadius: type === 'line' ? 2.5 : 0
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      resizeDelay: 100,
-      indexAxis: indexAxis || 'x',
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { display: isDoughnut, position: 'bottom' },
-        tooltip: {
-          callbacks: {
-            label: ctx => {
-              const value = ctx.parsed?.y ?? ctx.parsed ?? ctx.raw;
-              const lname = String(name).toLowerCase();
-
-              if (lname.includes('value')) return `${ctx.dataset.label}: ${money(value)}`;
-              if (lname.includes('liters')) return `${ctx.dataset.label}: ${fmt(value)} L`;
-              if (lname.includes('kml') || lname.includes('consumption')) return `${ctx.dataset.label}: ${fmt(value)} km/L`;
-
-              return `${ctx.dataset.label}: ${fmt(value)}`;
-            }
-          }
+// Rótulos internos: os valores ficam visíveis no próprio gráfico, sem depender do hover.
+const dataLabelsPlugin = {
+  id: 'pharmainoxDataLabels',
+  afterDatasetsDraw(chart) {
+    const name = String(chart.canvas?.id || '').toLowerCase();
+    const isDoughnut = chart.config.type === 'doughnut';
+    const format = n => {
+      if (name.includes('value')) return money(n);
+      if (name.includes('liters')) return `${fmt(n)} L`;
+      if (name.includes('kml') || name.includes('consumption')) return `${fmt(n)} km/L`;
+      if (name.includes('distance')) return `${fmt(n)} km`;
+      return fmt(n);
+    };
+    const ctx=chart.ctx; ctx.save(); ctx.font='700 10px Segoe UI,Arial,sans-serif'; ctx.textBaseline='middle';
+    chart.data.datasets.forEach((ds,di)=>{
+      const meta=chart.getDatasetMeta(di);
+      meta.data.forEach((el,idx)=>{
+        const value=Number(ds.data[idx]); if(!Number.isFinite(value)) return;
+        const text=format(value); const p=el.tooltipPosition();
+        if(isDoughnut){
+          ctx.textAlign='center'; ctx.fillStyle='#172033'; ctx.strokeStyle='rgba(255,255,255,.95)'; ctx.lineWidth=3;
+          ctx.strokeText(text,p.x,p.y); ctx.fillText(text,p.x,p.y); return;
         }
-      },
-      scales: isDoughnut ? {} : {
-        x: { beginAtZero: true, ticks: { autoSkip: true, maxTicksLimit: 14 } },
-        y: { beginAtZero: true, ticks: { autoSkip: true, maxTicksLimit: 14 } }
-      }
-    }
-  });
+        const horizontal=chart.options.indexAxis==='y'; let x=p.x, y=p.y-9, align='center';
+        if(horizontal){x=p.x+7;y=p.y;align='left';}
+        ctx.textAlign=align; const m=ctx.measureText(text); const pad=4,h=15; const bx=align==='left'?x-pad:x-m.width/2-pad;
+        ctx.fillStyle='rgba(255,255,255,.92)'; ctx.strokeStyle='rgba(23,32,51,.12)'; ctx.lineWidth=1; ctx.beginPath();
+        if(ctx.roundRect) ctx.roundRect(bx,y-h/2,m.width+pad*2,h,4); else ctx.rect(bx,y-h/2,m.width+pad*2,h); ctx.fill(); ctx.stroke();
+        ctx.fillStyle='#172033'; ctx.fillText(text,x,y);
+      });
+    }); ctx.restore();
+  }
+};
+if(typeof Chart!=='undefined' && !Chart.registry.plugins.get('pharmainoxDataLabels')) Chart.register(dataLabelsPlugin);
+
+function periodLabel(key,mode){
+  if(!key) return '';
+  if(mode==='year') return key;
+  if(mode==='month') return monthLabel(key);
+  const [y,w]=key.split('-W'); return `Sem ${w}/${y}`;
+}
+function startOfWeek(date){
+  const d=new Date(date); d.setHours(0,0,0,0); const day=d.getDay(); const diff=day===0?-6:1-day; d.setDate(d.getDate()+diff); return d;
+}
+function isoWeekKey(date){
+  const d=startOfWeek(date); const year=d.getFullYear(); const firstMonday=startOfWeek(new Date(year,0,4)); const week=Math.floor((d-firstMonday)/604800000)+1; return `${year}-W${String(week).padStart(2,'0')}`;
+}
+function aggregateTimeRows(rows,mode,valueFn){
+  const out={}; rows.forEach(r=>{ if(!r.date) return; const k=mode==='year'?String(r.date.getFullYear()):mode==='week'?isoWeekKey(r.date):`${r.date.getFullYear()}-${String(r.date.getMonth()+1).padStart(2,'0')}`; const v=Number(valueFn(r)); if(Number.isFinite(v)) out[k]=(out[k]||0)+v; }); return out;
+}
+
+function make(id,name,type,labels,data,label,indexAxis){
+  destroy(name); const canvas=$(id); if(!canvas) return; const isDoughnut=type==='doughnut';
+  S.charts[name]=new Chart(canvas,{type,data:{labels,datasets:[{label,data,borderWidth:type==='line'?2:1,tension:type==='line'?.28:0,fill:false,pointRadius:type==='line'?3:0}]},options:{responsive:true,maintainAspectRatio:false,resizeDelay:100,indexAxis:indexAxis||'x',interaction:{mode:'index',intersect:false},layout:{padding:{top:22,right:26,bottom:8,left:8}},plugins:{legend:{display:isDoughnut,position:'bottom'},tooltip:{callbacks:{label:ctx=>{const value=ctx.parsed?.y??ctx.parsed??ctx.raw;const lname=String(name).toLowerCase();if(lname.includes('value'))return `${ctx.dataset.label}: ${money(value)}`;if(lname.includes('liters'))return `${ctx.dataset.label}: ${fmt(value)} L`;if(lname.includes('kml')||lname.includes('consumption'))return `${ctx.dataset.label}: ${fmt(value)} km/L`;if(lname.includes('distance'))return `${ctx.dataset.label}: ${fmt(value)} km`;return `${ctx.dataset.label}: ${fmt(value)}`;}}}},scales:isDoughnut?{}:{x:{beginAtZero:true,ticks:{autoSkip:true,maxTicksLimit:16}},y:{beginAtZero:true,ticks:{autoSkip:true,maxTicksLimit:14}}}}});
 }
 
 function update() {
   apply();
-
-  const f = S.filteredFuel;
-  const l = S.filteredLog;
-  const daily = S.filteredDaily;
-  const summary = summarizeConsumption(daily);
-
-  $('value').textContent = money(summary.totalValue);
-  $('liters').textContent = summary.totalLiters > 0 ? `${fmt(summary.totalLiters)} L` : '—';
-  $('refuels').textContent = f.length.toLocaleString('pt-BR');
-  $('logCount').textContent = l.length.toLocaleString('pt-BR');
-  $('distance').textContent = fmt(summary.totalDistance) + ' km';
-  $('kml').textContent = fmt(summary.avgKmL);
-
-  const dates = (S.filteredJourney.length ? S.filteredJourney : f).filter(r => r.date).map(r => r.date).sort((a, b) => a - b);
-  $('period').textContent = dates.length
-    ? `${dateTime(dates[0])} → ${dateTime(dates[dates.length - 1])}`
-    : '—';
-
-  const monthValue = {};
-  const monthLiters = {};
-  const monthDistance = {};
-  const vehicleValue = {};
-  const vehicleLiters = {};
-  const vehicleDistance = {};
-  const weekday = {};
-
-  f.forEach(r => {
-    const m = r.date
-      ? `${r.date.getFullYear()}-${String(r.date.getMonth() + 1).padStart(2, '0')}`
-      : 'Sem data';
-
-    monthValue[m] = (monthValue[m] || 0) + (Number.isFinite(r.value) ? r.value : 0);
-    monthLiters[m] = (monthLiters[m] || 0) + (Number.isFinite(r.liters) ? r.liters : 0);
-
-    vehicleValue[r.vehicle] = (vehicleValue[r.vehicle] || 0) + (Number.isFinite(r.value) ? r.value : 0);
-    vehicleLiters[r.vehicle] = (vehicleLiters[r.vehicle] || 0) + (Number.isFinite(r.liters) ? r.liters : 0);
-
-    const w = r.date
-      ? ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][r.date.getDay()]
-      : 'Sem data';
-
-    weekday[w] = (weekday[w] || 0) + 1;
-  });
-
-  daily.forEach(r => {
-    if (Number.isFinite(r.kmDriven) && r.kmDriven > 0) {
-      const m = r.dateKey.slice(0, 7);
-      monthDistance[m] = (monthDistance[m] || 0) + r.kmDriven;
-      vehicleDistance[r.vehicle] = (vehicleDistance[r.vehicle] || 0) + r.kmDriven;
-    }
-  });
-
-  const sortedValue = Object.keys(monthValue).sort();
-  make(
-    'monthValue',
-    'monthValue',
-    'bar',
-    sortedValue.map(monthLabel),
-    sortedValue.map(k => monthValue[k]),
-    'Valor abastecido'
-  );
-
-  const sortedLiters = Object.keys(monthLiters).sort();
-  make(
-    'monthLiters',
-    'monthLiters',
-    'line',
-    sortedLiters.map(monthLabel),
-    sortedLiters.map(k => monthLiters[k]),
-    'Litros calculados'
-  );
-
-  make('vehicleValue', 'vehicleValue', 'doughnut',
-    Object.keys(vehicleValue),
-    Object.values(vehicleValue),
-    'Valor abastecido'
-  );
-
-  make('vehicleLiters', 'vehicleLiters', 'bar',
-    Object.keys(vehicleLiters),
-    Object.values(vehicleLiters),
-    'Litros calculados'
-  );
-
-  make('distanceVehicle', 'distanceVehicle', 'bar',
-    Object.keys(vehicleDistance),
-    Object.values(vehicleDistance),
-    'KM rodados'
-  );
-
-  const vehicleKml = {};
-  Object.keys(vehicleDistance).forEach(vehicle => {
-    const valid = daily.filter(r =>
-      r.vehicle === vehicle &&
-      Number.isFinite(r.kmDriven) &&
-      r.kmDriven > 0 &&
-      Number.isFinite(r.liters) &&
-      r.liters > 0
-    );
-
-    const dist = valid.reduce((sum, r) => sum + r.kmDriven, 0);
-    const liters = valid.reduce((sum, r) => sum + r.liters, 0);
-
-    if (liters > 0) vehicleKml[vehicle] = dist / liters;
-  });
-
-  make('kmlVehicle', 'kmlVehicle', 'bar',
-    Object.keys(vehicleKml),
-    Object.values(vehicleKml),
-    'KM/L'
-  );
-
-  const dailyValid = daily.filter(r =>
-    Number.isFinite(r.kmPerLiter) &&
-    Number.isFinite(r.kmDriven) &&
-    r.kmDriven > 0 &&
-    r.liters > 0
-  );
-
-  make(
-    'dailyConsumption',
-    'dailyConsumption',
-    'line',
-    dailyValid.map(r => `${r.vehicle} · ${new Date(`${r.dateKey}T12:00:00`).toLocaleDateString('pt-BR')}`),
-    dailyValid.map(r => r.kmPerLiter),
-    'Consumo diário (KM/L)'
-  );
-
-  make(
-    'dailyDistance',
-    'dailyDistance',
-    'bar',
-    dailyValid.map(r => `${r.vehicle} · ${new Date(`${r.dateKey}T12:00:00`).toLocaleDateString('pt-BR')}`),
-    dailyValid.map(r => r.kmDriven),
-    'KM rodados no dia'
-  );
-
-  const statuses = {};
-  const cities = {};
-
-  l.forEach(r => {
-    statuses[r._status] = (statuses[r._status] || 0) + 1;
-    cities[r._city] = (cities[r._city] || 0) + 1;
-  });
-
-  const topCities = Object.entries(cities)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 15);
-
-  make('chartStatus', 'chartStatus', 'bar',
-    Object.keys(statuses).slice(0, 20),
-    Object.values(statuses).slice(0, 20),
-    'Registros',
-    'y'
-  );
-
-  make('city', 'city', 'bar',
-    topCities.map(x => x[0]),
-    topCities.map(x => x[1]),
-    'Registros',
-    'y'
-  );
-
-  const days = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
-
-  make('weekday', 'weekday', 'bar',
-    days,
-    days.map(d => weekday[d] || 0),
-    'Abastecimentos'
-  );
-
-  const dailyRowsForTable = daily
-    .slice()
-    .sort((a, b) => b.date - a.date || a.vehicle.localeCompare(b.vehicle));
-
-  $('dailyTable').innerHTML = dailyRowsForTable.map(r => {
-    const statusClass = r.status === 'Calculado' ? 'daily-ok' : 'daily-warn';
-
-    return `<tr>
-      <td>${new Date(`${r.dateKey}T12:00:00`).toLocaleDateString('pt-BR')}</td>
-      <td>${escapeHtml(r.vehicle)}</td>
-      <td>${r.start ? escapeHtml(dateTime(r.start)) : '—'}</td>
-      <td>${Number.isFinite(r.kmInitial) ? r.kmInitial.toLocaleString('pt-BR') : '—'}</td>
-      <td>${r.end ? escapeHtml(dateTime(r.end)) : '—'}</td>
-      <td>${Number.isFinite(r.kmFinal) ? r.kmFinal.toLocaleString('pt-BR') : '—'}</td>
-      <td><strong>${Number.isFinite(r.kmDriven) ? fmt(r.kmDriven) + ' km' : '—'}</strong></td>
-      <td>${money(r.totalValue)}</td>
-      <td>${Number.isFinite(r.liters) ? fmt(r.liters) + ' L' : '—'}</td>
-      <td><strong>${Number.isFinite(r.kmPerLiter) ? fmt(r.kmPerLiter) + ' km/L' : '—'}</strong></td>
-      <td>${Number.isFinite(r.litersPer100) ? fmt(r.litersPer100) + ' L/100 km' : '—'}</td>
-      <td><span class="${statusClass}">${escapeHtml(r.status)}</span></td>
-    </tr>`;
-  }).join('') || '<tr><td colspan="12">Nenhum dia encontrado.</td></tr>';
-
-  $('fuelTable').innerHTML = f
-    .slice()
-    .sort((a, b) => (b.date || 0) - (a.date || 0))
-    .slice(0, 300)
-    .map(r => {
-      const litersText = Number.isFinite(r.liters) ? `${fmt(r.liters)} L` : '—';
-
-      return `<tr>
-        <td>${r.dateText}</td>
-        <td>${escapeHtml(r.vehicle)}</td>
-        <td>${money(r.value)}</td>
-        <td>${money(r.price)}</td>
-        <td>${litersText}</td>
-        <td>${Number.isFinite(r.km) ? r.km.toLocaleString('pt-BR') : '—'}</td>
-      </tr>`;
-    }).join('') || '<tr><td colspan="6">Nenhum registro.</td></tr>';
-
-  const first = l[0] || {};
-  const keys = Object.keys(first).filter(k => !k.startsWith('_')).slice(0, 8);
-
-  $('logHead').innerHTML = keys.map(k => `<th>${escapeHtml(k)}</th>`).join('');
-  $('logTable').innerHTML = l.slice(0, 100).map(r =>
-    `<tr>${keys.map(k => `<td>${escapeHtml(String(r[k] ?? ''))}</td>`).join('')}</tr>`
-  ).join('');
-
-  const incompleteNote = summary.incompleteDays
-    ? `${summary.validDays} dia(s) calculado(s) · ${summary.incompleteDays} dia(s) sem par inicial/final`
-    : `${summary.validDays} dia(s) calculado(s)`;
-
-  $('distance').title = incompleteNote;
-  $('kml').title = `Consumo médio calculado apenas com dias completos. ${incompleteNote}`;
+  const f=S.filteredFuel,l=S.filteredLog,daily=S.filteredDaily,summary=summarizeConsumption(daily),mode=$('periodicity')?.value||'month';
+  $('value').textContent=money(summary.totalValue); $('liters').textContent=summary.totalLiters>0?`${fmt(summary.totalLiters)} L`:'—'; $('refuels').textContent=f.length.toLocaleString('pt-BR'); $('logCount').textContent=l.length.toLocaleString('pt-BR'); $('distance').textContent=fmt(summary.totalDistance)+' km'; $('kml').textContent=fmt(summary.avgKmL);
+  const dates=(S.filteredJourney.length?S.filteredJourney:f).filter(r=>r.date).map(r=>r.date).sort((a,b)=>a-b); $('period').textContent=dates.length?`${dateTime(dates[0])} → ${dateTime(dates[dates.length-1])}`:'—';
+  const keyFor=(date)=>mode==='year'?String(date.getFullYear()):mode==='week'?isoWeekKey(date):`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`;
+  const timeValue=aggregateTimeRows(f,mode,r=>r.value), timeLiters=aggregateTimeRows(f,mode,r=>r.liters), timeDistance={};
+  daily.forEach(r=>{if(Number.isFinite(r.kmDriven)&&r.kmDriven>0&&r.date){const k=keyFor(r.date);timeDistance[k]=(timeDistance[k]||0)+r.kmDriven;}});
+  const vehicleValue={},vehicleLiters={},vehicleDistance={};
+  f.forEach(r=>{vehicleValue[r.vehicle]=(vehicleValue[r.vehicle]||0)+(Number.isFinite(r.value)?r.value:0);vehicleLiters[r.vehicle]=(vehicleLiters[r.vehicle]||0)+(Number.isFinite(r.liters)?r.liters:0);});
+  daily.forEach(r=>{if(Number.isFinite(r.kmDriven)&&r.kmDriven>0)vehicleDistance[r.vehicle]=(vehicleDistance[r.vehicle]||0)+r.kmDriven;});
+  const timeKeys=[...new Set([...Object.keys(timeValue),...Object.keys(timeLiters),...Object.keys(timeDistance)])].sort(),labels=timeKeys.map(k=>periodLabel(k,mode)),suffix=mode==='month'?'mês':mode==='week'?'semana':'ano';
+  $('titleMonthValue').textContent=`Valor por ${suffix}`; $('titleMonthLiters').textContent=`Litros calculados por ${suffix}`; $('titleDailyConsumption').textContent=`Consumo por ${suffix}`; $('titleDailyDistance').textContent=`KM rodados por ${suffix}`;
+  make('monthValue','monthValue','bar',labels,timeKeys.map(k=>timeValue[k]||0),'Valor abastecido'); make('monthLiters','monthLiters','line',labels,timeKeys.map(k=>timeLiters[k]||0),'Litros calculados');
+  make('vehicleValue','vehicleValue','doughnut',Object.keys(vehicleValue),Object.values(vehicleValue),'Valor abastecido'); make('vehicleLiters','vehicleLiters','bar',Object.keys(vehicleLiters),Object.values(vehicleLiters),'Litros calculados'); make('distanceVehicle','distanceVehicle','bar',Object.keys(vehicleDistance),Object.values(vehicleDistance),'KM rodados');
+  const vehicleKml={}; Object.keys(vehicleDistance).forEach(v=>{const rows=daily.filter(r=>r.vehicle===v&&Number.isFinite(r.kmDriven)&&r.kmDriven>0&&Number.isFinite(r.liters)&&r.liters>0);const dist=rows.reduce((s,r)=>s+r.kmDriven,0),lit=rows.reduce((s,r)=>s+r.liters,0);if(lit>0)vehicleKml[v]=dist/lit;}); make('kmlVehicle','kmlVehicle','bar',Object.keys(vehicleKml),Object.values(vehicleKml),'KM/L');
+  const timeKml={}; daily.forEach(r=>{if(!r.date||!Number.isFinite(r.kmDriven)||r.kmDriven<=0||!Number.isFinite(r.liters)||r.liters<=0)return;const k=keyFor(r.date);timeKml[k]=(timeKml[k]||0)+r.kmDriven/r.liters;});
+  // Consumo do período: usa KM e litros agregados, não a média das médias.
+  const distAgg={},litAgg={}; daily.forEach(r=>{if(!r.date||!Number.isFinite(r.kmDriven)||r.kmDriven<=0||!Number.isFinite(r.liters)||r.liters<=0)return;const k=keyFor(r.date);distAgg[k]=(distAgg[k]||0)+r.kmDriven;litAgg[k]=(litAgg[k]||0)+r.liters;}); Object.keys(distAgg).forEach(k=>{timeKml[k]=litAgg[k]>0?distAgg[k]/litAgg[k]:NaN;});
+  const kmlKeys=Object.keys(timeKml).filter(k=>Number.isFinite(timeKml[k])).sort(); make('dailyConsumption','dailyConsumption','line',kmlKeys.map(k=>periodLabel(k,mode)),kmlKeys.map(k=>timeKml[k]),'KM/L'); const distKeys=Object.keys(timeDistance).sort(); make('dailyDistance','dailyDistance','bar',distKeys.map(k=>periodLabel(k,mode)),distKeys.map(k=>timeDistance[k]),'KM rodados');
+  const statuses={},cities={}; l.forEach(r=>{statuses[r._status]=(statuses[r._status]||0)+1;cities[r._city]=(cities[r._city]||0)+1;}); const topCities=Object.entries(cities).sort((a,b)=>b[1]-a[1]).slice(0,15); make('chartStatus','chartStatus','bar',Object.keys(statuses).slice(0,20),Object.values(statuses).slice(0,20),'Registros','y'); make('city','city','bar',topCities.map(x=>x[0]),topCities.map(x=>x[1]),'Registros','y'); const weekday={}; f.forEach(r=>{const w=r.date?['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][r.date.getDay()]:'Sem data';weekday[w]=(weekday[w]||0)+1;}); const days=['Seg','Ter','Qua','Qui','Sex','Sáb','Dom']; make('weekday','weekday','bar',days,days.map(d=>weekday[d]||0),'Abastecimentos');
+  const dailyRowsForTable=daily.slice().sort((a,b)=>b.date-a.date||a.vehicle.localeCompare(b.vehicle)); $('dailyTable').innerHTML=dailyRowsForTable.map(r=>{const statusClass=r.status==='Calculado'?'daily-ok':'daily-warn';return `<tr><td>${new Date(`${r.dateKey}T12:00:00`).toLocaleDateString('pt-BR')}</td><td>${escapeHtml(r.vehicle)}</td><td>${r.start?escapeHtml(dateTime(r.start)):'—'}</td><td>${Number.isFinite(r.kmInitial)?r.kmInitial.toLocaleString('pt-BR'):'—'}</td><td>${r.end?escapeHtml(dateTime(r.end)):'—'}</td><td>${Number.isFinite(r.kmFinal)?r.kmFinal.toLocaleString('pt-BR'):'—'}</td><td><strong>${Number.isFinite(r.kmDriven)?fmt(r.kmDriven)+' km':'—'}</strong></td><td>${money(r.totalValue)}</td><td>${Number.isFinite(r.liters)?fmt(r.liters)+' L':'—'}</td><td><strong>${Number.isFinite(r.kmPerLiter)?fmt(r.kmPerLiter)+' km/L':'—'}</strong></td><td>${Number.isFinite(r.litersPer100)?fmt(r.litersPer100)+' L/100 km':'—'}</td><td><span class="${statusClass}">${escapeHtml(r.status)}</span></td></tr>`;}).join('')||'<tr><td colspan="12">Nenhum dia encontrado.</td></tr>';
+  $('fuelTable').innerHTML=f.slice().sort((a,b)=>(b.date||0)-(a.date||0)).slice(0,300).map(r=>`<tr><td>${r.dateText}</td><td>${escapeHtml(r.vehicle)}</td><td>${money(r.value)}</td><td>${money(r.price)}</td><td>${Number.isFinite(r.liters)?fmt(r.liters)+' L':'—'}</td><td>${Number.isFinite(r.km)?r.km.toLocaleString('pt-BR'):'—'}</td></tr>`).join('')||'<tr><td colspan="6">Nenhum registro.</td></tr>';
+  const first=l[0]||{};const keys=Object.keys(first).filter(k=>!k.startsWith('_')).slice(0,8);$('logHead').innerHTML=keys.map(k=>`<th>${escapeHtml(k)}</th>`).join('');$('logTable').innerHTML=l.slice(0,100).map(r=>`<tr>${keys.map(k=>`<td>${escapeHtml(String(r[k]??''))}</td>`).join('')}</tr>`).join('');
+  const incompleteNote=summary.incompleteDays?`${summary.validDays} dia(s) calculado(s) · ${summary.incompleteDays} dia(s) sem par inicial/final`:`${summary.validDays} dia(s) calculado(s)`;$('distance').title=incompleteNote;$('kml').title=`Consumo médio calculado apenas com dias completos. ${incompleteNote}`;
 }
+
 
 function normalizeText(s) {
   return String(s || '')
@@ -1481,213 +1281,13 @@ function clearManualAddresses() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  const setFileLabel = (id, file, kind) => {
-    const el = $(id);
-    if (!el) return;
-    el.innerHTML = file
-      ? `<span class="chip ${kind}">${escapeHtml(file.name)}</span>`
-      : '';
-  };
-
-  const updateSourceStatus = () => {
-    const slots = [
-      S.vehicleFiles.FVB2C57.journey,
-      S.vehicleFiles.FVB2C57.fuel,
-      S.vehicleFiles.FCL9986.journey,
-      S.vehicleFiles.FCL9986.fuel
-    ];
-    const selected = slots.filter(Boolean).length;
-    const logCount = S.logFiles?.length || 0;
-    $('status').textContent = `${selected}/4 arquivos de veículos e ${logCount} arquivo(s) de pedidos selecionados.`;
-  };
-
-  const bindVehicleFile = (inputId, listId, vehicle, kind) => {
-    $(inputId).addEventListener('change', e => {
-      const file = e.target.files?.[0] || null;
-      S.vehicleFiles[vehicle][kind] = file;
-      setFileLabel(listId, file, kind === 'journey' ? 'source-journey' : 'source-fuel');
-      updateSourceStatus();
-    });
-  };
-
-  bindVehicleFile('fvbJourneyFile', 'fvbJourneyList', 'FVB2C57', 'journey');
-  bindVehicleFile('fvbFuelFile', 'fvbFuelList', 'FVB2C57', 'fuel');
-  bindVehicleFile('fclJourneyFile', 'fclJourneyList', 'FCL9986', 'journey');
-  bindVehicleFile('fclFuelFile', 'fclFuelList', 'FCL9986', 'fuel');
-
-  $('logFiles').addEventListener('change', e => {
-    S.logFiles = [...e.target.files];
-    $('logFileList').innerHTML = S.logFiles.map(f => `<span class="chip source-log">${escapeHtml(f.name)}</span>`).join('');
-    updateSourceStatus();
-  });
-
-  $('update').addEventListener('click', async () => {
-    const slots = [
-      ['FVB2C57', 'journey'],
-      ['FVB2C57', 'fuel'],
-      ['FCL9986', 'journey'],
-      ['FCL9986', 'fuel']
-    ];
-    const missing = slots
-      .filter(([vehicle, kind]) => !S.vehicleFiles[vehicle][kind])
-      .map(([vehicle, kind]) => `${vehicle} ${kind === 'journey' ? 'jornada' : 'abastecimento'}`);
-    const logFiles = S.logFiles || [];
-
-    if (missing.length || !logFiles.length) {
-      const msg = missing.length
-        ? `Faltam: ${missing.join(', ')}${logFiles.length ? '' : ' e o arquivo de pedidos'}.`
-        : 'Adicione pelo menos 1 arquivo de pedidos.';
-      toast(msg);
-      return;
-    }
-
-    try {
-      S.fuel = [];
-      S.journey = [];
-      S.log = [];
-      S.sources = { fuel: [], journey: [], log: [] };
-
-      const vehicleConfigs = [
-        ['FVB2C57', 'journey', 'journey'],
-        ['FVB2C57', 'fuel', 'fuel'],
-        ['FCL9986', 'journey', 'journey'],
-        ['FCL9986', 'fuel', 'fuel']
-      ];
-
-      for (const [vehicle, kind, expectedType] of vehicleConfigs) {
-        const file = S.vehicleFiles[vehicle][kind];
-        const rows = await read(file);
-        validateVehicleFile(rows, vehicle, expectedType, file.name);
-
-        if (expectedType === 'journey') {
-          const normalized = normalizeJourney(rows, file.name, vehicle);
-          S.journey.push(...normalized);
-          S.sources.journey.push({ vehicle, file: file.name, rows: normalized.length });
-        } else {
-          const normalized = normalizeFuel(rows, file.name, vehicle);
-          S.fuel.push(...normalized);
-          S.sources.fuel.push({ vehicle, file: file.name, rows: normalized.length });
-        }
-      }
-
-      for (const file of logFiles) {
-        const rows = await read(file);
-        const type = sourceType(rows);
-        if (type !== 'log') {
-          throw new Error(`O arquivo "${file.name}" não parece ser uma base de pedidos/logística.`);
-        }
-        const normalized = normalizeLog(rows);
-        S.log.push(...normalized);
-        S.sources.log.push({ file: file.name, rows: normalized.length });
-      }
-
-      // Remove duplicações exatas dos abastecimentos.
-      const seenFuel = new Set();
-      S.fuel = S.fuel.filter(r => {
-        const signature = [
-          r.date?.getTime() || '',
-          r.vehicle,
-          r.km,
-          Number.isFinite(r.value) ? r.value.toFixed(2) : ''
-        ].join('|');
-        if (seenFuel.has(signature)) return false;
-        seenFuel.add(signature);
-        return true;
-      });
-
-      // Remove duplicações exatas da jornada.
-      const seenJourney = new Set();
-      S.journey = S.journey.filter(r => {
-        const signature = [
-          r.date?.getTime() || '',
-          r.vehicle,
-          r.statusKey,
-          r.km
-        ].join('|');
-        if (seenJourney.has(signature)) return false;
-        seenJourney.add(signature);
-        return true;
-      });
-
-      $('fvbJourneyList').innerHTML = `<span class="chip source-journey">${escapeHtml(S.vehicleFiles.FVB2C57.journey.name)} · ${S.sources.journey.find(x => x.vehicle === 'FVB2C57')?.rows?.toLocaleString('pt-BR') || 0} registros</span>`;
-      $('fvbFuelList').innerHTML = `<span class="chip source-fuel">${escapeHtml(S.vehicleFiles.FVB2C57.fuel.name)} · ${S.sources.fuel.find(x => x.vehicle === 'FVB2C57')?.rows?.toLocaleString('pt-BR') || 0} registros</span>`;
-      $('fclJourneyList').innerHTML = `<span class="chip source-journey">${escapeHtml(S.vehicleFiles.FCL9986.journey.name)} · ${S.sources.journey.find(x => x.vehicle === 'FCL9986')?.rows?.toLocaleString('pt-BR') || 0} registros</span>`;
-      $('fclFuelList').innerHTML = `<span class="chip source-fuel">${escapeHtml(S.vehicleFiles.FCL9986.fuel.name)} · ${S.sources.fuel.find(x => x.vehicle === 'FCL9986')?.rows?.toLocaleString('pt-BR') || 0} registros</span>`;
-      $('logFileList').innerHTML = S.sources.log.map(x => `<span class="chip source-log">${escapeHtml(x.file)} · ${x.rows.toLocaleString('pt-BR')} registros</span>`).join('');
-
-      const vehicles = [...new Set([
-        ...S.fuel.map(r => r.vehicle),
-        ...S.journey.map(r => r.vehicle)
-      ])].sort();
-
-      $('vehicle').innerHTML =
-        '<option value="todos">Todos</option>' +
-        vehicles.map(v => `<option>${escapeHtml(v)}</option>`).join('');
-
-      populateRouteDate();
-      update();
-
-      await renderRoute();
-
-      const scheduled = S.log.filter(
-        r => r._scheduleDate && isRouteType(r._type)
-      ).length;
-
-      const sourceText = [
-        ...S.sources.journey.map(x => `KM ${x.vehicle}: ${x.file} (${x.rows} registros)`),
-        ...S.sources.fuel.map(x => `Abastecimento ${x.vehicle}: ${x.file} (${x.rows} registros)`),
-        ...S.sources.log.map(x => `Pedidos: ${x.file} (${x.rows} registros)`)
-      ].join(' · ');
-
-      toast(
-        `Atualizado. ${sourceText} · Rota: ${scheduled} registros com AGENDAMENTO em COLETA/ENTREGA.`
-      );
-
-    } catch (e) {
-      console.error(e);
-      toast(e?.message || 'Não foi possível ler algum arquivo. Verifique os arquivos selecionados.');
-    }
-  });
-
-  ['year', 'vehicle', 'start', 'end'].forEach(id => $(id).addEventListener('change', update));
-  $('routeDate').addEventListener('change', renderRoute);
-  $('routeRefresh').addEventListener('click', renderRoute);
-  $('exportManualAddresses').addEventListener('click', exportManualAddresses);
-  $('importManualAddresses').addEventListener('click', () => $('manualAddressFile').click());
-  $('manualAddressFile').addEventListener('change', e => { if (e.target.files[0]) importManualAddresses(e.target.files[0]); e.target.value = ''; });
-  $('clearManualAddresses').addEventListener('click', clearManualAddresses);
-  $('clearGeoCache').addEventListener('click', () => {
-    S.geocodeCache = {};
-    saveGeoCache();
-    toast('Cache do mapa limpo. Revalidando os endereços…');
-    renderRoute();
-  });
-
-  $('clear').addEventListener('click', () => {
-    $('year').value = 'todos';
-    $('vehicle').value = 'todos';
-    $('start').value = '';
-    $('end').value = '';
-    update();
-  });
-
-  $('export').addEventListener('click', () => {
-    const rows = S.filteredFuel.map(r => ({
-      Data: r.dateText,
-      Veiculo: r.vehicle,
-      Valor: r.value,
-      PrecoPorLitro: Number.isFinite(r.price) ? r.price : '',
-      Litros: Number.isFinite(r.liters) ? r.liters : '',
-      KM_Abastecimento: r.km
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Abastecimento');
-    XLSX.writeFile(wb, 'abastecimentos_filtrados.xlsx');
-  });
-
-  loadManualAddresses();
-  loadGeoCache();
-  initMap();
-  update();
+  const renderVehicleFiles=()=>{const list=$('vehicleFileList');if(!list)return;if(!S.vehicleUploads.length){list.innerHTML='<div class="upload-empty-state">Nenhum arquivo selecionado.</div>';return;}list.innerHTML=S.vehicleUploads.map((item,idx)=>{const kind=item.type==='journey'?'JORNADA / KM':item.type==='fuel'?'ABASTECIMENTO':'NÃO IDENTIFICADO';const cls=item.type==='journey'?'source-journey':item.type==='fuel'?'source-fuel':'source-unknown';return `<div class="detected-file-card ${cls}"><div class="detected-file-icon">${item.type==='journey'?'🛣️':item.type==='fuel'?'⛽':'📄'}</div><div class="detected-file-main"><strong>${escapeHtml(item.vehicle||'Veículo não identificado')}</strong><span>${kind}</span><em>${escapeHtml(item.file.name)}</em>${item.error?`<small class="detected-error">${escapeHtml(item.error)}</small>`:`<small>${item.rows.toLocaleString('pt-BR')} registros detectados</small>`}</div><button type="button" class="remove-file-button" data-remove-vehicle-file="${idx}" title="Remover">×</button></div>`;}).join('');list.querySelectorAll('[data-remove-vehicle-file]').forEach(btn=>btn.addEventListener('click',()=>{S.vehicleUploads.splice(Number(btn.dataset.removeVehicleFile),1);renderVehicleFiles();updateSourceStatus();}));};
+  const updateSourceStatus=()=>{const valid=S.vehicleUploads.filter(x=>!x.error&&(x.type==='journey'||x.type==='fuel'));$('status').textContent=`${valid.length}/4 arquivos de veículos identificados e ${S.logFiles?.length||0} arquivo(s) de pedidos selecionados.`;};
+  $('vehicleFiles').addEventListener('change',async e=>{const files=[...(e.target.files||[])];e.target.value='';for(const file of files){try{const rows=await read(file),type=sourceType(rows);if(type!=='journey'&&type!=='fuel'){S.vehicleUploads.push({file,rows:0,type:'unknown',vehicle:'',error:'Formato não reconhecido como Jornada ou Abastecimento.'});continue;}const vehicleValues=rows.map(r=>String(get(r,type==='journey'?['placa']:['veiculo','placa'])||'').toUpperCase().trim()).filter(Boolean);const allVehicles=[...new Set(vehicleValues)];const vehicle=allVehicles.length===1?allVehicles[0]:'';S.vehicleUploads.push({file,rows:rows.length,type,vehicle,error:allVehicles.length>1?`Mais de um veículo encontrado: ${allVehicles.join(', ')}`:'',parsedRows:rows});}catch(err){S.vehicleUploads.push({file,rows:0,type:'unknown',vehicle:'',error:err?.message||'Não foi possível ler o arquivo.'});}}renderVehicleFiles();updateSourceStatus();});
+  $('logFiles').addEventListener('change',e=>{S.logFiles=[...e.target.files];$('logFileList').innerHTML=S.logFiles.map(f=>`<span class="chip source-log">${escapeHtml(f.name)}</span>`).join('');updateSourceStatus();});
+  $('update').addEventListener('click',async()=>{const valid=S.vehicleUploads.filter(x=>!x.error&&(x.type==='journey'||x.type==='fuel')),bad=S.vehicleUploads.filter(x=>x.error),logs=S.logFiles||[];const journeys=valid.filter(x=>x.type==='journey'),fuels=valid.filter(x=>x.type==='fuel');if(valid.length!==4||bad.length||!logs.length||journeys.length!==2||fuels.length!==2){toast(`Selecione 4 arquivos válidos de veículos (2 Jornada + 2 Abastecimento). Encontrados: ${journeys.length} jornada e ${fuels.length} abastecimento${logs.length?'':' · falta o arquivo de pedidos'}.`);return;}try{S.fuel=[];S.journey=[];S.log=[];S.sources={fuel:[],journey:[],log:[]};const detectedVehicles=[...new Set(valid.map(x=>x.vehicle).filter(Boolean))].sort();if(detectedVehicles.length!==2||!detectedVehicles.every(v=>valid.some(x=>x.vehicle===v&&x.type==='journey')&&valid.some(x=>x.vehicle===v&&x.type==='fuel')))throw new Error(`Os 4 arquivos não formam dois pares completos por veículo. Veículos encontrados: ${detectedVehicles.join(', ')||'nenhum'}.`);for(const item of valid){const rows=item.parsedRows||await read(item.file);if(item.type==='journey'){const n=normalizeJourney(rows,item.file.name,item.vehicle);S.journey.push(...n);S.sources.journey.push({vehicle:item.vehicle,file:item.file.name,rows:n.length});}else{const n=normalizeFuel(rows,item.file.name,item.vehicle);S.fuel.push(...n);S.sources.fuel.push({vehicle:item.vehicle,file:item.file.name,rows:n.length});}}for(const file of logs){const rows=await read(file),type=sourceType(rows);if(type!=='log')throw new Error(`O arquivo "${file.name}" não parece ser uma base de pedidos/logística.`);const n=normalizeLog(rows);S.log.push(...n);S.sources.log.push({file:file.name,rows:n.length});}
+    const seenFuel=new Set();S.fuel=S.fuel.filter(r=>{const sig=[r.date?.getTime()||'',r.vehicle,r.km,Number.isFinite(r.value)?r.value.toFixed(2):''].join('|');if(seenFuel.has(sig))return false;seenFuel.add(sig);return true;});
+    const seenJourney=new Set();S.journey=S.journey.filter(r=>{const sig=[r.date?.getTime()||'',r.vehicle,r.statusKey,r.km].join('|');if(seenJourney.has(sig))return false;seenJourney.add(sig);return true;});
+    $('vehicleFileList').innerHTML=valid.map(x=>`<div class="detected-file-card ${x.type==='journey'?'source-journey':'source-fuel'}"><div class="detected-file-icon">${x.type==='journey'?'🛣️':'⛽'}</div><div class="detected-file-main"><strong>${escapeHtml(x.vehicle)}</strong><span>${x.type==='journey'?'JORNADA / KM':'ABASTECIMENTO'}</span><em>${escapeHtml(x.file.name)}</em><small>Dados carregados: ${x.rows.toLocaleString('pt-BR')} registros</small></div></div>`).join('');$('logFileList').innerHTML=S.sources.log.map(x=>`<span class="chip source-log">${escapeHtml(x.file)} · ${x.rows.toLocaleString('pt-BR')} registros</span>`).join('');$('vehicle').innerHTML='<option value="todos">Todos</option>'+detectedVehicles.map(v=>`<option>${escapeHtml(v)}</option>`).join('');populateRouteDate();update();await renderRoute();toast(`Atualizado. ${S.sources.journey.length} jornada(s), ${S.sources.fuel.length} abastecimento(s) e ${S.sources.log.length} arquivo(s) de pedidos.`);}catch(e){console.error(e);toast(e?.message||'Não foi possível carregar os arquivos selecionados.');}});
+  ['year','vehicle','start','end','periodicity'].forEach(id=>$(id).addEventListener('change',update));$('routeDate').addEventListener('change',renderRoute);$('routeRefresh').addEventListener('click',renderRoute);$('exportManualAddresses').addEventListener('click',exportManualAddresses);$('importManualAddresses').addEventListener('click',()=>$('manualAddressFile').click());$('manualAddressFile').addEventListener('change',e=>{if(e.target.files[0])importManualAddresses(e.target.files[0]);e.target.value='';});$('clearManualAddresses').addEventListener('click',clearManualAddresses);$('clearGeoCache').addEventListener('click',()=>{S.geocodeCache={};saveGeoCache();toast('Cache do mapa limpo. Revalidando os endereços…');renderRoute();});$('clear').addEventListener('click',()=>{$('year').value='todos';$('vehicle').value='todos';$('start').value='';$('end').value='';$('periodicity').value='month';update();});$('export').addEventListener('click',()=>{const rows=S.filteredFuel.map(r=>({Data:r.dateText,Veiculo:r.vehicle,Valor:r.value,PrecoPorLitro:Number.isFinite(r.price)?r.price:'',Litros:Number.isFinite(r.liters)?r.liters:'',KM:r.km}));const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Abastecimento');XLSX.writeFile(wb,'abastecimentos_filtrados.xlsx');});loadManualAddresses();loadGeoCache();initMap();renderVehicleFiles();update();
 });
