@@ -118,22 +118,32 @@ function sourceType(rows) {
   const r = rows[0] || {};
   const keys = Object.keys(r).map(cleanKey);
 
-  const hasVehicle = keys.some(k => k === 'veiculo' || k.includes('veiculo') || k.includes('placa'));
+  const hasPlate = keys.some(k => k === 'placa' || k.includes('placa'));
+  const hasVehicle = keys.some(k => k === 'veiculo' || k.includes('veiculo'));
   const hasKm = keys.some(k =>
+    k === 'kilometragem' ||
+    k === 'quilometragem' ||
     k.includes('quilometragem') ||
     k.includes('kilometragem') ||
     k.includes('km_incial') ||
     k.includes('km_inicial') ||
     k.includes('km_final')
   );
-  const hasFuelValue = keys.some(k => k.includes('valor_total') || k.includes('valor_abastecido'));
-  const hasDailyDate = keys.some(k => k.includes('data e hora inicial e final'));
+  const hasFuelValue = keys.some(k =>
+    k === 'valor_total' ||
+    k === 'valor_abastecido' ||
+    k.includes('valor_total') ||
+    k.includes('valor_abastecido')
+  );
+  const hasDate = keys.some(k =>
+    k === 'data' ||
+    k.includes('data e hora inicial e final') ||
+    k.includes('data hora')
+  );
   const hasCheckStatus = keys.some(k =>
     k.includes('na pharmainox esse veiculo esta') ||
-    k.includes('veiculo esta') ||
-    k === 'status'
+    k.includes('veiculo esta')
   );
-  const hasCheckDate = keys.some(k => k === 'data' || k.includes('data'));
 
   const hasRouteSignals =
     keys.some(k => k === 'pedido_' || k === 'pedido' || k.includes('pedido')) &&
@@ -141,11 +151,13 @@ function sourceType(rows) {
     (keys.some(k => k === 'agendamento' || k.includes('agendamento')) ||
      keys.some(k => k === 'tipo' || k.includes('tipo')));
 
-  if (hasCheckStatus && hasVehicle && hasKm && hasCheckDate && !hasFuelValue) {
+  // Jornada / KM: PLACA + KILOMETRAGEM + DATA + campo de SAINDO/CHEGANDO.
+  if (hasPlate && hasKm && hasDate && hasCheckStatus && !hasFuelValue) {
     return 'journey';
   }
 
-  if (hasVehicle && hasKm && hasFuelValue && (hasDailyDate || keys.some(k => k.includes('valor_total')))) {
+  // Abastecimento: VEICULO + QUILOMETRAGEM + VALOR_TOTAL + DATA.
+  if (hasVehicle && hasKm && hasFuelValue && hasDate) {
     return 'fuel';
   }
 
@@ -171,14 +183,13 @@ function fuelValueFromRow(r) {
 }
 
 function vehicleFromRow(r, fileName, fallbackVehicle = '') {
-  return String(
-    get(r, ['veiculo', 'placa']) ||
-    fallbackVehicle ||
-    positional(r, 2) ||
-    fileName.match(/[A-Z]{3}[0-9][A-Z0-9][0-9]{2}/i)?.[0] ||
-    fileName.match(/fvb2c57|fcl9986/i)?.[0] ||
-    'Não identificado'
-  ).toUpperCase().trim();
+  // O nome do arquivo NÃO identifica o veículo.
+  // A identificação vem do conteúdo (PLACA/VEICULO).
+  // fallbackVehicle representa apenas o campo/slot escolhido na tela.
+  const internalVehicle = get(r, ['veiculo', 'placa']) || positional(r, 2);
+  return String(internalVehicle || fallbackVehicle || 'Não identificado')
+    .toUpperCase()
+    .trim();
 }
 
 function normalizeFuel(rows, fileName, expectedVehicle = '') {
@@ -257,19 +268,40 @@ function normalizeJourney(rows, fileName, expectedVehicle = '') {
   );
 }
 
+function valueFromVehicleField(row) {
+  return String(get(row, ['placa', 'veiculo']) || positional(row, 2) || '').toUpperCase().trim();
+}
+
 function validateExpectedVehicle(rows, expectedVehicle) {
-  const found = [...new Set(rows.map(r => String(get(r, ['placa', 'veiculo']) || positional(r, 2) || '').toUpperCase().trim()).filter(Boolean))];
-  if (!found.length) return true;
-  return found.length === 1 && found[0] === expectedVehicle;
+  const found = [...new Set(rows.map(valueFromVehicleField).filter(Boolean))];
+  return {
+    ok: found.length === 1 && found[0] === expectedVehicle,
+    found
+  };
 }
 
 function validateVehicleFile(rows, expectedVehicle, expectedType, fileName) {
   const type = sourceType(rows);
+
   if (type !== expectedType) {
-    throw new Error(`O arquivo "${fileName}" não corresponde à categoria ${expectedType}.`);
+    const labels = {
+      journey: 'JORNADA / KM',
+      fuel: 'ABASTECIMENTO'
+    };
+    throw new Error(
+      `O conteúdo de "${fileName}" não corresponde ao campo ${labels[expectedType] || expectedType}. ` +
+      'O nome do arquivo não é usado para identificar a categoria.'
+    );
   }
-  if (!validateExpectedVehicle(rows, expectedVehicle)) {
-    throw new Error(`O arquivo "${fileName}" não é da placa ${expectedVehicle}.`);
+
+  const check = validateExpectedVehicle(rows, expectedVehicle);
+
+  if (!check.ok) {
+    const found = check.found.length ? check.found.join(', ') : 'nenhuma placa/veículo encontrada';
+    throw new Error(
+      `O conteúdo selecionado para ${expectedVehicle} contém: ${found}. ` +
+      'O veículo é identificado pelos dados internos do arquivo, não pelo nome.'
+    );
   }
 }
 
