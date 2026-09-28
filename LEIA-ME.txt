@@ -1,0 +1,53 @@
+DASHBOARD PHARMAINNOX — ROTAS E CONSUMO
+
+Arquivos
+- index.html
+- script.js
+- style.css
+- fornecedores.js
+- exemplo_abastecimento_diario.csv (exemplo da nova visão de veículo)
+
+ROTAS
+- A data oficial da rota é AGENDAMENTO (coluna V) da base AppSheet.
+- O fornecedor é identificado pelo código FORNECEDOR (coluna J).
+- Entram na rota somente registros com TIPO = COLETA ou ENTREGA. RECEBIMENTO fica fora.
+- O mesmo fornecedor é agrupado como uma única parada.
+- Pharmainox é a origem e o retorno da rota é considerado no cálculo.
+- Endereços encontrados manualmente ficam salvos no navegador e têm prioridade.
+
+FONTES DE DADOS
+- A base de pedidos alimenta a rota e os indicadores logísticos.
+- As visões de veículos alimentam abastecimento, quilometragem, litros, KM/L e os gráficos de consumo.
+- O sistema identifica automaticamente uma visão de veículo quando encontra VEÍCULO/PLACA + KM/QUILOMETRAGEM + VALOR_TOTAL/VALOR_ABASTECIDO.
+- Arquivos não identificados são sinalizados na seleção de arquivos em vez de serem misturados silenciosamente às fontes.
+
+CONSUMO DIÁRIO
+- Cada veículo é agrupado por data.
+- O início do dia é o menor horário daquela data; o final do dia é o maior horário.
+- KM rodados = KM final - KM inicial.
+- Litros calculados = soma do VALOR_ABASTECIDO do dia / R$ 7,49.
+- KM/L = KM rodados / litros calculados.
+- L/100 km também é exibido para conferência.
+- Dias com apenas um apontamento não têm distância/consumo calculáveis e aparecem como "Sem par inicial/final".
+- KM/L geral considera apenas dias completos com KM e litros válidos.
+- VALOR abastecido continua somando todos os registros de abastecimento dentro dos filtros.
+- Duplicações exatas de mesma data/hora + veículo + KM + valor são removidas antes dos cálculos.
+
+VISUALIZAÇÕES
+- Valor abastecido por mês.
+- Litros calculados por mês.
+- Valor abastecido por veículo.
+- Litros calculados por veículo.
+- KM rodados por veículo.
+- KM/L por veículo.
+- Consumo diário KM/L.
+- KM rodados por dia.
+- Resumo diário em tabela com início, fim, KM inicial, KM final, KM rodados, valor, litros, KM/L e L/100 km.
+
+BASE DE FORNECEDORES
+- Arquivo-fonte original: AppSheet.ViewData.2026-09-23 (8).csv
+- Registros: 4046
+- Códigos únicos: 4046
+- Endereços preenchidos na fonte: 1992
+- Endereços pendentes na fonte: 2054
+- Vínculo: AppSheet J (FORNECEDOR) -> base de endereços

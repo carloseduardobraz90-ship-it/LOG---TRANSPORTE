@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pharmainox | Dashboard Logística</title>
+
+  <!-- CSS (Carregados primeiro para evitar quebras de layout) -->
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css">
+
+  <!-- JS externos com defer para não bloquear a renderização -->
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script defer src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
+  <script defer src="https://unpkg.com/@maplibre/maplibre-gl-leaflet/leaflet-maplibre-gl.js"></script>
+  
+  <!-- Scripts locais -->
+  <script defer src="fornecedores.js"></script>
+  <script defer src="script.js"></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">
+      <b>PH</b>
+      <div><strong>PHARMAINox</strong><small>Logística & Performance</small></div>
+    </div>
+    <nav>
+      <a class="active" href="#dashboard">Dashboard</a>
+      <a href="#abastecimento">Abastecimento</a>
+      <a href="#logistica">Logística</a>
+      <a href="#rota">Rotas</a>
+    </nav>
+  </aside>
+
+  <main class="main" id="dashboard">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">CONTROLE OPERACIONAL</p>
+        <h1>Dashboard de Logística</h1>
+        <p class="subtitle">Abastecimento, quilometragem, pedidos e rotas do dia.</p>
+      </div>
+      <div class="actions">
+        <label for="files" class="button secondary">Selecionar arquivos</label>
+        <input id="files" type="file" accept=".csv,.xlsx,.xls" multiple style="display: none;">
+        <button id="update" class="button">Atualizar dashboard</button>
+      </div>
+    </header>
+
+    <section class="upload panel">
+      <b>Arquivos selecionados</b>
+      <p id="status">Selecione os 2 arquivos das placas e a base total da logística.</p>
+      <div id="fileList"></div>
+    </section>
+
+    <section class="filters panel">
+      <div>
+        <label for="year">Ano</label>
+        <select id="year">
+          <option value="todos">Todos</option>
+          <option>2025</option>
+          <option>2026</option>
+        </select>
+      </div>
+      <div>
+        <label for="vehicle">Veículo</label>
+        <select id="vehicle">
+          <option value="todos">Todos</option>
+        </select>
+      </div>
+      <div>
+        <label for="start">Data inicial</label>
+        <input id="start" type="date">
+      </div>
+      <div>
+        <label for="end">Data final</label>
+        <input id="end" type="date">
+      </div>
+      <button id="clear" class="button secondary">Limpar</button>
+    </section>
+
+    <section class="route-filter panel" id="rota">
+      <div>
+        <p class="eyebrow">PLANEJAMENTO</p>
+        <h2>Rota do dia</h2>
+        <p class="route-help">A rota usa <b>exclusivamente a coluna V — AGENDAMENTO</b> como data e considera <b>TIPO = COLETA ou ENTREGA</b>. <b>RECEBIMENTO</b> fica fora. O fornecedor é relacionado pela <b>coluna J — FORNECEDOR</b>. O sistema valida o endereço, corrige o ponto quando necessário e calcula a sequência viária a partir da Pharmainox.</p>
+      </div>
+      <div class="route-controls">
+        <label for="routeDate">Dia da rota</label>
+        <input id="routeDate" type="date">
+        <button id="routeRefresh" class="button">Atualizar rota</button>
+      </div>
+    </section>
+
+    <section class="address-tools panel">
+      <div>
+        <b>Cadastro / correção de endereços</b>
+        <p>Quando um fornecedor estiver sem endereço, você pode cadastrar aqui na própria rota. O endereço fica salvo neste navegador.</p>
+      </div>
+      <div class="address-tools-actions">
+        <button id="exportManualAddresses" class="button secondary">Exportar endereços</button>
+        <button id="importManualAddresses" class="button secondary">Importar endereços</button>
+        <button id="clearGeoCache" class="button secondary">Revalidar mapa</button>
+        <button id="clearManualAddresses" class="button danger-button">Limpar manuais</button>
+        <input id="manualAddressFile" type="file" accept=".json" hidden>
+      </div>
+    </section>
+
+    <section class="route-summary" id="routeSummary">
+      <article class="kpi"><span>Pedidos do dia</span><strong id="routeOrders">0</strong><small>Linhas com AGENDAMENTO + COLETA/ENTREGA</small></article>
+      <article class="kpi"><span>Paradas</span><strong id="routeStops">0</strong><small>Fornecedores únicos</small></article>
+      <article class="kpi"><span>Com endereço</span><strong id="routeFound">0</strong><small>Prontos para o mapa</small></article>
+      <article class="kpi"><span>Sem endereço</span><strong id="routeMissing">0</strong><small>Precisam de validação</small></article>
+      <article class="kpi"><span>Distância estimada</span><strong id="routeDistance">—</strong><small>Rota calculada</small></article>
+      <article class="kpi"><span>Tempo estimado</span><strong id="routeDuration">—</strong><small>Sem trânsito em tempo real</small></article>
+    </section>
+
+    <section class="route-layout">
+      <article class="panel route-map-card">
+        <div class="panel-head">
+          <h2 id="routeTitle">Mapa da rota</h2>
+          <span class="route-badge" id="routeBadge">Aguardando data</span>
+        </div>
+        <div id="routeMap" class="route-map"></div>
+        <div class="map-attribution-note">Mapa © OpenStreetMap contributors · rota calculada com OSRM</div>
+      </article>
+
+      <article class="panel route-stops-card">
+        <div class="panel-head">
+          <h2>Paradas</h2>
+          <button id="openGoogleRoute" class="button secondary" disabled>Google Maps</button>
+        </div>
+        <div id="routeStopsList" class="route-stops-list"></div>
+        <div id="routeIssues" class="route-issues"></div>
+      </article>
+    </section>
+
+    <section class="kpis">
+      <article class="kpi"><span>Valor abastecido</span><strong id="value">R$ 0,00</strong><small>Soma dos registros filtrados</small></article>
+      <article class="kpi"><span>Litros informados</span><strong id="liters">—</strong><small>Somente quando a base trouxer litros</small></article>
+      <article class="kpi"><span>Abastecimentos</span><strong id="refuels">0</strong><small>Dos arquivos de placas</small></article>
+      <article class="kpi"><span>Registros logísticos</span><strong id="logCount">0</strong><small>Base geral filtrada</small></article>
+      <article class="kpi"><span>KM percorridos</span><strong id="distance">0 km</strong><small>Maior KM − menor KM por veículo</small></article>
+      <article class="kpi"><span>KM/L</span><strong id="kml">—</strong><small>Somente quando houver litros informados</small></article>
+      <article class="kpi"><span>Início / término</span><strong id="period" class="period-value">—</strong><small>Primeiro e último apontamento</small></article>
+    </section>
+
+    <section class="charts">
+      <article class="panel chart-card"><h2>Valor por mês</h2><div class="chart-box"><canvas id="monthValue"></canvas></div></article>
+      <article class="panel chart-card"><h2>Litros informados por mês</h2><div class="chart-box"><canvas id="monthLiters"></canvas></div></article>
+      <article class="panel chart-card"><h2>Valor por veículo</h2><div class="chart-box"><canvas id="vehicleValue"></canvas></div></article>
+      <article class="panel chart-card"><h2>Litros informados por veículo</h2><div class="chart-box"><canvas id="vehicleLiters"></canvas></div></article>
+      <article class="panel chart-card"><h2>KM percorridos por veículo</h2><div class="chart-box"><canvas id="distanceVehicle"></canvas></div></article>
+      <article class="panel chart-card"><h2>KM/L por veículo</h2><div class="chart-box"><canvas id="kmlVehicle"></canvas></div></article>
+      <!-- ID alterado de 'status' para 'chartStatus' para evitar conflito com <p id="status"> -->
+      <article class="panel chart-card"><h2>Logística por status</h2><div class="chart-box"><canvas id="chartStatus"></canvas></div></article>
+      <article class="panel chart-card"><h2>Logística por cidade</h2><div class="chart-box"><canvas id="city"></canvas></div></article>
+      <article class="panel chart-card"><h2>Abastecimentos por dia da semana</h2><div class="chart-box"><canvas id="weekday"></canvas></div></article>
+    </section>
+
+    <section id="abastecimento" class="panel table-panel">
+      <div class="panel-head">
+        <h2>Abastecimentos</h2>
+        <button id="export" class="button secondary">Exportar CSV</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Data</th><th>Veículo</th><th>Valor</th><th>Preço/L</th><th>Litros</th><th>KM informado</th></tr>
+          </thead>
+          <tbody id="fuelTable"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="logistica" class="panel table-panel">
+      <div class="panel-head">
+        <h2>Prévia da base logística</h2>
+        <span class="data-source-note">Rota = AGENDAMENTO (V) · Fornecedor = código (J)</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr id="logHead"></tr></thead>
+          <tbody id="logTable"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast"></div>
+</body>
+</html>
