@@ -101,8 +101,24 @@ function isRouteType(type) {
 }
 
 function findKey(row, terms) {
+  const keys = Object.keys(row);
   const normalizedTerms = terms.map(cleanKey);
-  return Object.keys(row).find(k => normalizedTerms.some(t => cleanKey(k) === t || cleanKey(k).includes(t)));
+
+  // Primeiro procura correspondência EXATA.
+  // Isso evita que "veiculo" encontre, por exemplo,
+  // "NA PHARMAINNOX ESSE VEICULO ESTA:" antes da coluna PLACA/VEICULO.
+  for (const term of normalizedTerms) {
+    const exact = keys.find(k => cleanKey(k) === term);
+    if (exact !== undefined) return exact;
+  }
+
+  // Só depois faz a busca aproximada por parte do nome.
+  for (const term of normalizedTerms) {
+    const partial = keys.find(k => cleanKey(k).includes(term));
+    if (partial !== undefined) return partial;
+  }
+
+  return undefined;
 }
 
 function get(row, terms) {

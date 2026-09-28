@@ -1,38 +1,22 @@
 PHARMAINox Dashboard — 4 arquivos de veículos
 
-FONTES DOS VEÍCULOS
-1. FVB2C57 — Jornada / KM
-2. FVB2C57 — Abastecimentos
-3. FCL9986 — Jornada / KM
-4. FCL9986 — Abastecimentos
+IDENTIFICAÇÃO DOS VEÍCULOS
+- O nome do arquivo NÃO é utilizado para identificar o veículo.
+- A identificação vem dos dados internos da planilha/CSV.
+- FVB2C57 usa: Jornada/KM + Abastecimento.
+- FCL9986 usa: Jornada/KM + Abastecimento.
+- O sistema confere a PLACA/VEICULO dentro do arquivo antes de carregar.
+
+CORREÇÃO PRINCIPAL
+- A busca das colunas agora prioriza correspondência exata antes de correspondência parcial.
+- Isso evita confundir o cabeçalho "NA PHARMAINNOX ESSE VEICULO ESTA:" com a coluna PLACA.
 
 JORNADA / KM
-Os arquivos de CHECK são usados exclusivamente para quilometragem diária.
-O sistema procura os registros SAINDO e CHEGANDO por veículo e por data.
-KM inicial = primeiro SAINDO do dia.
-KM final = último CHEGANDO do dia.
-KM rodado = KM final - KM inicial.
-Dias com KM final menor que o inicial ficam como KM inconsistente e não entram na soma.
+- Usa os registros SAINDO e CHEGANDO.
+- KM inicial = SAINDO do dia.
+- KM final = CHEGANDO do dia.
+- KM rodado = KM final - KM inicial.
 
-ABASTECIMENTOS
-Os arquivos de ABASTECIMENTO são usados exclusivamente para:
-- valor abastecido
-- preço por litro
-- litros calculados
-- quantidade de abastecimentos
-O preço é 6,49/L em 2025 e 7,49/L em 2026.
-
-CONSUMO
-KM/L = KM rodado / litros abastecidos no mesmo veículo e data.
-A distância total usa a fonte de JORNADA, mesmo quando o dia não teve abastecimento.
-
-LOGÍSTICA / ROTA
-A base de pedidos continua sendo usada para a rota.
-A data da rota é AGENDAMENTO (coluna V).
-Entram TIPO = COLETA ou ENTREGA.
-RECEBIMENTO fica fora.
-O fornecedor é o código da coluna J.
-
-ENDEREÇOS
-Endereços manuais ficam salvos no navegador e têm prioridade sobre fornecedores.js.
-O botão Revalidar mapa limpa o cache de geocodificação.
+ABASTECIMENTO
+- Usa exclusivamente os arquivos de abastecimento para valor, litros, preço/L e KM do abastecimento.
+- Preço: 2025 = R$ 6,49/L; 2026 = R$ 7,49/L.
