@@ -828,6 +828,16 @@ function buildGeoQueries(address, fallbackCity = '') {
   return [...new Set(queries.map(q => q.trim()).filter(Boolean))];
 }
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function geocodeNominatim(query) {
   const wait = Math.max(0, 1100 - (Date.now() - lastNominatimRequest));
   if (wait) await sleep(wait);
@@ -841,7 +851,7 @@ async function geocodeNominatim(query) {
     addressdetails: '1'
   });
 
-  const res = await fetch(url, { headers: { 'Accept-Language': 'pt-BR' } });
+  const res = await fetchWithTimeout(url, { headers: { 'Accept-Language': 'pt-BR' } }, 8000);
   if (!res.ok) throw new Error(`Geocodificação HTTP ${res.status}`);
   const data = await res.json();
   if (!Array.isArray(data)) return [];
@@ -1069,14 +1079,30 @@ function renderRouteIssues(groupedRows) {
         <div class="route-address-editor">
           <input id="${id}" type="text" value="${escapeHtml(current)}" placeholder="Digite o endereço completo...">
           <div class="route-address-actions">
-            <button class="button secondary mini-button" onclick="saveRouteAddress('${escapeHtml(code)}','${id}','${escapeHtml(s.city)}')">Salvar endereço</button>
-            <button class="button secondary mini-button" onclick="openAddressSearch('${id}','${escapeHtml(s.city)}')">Google Maps</button>
+            <button type="button" class="button secondary mini-button save-route-address" data-code="${escapeHtml(code)}" data-input="${escapeHtml(id)}" data-city="${escapeHtml(s.city)}">Salvar endereço</button>
+            <button type="button" class="button secondary mini-button open-address-search" data-input="${escapeHtml(id)}" data-city="${escapeHtml(s.city)}" data-supplier="${escapeHtml(s.supplierName)}">Google Maps</button>
           </div>
         </div>
       </div>`;
   }).join('');
 
   $('routeIssues').innerHTML = `<div class="route-issues-title">Pendências de endereço — você pode cadastrar aqui</div>${rows}`;
+
+  $('routeIssues').querySelectorAll('.save-route-address').forEach(btn => {
+    btn.addEventListener('click', () => saveRouteAddress(
+      btn.dataset.code || '',
+      btn.dataset.input || '',
+      btn.dataset.city || ''
+    ));
+  });
+
+  $('routeIssues').querySelectorAll('.open-address-search').forEach(btn => {
+    btn.addEventListener('click', () => openAddressSearch(
+      btn.dataset.input || '',
+      btn.dataset.city || '',
+      btn.dataset.supplier || ''
+    ));
+  });
 }
 
 function renderStopsList(ordered) {
@@ -1239,7 +1265,16 @@ function populateRouteDate() {
   $('routeDate').value = dates.includes(today) ? today : dates[dates.length - 1];
 }
 
-async function saveRouteAddress(code, inputId, fallbackCity) {
+function markAddressSaved(inputId, message = 'Endereço salvo. Será usado na próxima atualização da rota.') {
+  const input = $(inputId);
+  if (!input) return;
+  input.dataset.saved = 'true';
+  input.title = message;
+  input.style.borderColor = '#63b18b';
+  input.style.background = '#f2fbf6';
+}
+
+function saveRouteAddress(code, inputId, fallbackCity) {
   const address = $(inputId)?.value.trim();
   if (!address) {
     toast('Digite um endereço antes de salvar.');
@@ -1255,6 +1290,8 @@ async function saveRouteAddress(code, inputId, fallbackCity) {
     return;
   }
 
+  // SALVA PRIMEIRO. Não espera geocodificação nem redesenha a rota inteira.
+  // Isso evita o botão ficar preso em "Localizando endereços…" quando há várias pendências.
   S.manualAddresses[manualKey(normalizedCode)] = {
     endereco: address,
     cidade: fallbackCity || '',
@@ -1266,32 +1303,35 @@ async function saveRouteAddress(code, inputId, fallbackCity) {
   delete S.geocodeCache[geoKey];
   saveManualAddresses();
   saveGeoCache();
+  markAddressSaved(inputId);
+  toast(`Endereço salvo para ${normalizedCode}. Clique em "Atualizar rota" para aplicar no mapa.`);
 
-  // Tenta localizar imediatamente o endereço recém-cadastrado.
-  try {
-    const geo = await geocodeAddress(address, fallbackCity);
-    if (!geo) {
-      toast(`Endereço salvo para ${normalizedCode}, mas o mapa não conseguiu localizar esse endereço. Confira no Google Maps.`);
-    } else {
-      toast(`Endereço salvo e localizado para ${normalizedCode}. Atualizando rota…`);
-    }
-  } catch (e) {
-    console.warn('Falha ao geocodificar endereço manual:', e);
-    toast(`Endereço salvo para ${normalizedCode}. Houve falha ao localizar no mapa; tente revalidar.`);
-  }
-
-  renderRoute();
+  // A localização do endereço é feita em segundo plano, sem bloquear o salvamento.
+  // O resultado fica em cache para a próxima atualização da rota.
+  geocodeAddress(address, fallbackCity)
+    .then(geo => {
+      if (geo) {
+        S.geocodeCache[geoKey] = geo;
+        saveGeoCache();
+        toast(`Endereço do fornecedor ${normalizedCode} localizado e salvo. Agora a rota pode ser atualizada.`);
+      } else {
+        toast(`Endereço do fornecedor ${normalizedCode} foi salvo, mas não foi localizado automaticamente.`);
+      }
+    })
+    .catch(e => {
+      console.warn('Falha ao geocodificar endereço manual:', e);
+    });
 }
 window.saveRouteAddress = saveRouteAddress;
 
-function openAddressSearch(inputId, city = '') {
+function openAddressSearch(inputId, city = '', supplierName = '') {
   const address = $(inputId)?.value.trim();
-  const query = [address, city].filter(Boolean).join(', ');
-  if (!query) {
-    toast('Digite um endereço para pesquisar.');
+  const query = [supplierName, address, city, 'SP', 'Brasil'].filter(Boolean).join(', ');
+  if (!address) {
+    toast('Digite o endereço para pesquisar no Google Maps.');
     return;
   }
-  const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${query}, Brasil`)}`;
+  const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
   window.open(url, '_blank', 'noopener,noreferrer');
 }
 window.openAddressSearch = openAddressSearch;
