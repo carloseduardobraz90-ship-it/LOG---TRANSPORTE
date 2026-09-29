@@ -27,3 +27,12 @@ V3
 - O sistema identifica veículo e tipo pelo conteúdo interno; o nome do arquivo não é usado.
 - Os gráficos de tempo possuem seletor de Mês, Semana ou Ano.
 - Os gráficos exibem rótulos de dados diretamente na tela.
+
+
+MAPA / ROTAS
+- O mapa da rota usa Google Maps JavaScript API.
+- A geocodificação dos endereços usa o serviço Geocoding da Google Maps JavaScript API.
+- A rota viária e a otimização das paradas usam a biblioteca Routes da Google Maps JavaScript API.
+- As coordenadas encontradas são armazenadas no localStorage do navegador para evitar nova geocodificação a cada abertura.
+- No script.js existe apenas um campo para a chave: GOOGLE_MAPS_API_KEY = 'ADD SUA CHAVE AQUI'.
+- Para funcionar, a chave deve ter permissão para Maps JavaScript API, Geocoding API e Routes API, conforme a configuração do projeto Google Cloud.

@@ -7,15 +7,10 @@
 
   <!-- CSS (Carregados primeiro para evitar quebras de layout) -->
   <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css">
 
   <!-- JS externos com defer para não bloquear a renderização -->
   <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script defer src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
-  <script defer src="https://unpkg.com/@maplibre/maplibre-gl-leaflet/leaflet-maplibre-gl.js"></script>
   
   <!-- Scripts locais -->
   <script defer src="fornecedores.js"></script>
@@ -124,7 +119,7 @@
           <span class="route-badge" id="routeBadge">Aguardando data</span>
         </div>
         <div id="routeMap" class="route-map"></div>
-        <div class="map-attribution-note">Mapa © OpenStreetMap contributors · rota calculada com OSRM</div>
+        <div class="map-attribution-note">Mapa Google Maps · rota calculada com Google Routes</div>
       </article>
 
       <article class="panel route-stops-card">

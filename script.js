@@ -29,6 +29,8 @@ const S = {
   markersLayer: null,
   routeRunId: 0,
   geocodeCache: {},
+  geocoder: null,
+  googleReady: false,
   manualAddresses: {},
   journey: [],
   filteredJourney: [],
@@ -766,38 +768,145 @@ const PHARMAINNOX = {
   endereco: 'R. Maranhão, 2300 - Lot. São Pedro, Jaguariúna - SP, 13912-812'
 };
 
-function initMap() {
-  if (S.map) return;
-  S.map = L.map('routeMap', {
-    zoomControl: true,
-    scrollWheelZoom: true,
-    preferCanvas: true
-  }).setView([PHARMAINNOX.lat, PHARMAINNOX.lng], 10);
+// ============================================================
+// GOOGLE MAPS — deixe APENAS este campo para inserir sua chave
+// ============================================================
+const GOOGLE_MAPS_API_KEY = 'AIzaSyBSNGwoR64xwI9go572LIANufdKwItaSvo';
 
-  // Mapa base simples e estável. A rota é desenhada separadamente pelo OSRM.
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap contributors'
-  }).addTo(S.map);
+let GoogleMapClass = null;
+let GoogleAdvancedMarkerElement = null;
+let GoogleGeocoderClass = null;
+let GoogleRouteClass = null;
+let GoogleInfoWindowClass = null;
+let GoogleLatLngBoundsClass = null;
+let GooglePolylineClass = null;
+let googleMapsReadyPromise = null;
 
-  S.markersLayer = L.layerGroup().addTo(S.map);
-  S.routeLayer = L.layerGroup().addTo(S.map);
+function loadGoogleMapsApi() {
+  if (window.google?.maps) return Promise.resolve();
+  if (googleMapsReadyPromise) return googleMapsReadyPromise;
+
+  googleMapsReadyPromise = new Promise((resolve, reject) => {
+    if (!GOOGLE_MAPS_API_KEY) {
+      reject(new Error('Google Maps API Key não configurada.'));
+      return;
+    }
+
+    const existing = document.querySelector('script[data-pharmainox-google-maps="1"]');
+    if (existing) {
+      existing.addEventListener('load', resolve, { once: true });
+      existing.addEventListener('error', () => reject(new Error('Falha ao carregar o Google Maps.')), { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}&v=weekly&loading=async`;
+    script.async = true;
+    script.defer = true;
+    script.dataset.pharmainoxGoogleMaps = '1';
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Não foi possível carregar a Google Maps JavaScript API.'));
+    document.head.appendChild(script);
+  });
+
+  return googleMapsReadyPromise;
+}
+
+async function initMap() {
+  if (S.map && S.googleReady) return S.map;
+
+  if (!GOOGLE_MAPS_API_KEY) {
+    $('routeBadge').textContent = 'Chave do Google Maps não configurada';
+    throw new Error('Insira sua chave no campo GOOGLE_MAPS_API_KEY do script.js.');
+  }
+
+  await loadGoogleMapsApi();
+
+  const [mapsLib, markerLib, geocodingLib, routesLib, coreLib] = await Promise.all([
+    google.maps.importLibrary('maps'),
+    google.maps.importLibrary('marker'),
+    google.maps.importLibrary('geocoding'),
+    google.maps.importLibrary('routes'),
+    google.maps.importLibrary('core')
+  ]);
+
+  GoogleMapClass = mapsLib.Map;
+  GoogleAdvancedMarkerElement = markerLib.AdvancedMarkerElement;
+  GoogleGeocoderClass = geocodingLib.Geocoder;
+  GoogleRouteClass = routesLib.Route;
+  GoogleInfoWindowClass = mapsLib.InfoWindow;
+  GoogleLatLngBoundsClass = coreLib.LatLngBounds;
+  GooglePolylineClass = mapsLib.Polyline;
+
+  if (!S.map) {
+    S.map = new GoogleMapClass($('routeMap'), {
+      center: { lat: PHARMAINNOX.lat, lng: PHARMAINNOX.lng },
+      zoom: 10,
+      mapId: 'DEMO_MAP_ID',
+      mapTypeControl: true,
+      streetViewControl: true,
+      fullscreenControl: true,
+      gestureHandling: 'greedy'
+    });
+    S.markersLayer = [];
+    S.routeLayer = [];
+  }
+
+  if (!S.geocoder) S.geocoder = new GoogleGeocoderClass();
+  S.googleReady = true;
+  setMapStatus('Google Maps conectado', true);
+  return S.map;
+}
+
+function setMapStatus(message, ok = false) {
+  const badge = $('routeBadge');
+  if (!badge) return;
+  badge.textContent = message;
+  badge.style.background = ok ? '#effaf3' : '#edf5ff';
+  badge.style.color = ok ? '#28724a' : '#24558f';
 }
 
 function clearMap() {
-  initMap();
-  S.markersLayer.clearLayers();
-  S.routeLayer.clearLayers();
+  if (!S.map) return;
+
+  (S.markersLayer || []).forEach(marker => {
+    try { marker.map = null; } catch {}
+  });
+  (S.routeLayer || []).forEach(polyline => {
+    try { polyline.setMap(null); } catch {}
+  });
+
+  S.markersLayer = [];
+  S.routeLayer = [];
 }
 
-function markerIcon(label, isOrigin = false) {
-  return L.divIcon({
-    className: 'route-marker-wrap',
-    html: `<div class="route-marker ${isOrigin ? 'origin' : ''}">${escapeHtml(label)}</div>`,
-    iconSize: [38, 38],
-    iconAnchor: [19, 19],
-    popupAnchor: [0, -20]
+function createGoogleMarkerContent(label, isOrigin = false) {
+  const wrap = document.createElement('div');
+  wrap.className = 'route-marker-wrap';
+
+  const marker = document.createElement('div');
+  marker.className = `route-marker ${isOrigin ? 'origin' : ''}`;
+  marker.textContent = label;
+  marker.title = isOrigin ? 'Pharmainox' : `Parada ${label}`;
+  wrap.appendChild(marker);
+  return wrap;
+}
+
+function addGoogleMarker(position, label, title, popupHtml, isOrigin = false) {
+  const marker = new GoogleAdvancedMarkerElement({
+    map: S.map,
+    position,
+    title,
+    content: createGoogleMarkerContent(label, isOrigin)
   });
+
+  if (popupHtml) {
+    const infoWindow = new GoogleInfoWindowClass({ content: popupHtml });
+    marker.addListener('click', () => infoWindow.open({ map: S.map, anchor: marker }));
+  }
+
+  S.markersLayer.push(marker);
+  return marker;
 }
 
 function cacheKeyForGeo(address) {
@@ -805,102 +914,23 @@ function cacheKeyForGeo(address) {
 }
 
 function loadGeoCache() {
-  try { S.geocodeCache = JSON.parse(localStorage.getItem('pharmainox_geo_cache_v1') || '{}') || {}; }
+  try { S.geocodeCache = JSON.parse(localStorage.getItem('pharmainox_google_geo_cache_v2') || '{}') || {}; }
   catch { S.geocodeCache = {}; }
 }
 
 function saveGeoCache() {
-  try { localStorage.setItem('pharmainox_geo_cache_v1', JSON.stringify(S.geocodeCache)); } catch {}
-}
-
-let lastNominatimRequest = 0;
-async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
-  }
+  try { localStorage.setItem('pharmainox_google_geo_cache_v2', JSON.stringify(S.geocodeCache)); } catch {}
 }
 
 function buildGeoQueries(address, fallbackCity = '') {
   const a = String(address || '').trim();
   const c = String(fallbackCity || '').trim();
   const queries = [
-    [a, c, 'SP', 'Brasil'].filter(Boolean).join(', '),
-    [a, c, 'Brasil'].filter(Boolean).join(', '),
-    [a, 'SP', 'Brasil'].filter(Boolean).join(', '),
-    `${a}, Brasil`
+    [a, c, 'SP, Brasil'].filter(Boolean).join(', '),
+    [a, 'SP, Brasil'].filter(Boolean).join(', '),
+    [a, 'Brasil'].filter(Boolean).join(', ')
   ];
   return [...new Set(queries.map(q => q.trim()).filter(Boolean))];
-}
-
-async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-async function geocodeNominatim(query) {
-  const wait = Math.max(0, 1100 - (Date.now() - lastNominatimRequest));
-  if (wait) await sleep(wait);
-  lastNominatimRequest = Date.now();
-
-  const url = 'https://nominatim.openstreetmap.org/search?' + new URLSearchParams({
-    format: 'jsonv2',
-    q: query,
-    countrycodes: 'br',
-    limit: '3',
-    addressdetails: '1'
-  });
-
-  const res = await fetchWithTimeout(url, { headers: { 'Accept-Language': 'pt-BR' } }, 8000);
-  if (!res.ok) throw new Error(`Geocodificação HTTP ${res.status}`);
-  const data = await res.json();
-  if (!Array.isArray(data)) return [];
-
-  return data.map(item => ({
-    lat: Number(item.lat),
-    lng: Number(item.lon),
-    displayName: item.display_name || query,
-    type: item.type || '',
-    importance: Number(item.importance) || 0
-  })).filter(x => Number.isFinite(x.lat) && Number.isFinite(x.lng));
-}
-
-async function geocodePhoton(query) {
-  const url = 'https://photon.komoot.io/api/?' + new URLSearchParams({
-    q: query,
-    limit: '5',
-    lang: 'pt'
-  });
-  const res = await fetchWithTimeout(url, { headers: { 'Accept-Language': 'pt-BR' } }, 8000);
-  if (!res.ok) return [];
-  const data = await res.json();
-  if (!Array.isArray(data?.features)) return [];
-  return data.features.map(f => ({
-    lat: Number(f.geometry?.coordinates?.[1]),
-    lng: Number(f.geometry?.coordinates?.[0]),
-    displayName: f.properties?.name || query,
-    type: f.properties?.type || '',
-    importance: Number(f.properties?.importance) || 0
-  })).filter(x => Number.isFinite(x.lat) && Number.isFinite(x.lng));
-}
-
-function scoreGeoResult(result, city = '') {
-  const text = normalizeText(`${result.displayName || ''} ${result.type || ''}`);
-  const cityText = normalizeText(city);
-  let score = Number(result.importance || 0);
-  if (cityText && text.includes(cityText)) score += 3;
-  if (['house', 'building', 'residential', 'commercial'].includes(result.type)) score += 1.5;
-  return score;
 }
 
 async function geocodeAddress(address, fallbackCity = '') {
@@ -908,42 +938,42 @@ async function geocodeAddress(address, fallbackCity = '') {
   const keyCache = cacheKeyForGeo(full);
   if (S.geocodeCache[keyCache]) return S.geocodeCache[keyCache];
 
-  const queries = buildGeoQueries(address, fallbackCity);
-  let candidates = [];
+  if (!S.geocoder) await initMap();
 
-  // Primeiro tenta Nominatim com mais de uma forma de consulta.
+  const queries = buildGeoQueries(address, fallbackCity);
+  let response = null;
+  let lastError = null;
+
   for (const query of queries) {
     try {
-      const results = await geocodeNominatim(query);
-      candidates.push(...results);
-      if (results.length) break;
+      response = await S.geocoder.geocode({
+        address: query,
+        componentRestrictions: { country: 'BR' },
+        region: 'BR',
+        language: 'pt-BR'
+      });
+      if (response?.results?.length) break;
     } catch (e) {
-      console.warn('Nominatim falhou:', e);
+      lastError = e;
     }
   }
 
-  // Fallback para Photon quando Nominatim não localizar o endereço.
-  if (!candidates.length) {
-    try {
-      for (const query of queries.slice(0, 2)) {
-        candidates.push(...await geocodePhoton(query));
-        if (candidates.length) break;
-      }
-    } catch (e) {
-      console.warn('Photon falhou:', e);
-    }
+  if (!response?.results?.length) {
+    if (lastError) throw lastError;
+    return null;
   }
 
-  if (!candidates.length) return null;
-
-  const best = candidates
-    .sort((a, b) => scoreGeoResult(b, fallbackCity) - scoreGeoResult(a, fallbackCity))[0];
-
+  const best = response.results[0];
+  const loc = best.geometry.location;
   const result = {
-    lat: best.lat,
-    lng: best.lng,
-    displayName: best.displayName || full
+    lat: Number(typeof loc.lat === 'function' ? loc.lat() : loc.lat),
+    lng: Number(typeof loc.lng === 'function' ? loc.lng() : loc.lng),
+    displayName: best.formatted_address || full,
+    placeId: best.place_id || '',
+    locationType: best.geometry.location_type || ''
   };
+
+  if (!Number.isFinite(result.lat) || !Number.isFinite(result.lng)) return null;
 
   S.geocodeCache[keyCache] = result;
   saveGeoCache();
@@ -980,90 +1010,60 @@ function googleDirectionsUrl(orderedStops) {
   return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&travelmode=driving&waypoints=${encodeURIComponent(waypoints)}`;
 }
 
-async function osrmRoute(points) {
-  const coords = points.map(p => `${p.lng},${p.lat}`).join(';');
-  const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false&alternatives=false&continue_straight=false`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Roteamento HTTP ${res.status}`);
-  const data = await res.json();
-  if (data.code !== 'Ok' || !data.routes?.length) {
-    throw new Error(data.message || 'Não foi possível encontrar uma rota pelas ruas.');
-  }
-  return data.routes[0];
-}
-
 async function calculateRoute(points) {
   if (points.length < 2) return null;
+  await initMap();
 
-  let ordered = points.slice();
-  let optimized = false;
+  // O Routes API aceita até 25 waypoints intermediários por solicitação.
+  // Para o cenário normal do dashboard, usamos todos os pontos e pedimos
+  // otimização da ordem. A saída devolve os índices reorganizados.
+  const intermediates = points.slice(1).map(p => ({
+    location: { lat: p.lat, lng: p.lng },
+  }));
 
-  // 1) Tenta otimizar a sequência quando o volume é compatível com o serviço público.
-  if (points.length <= 60) {
-    try {
-      const coords = points.map(p => `${p.lng},${p.lat}`).join(';');
-      const url = `https://router.project-osrm.org/trip/v1/driving/${coords}?source=first&destination=first&roundtrip=true&steps=false&geometries=geojson&overview=full`;
-      const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.code === 'Ok' && data.trips?.length) {
-          data.waypoints?.forEach((wp, i) => {
-            const p = points[i];
-            if (p) p._waypointIndex = Number.isFinite(wp.waypoint_index) ? wp.waypoint_index : i;
-          });
-          ordered = points.slice().sort((a, b) => (a._waypointIndex ?? 0) - (b._waypointIndex ?? 0));
-          optimized = true;
-        }
-      }
-    } catch (e) {
-      console.warn('Otimização OSRM falhou; usando ordem atual.', e);
-    }
+  if (intermediates.length > 25) {
+    throw new Error('A rota do dia tem mais de 25 paradas. O Google Routes API limita a 25 waypoints intermediários por solicitação.');
   }
 
-  // 2) Calcula a geometria seguindo as ruas. Primeiro tenta uma chamada única.
-  const routePoints = ordered.concat([{ ...points[0], isReturn: true }]);
-  try {
-    const route = await osrmRoute(routePoints);
-    return { route, ordered, optimized };
-  } catch (e) {
-    console.warn('Rota completa falhou; usando cálculo por trechos.', e);
-  }
+  const request = {
+    origin: { lat: points[0].lat, lng: points[0].lng },
+    destination: { lat: points[0].lat, lng: points[0].lng },
+    intermediates,
+    travelMode: 'DRIVING',
+    routingPreference: 'TRAFFIC_UNAWARE',
+    optimizeWaypointOrder: intermediates.length > 1,
+    units: 'METRIC',
+    language: 'pt-BR',
+    region: 'BR',
+    fields: ['path', 'distanceMeters', 'durationMillis', 'optimizedIntermediateWaypointIndices', 'legs']
+  };
 
-  // 3) Fallback robusto: calcula trecho a trecho. Assim, um limite do serviço
-  // para uma rota muito grande não derruba o mapa inteiro.
-  const legs = [];
-  let totalDistance = 0;
-  let totalDuration = 0;
-  const geometry = [];
+  const { routes } = await GoogleRouteClass.computeRoutes(request);
+  const route = routes?.[0];
+  if (!route) throw new Error('O Google não encontrou uma rota viável para as paradas selecionadas.');
 
-  for (let i = 0; i < routePoints.length - 1; i++) {
-    const legPoints = [routePoints[i], routePoints[i + 1]];
-    const leg = await osrmRoute(legPoints);
-    legs.push(leg);
-    totalDistance += Number(leg.distance) || 0;
-    totalDuration += Number(leg.duration) || 0;
-    const coords = leg.geometry?.coordinates || [];
-    if (!coords.length) continue;
-    if (geometry.length) geometry.push(...coords.slice(1));
-    else geometry.push(...coords);
-  }
+  const inputStops = points.slice(1);
+  const optimizedIndexes = Array.isArray(route.optimizedIntermediateWaypointIndices)
+    ? route.optimizedIntermediateWaypointIndices
+    : inputStops.map((_, i) => i);
 
-  if (!geometry.length) throw new Error('Não foi possível obter a geometria dos trechos da rota.');
+  const orderedStops = optimizedIndexes
+    .map(index => inputStops[index])
+    .filter(Boolean);
+
   return {
-    route: {
-      distance: totalDistance,
-      duration: totalDuration,
-      geometry: { type: 'LineString', coordinates: geometry }
-    },
-    ordered,
-    optimized
+    route,
+    ordered: [points[0], ...orderedStops],
+    optimized: optimizedIndexes.length === inputStops.length && optimizedIndexes.some((value, i) => value !== i),
+    distance: Number(route.distanceMeters) || NaN,
+    duration: Number(route.durationMillis) ? Number(route.durationMillis) / 1000 : NaN
   };
 }
 
 function routeIssueLabel(state) {
   if (state === 'missing-address') return 'Endereço não cadastrado';
   if (state === 'ambiguous') return 'Mais de um endereço';
-  if (state === 'geocode-failed') return 'Endereço não localizado no mapa';
+  if (state === 'geocode-failed') return 'Endereço não localizado no Google Maps';
   return 'Fornecedor não localizado';
 }
 
@@ -1120,7 +1120,8 @@ function renderStopsList(ordered) {
     const buyer = s.buyers.length ? s.buyers.join(', ') : '—';
     const orders = s.orders.length ? s.orders.join(', ') : '—';
     const source = s.resolution?.source === 'manual' ? ' · endereço manual' : '';
-    return `<div class="route-stop"><div class="stop-number">${i + 1}</div><div class="stop-content"><strong>${escapeHtml(s.supplierName)}</strong><span>Cód. ${escapeHtml(s.supplierCode || '—')} · ${escapeHtml(s.city)}${escapeHtml(source)}</span><span>Comprador: ${escapeHtml(buyer)}</span><span>Pedido(s): ${escapeHtml(orders)}</span><small>${escapeHtml(s.address)}</small></div></div>`;
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.address || '')}`;
+    return `<div class="route-stop" data-stop-id="${escapeHtml(s.supplierCode || '')}"><div class="stop-number">${i + 1}</div><div class="stop-content"><strong>${escapeHtml(s.supplierName)}</strong><span>Cód. ${escapeHtml(s.supplierCode || '—')} · ${escapeHtml(s.city)}${escapeHtml(source)}</span><span>Comprador: ${escapeHtml(buyer)}</span><span>Pedido(s): ${escapeHtml(orders)}</span><small>${escapeHtml(s.address)}</small><a class="button secondary mini-button" style="width:max-content;margin-top:3px" target="_blank" rel="noopener noreferrer" href="${mapsUrl}">Abrir no Google Maps</a></div></div>`;
   }).join('');
   $('routeStopsList').innerHTML = cards || '<div class="empty-route">Nenhuma parada com endereço confirmado neste dia.</div>';
 }
@@ -1128,6 +1129,21 @@ function renderStopsList(ordered) {
 async function renderRoute() {
   const runId = ++S.routeRunId;
   const dateKey = $('routeDate').value;
+
+  try {
+    await initMap();
+  } catch (e) {
+    clearMap();
+    $('openGoogleRoute').disabled = true;
+    $('openGoogleRoute').onclick = null;
+    $('routeBadge').textContent = 'Google Maps não configurado';
+    $('routeDistance').textContent = '—';
+    $('routeDuration').textContent = '—';
+    $('routeStopsList').innerHTML = '<div class="empty-route">Insira sua chave na linha GOOGLE_MAPS_API_KEY do script.js e recarregue a página.</div>';
+    console.warn(e);
+    return;
+  }
+
   clearMap();
   $('openGoogleRoute').disabled = true;
   $('openGoogleRoute').onclick = null;
@@ -1158,6 +1174,8 @@ async function renderRoute() {
   $('routeStops').textContent = grouped.length.toLocaleString('pt-BR');
   $('routeFound').textContent = baseValid.length.toLocaleString('pt-BR');
   $('routeMissing').textContent = (grouped.length - baseValid.length).toLocaleString('pt-BR');
+  $('routeDistance').textContent = '—';
+  $('routeDuration').textContent = '—';
   renderRouteIssues(grouped);
 
   if (!baseValid.length) {
@@ -1165,7 +1183,7 @@ async function renderRoute() {
     return;
   }
 
-  $('routeBadge').textContent = 'Localizando endereços…';
+  $('routeBadge').textContent = 'Localizando endereços no Google Maps…';
   const geoPoints = [];
 
   for (const s of baseValid) {
@@ -1180,13 +1198,15 @@ async function renderRoute() {
           address,
           lat: geo.lat,
           lng: geo.lng,
-          geocodeName: geo.displayName
+          geocodeName: geo.displayName,
+          placeId: geo.placeId || '',
+          locationType: geo.locationType || ''
         });
       } else {
         s.resolution.state = 'geocode-failed';
       }
     } catch (e) {
-      console.warn('Geocode falhou', s.supplierName, e);
+      console.warn('Geocode Google falhou', s.supplierName, e);
       s.resolution.state = 'geocode-failed';
     }
   }
@@ -1208,46 +1228,75 @@ async function renderRoute() {
       route = calc.route;
       optimized = calc.optimized;
       ordered = calc.ordered.filter(p => !p.isOrigin);
-      $('routeDistance').textContent = formatDistance(route.distance);
-      $('routeDuration').textContent = formatDuration(route.duration);
-      $('routeBadge').textContent = optimized ? 'Rota otimizada pelas ruas' : 'Rota calculada pelas ruas';
+      $('routeDistance').textContent = formatDistance(calc.distance);
+      $('routeDuration').textContent = formatDuration(calc.duration);
+      $('routeBadge').textContent = optimized ? 'Rota otimizada pelo Google' : 'Rota calculada pelo Google';
+    } else {
+      $('routeBadge').textContent = '1 parada localizada';
     }
   } catch (e) {
-    console.error('Erro no roteamento:', e);
+    console.error('Erro no roteamento Google:', e);
     $('routeBadge').textContent = 'Rota não calculada';
     $('routeDistance').textContent = '—';
     $('routeDuration').textContent = '—';
-    toast('Os endereços foram localizados, mas o roteamento não conseguiu ligar todas as paradas. Verifique se algum ponto está fora da malha rodoviária e use o Google Maps para conferir.');
+    toast(e?.message || 'Os endereços foram localizados, mas o Google não conseguiu calcular a rota.');
   }
 
   const orderedForMarkers = ordered.length ? ordered : geoPoints;
   renderStopsList(orderedForMarkers);
 
   clearMap();
-  const bounds = [];
-  L.marker([PHARMAINNOX.lat, PHARMAINNOX.lng], { icon: markerIcon('P', true) })
-    .bindPopup(`<b>Pharmainox</b><br>${escapeHtml(PHARMAINNOX.endereco)}`)
-    .addTo(S.markersLayer);
-  bounds.push([PHARMAINNOX.lat, PHARMAINNOX.lng]);
+  const bounds = new GoogleLatLngBoundsClass();
+  bounds.extend({ lat: PHARMAINNOX.lat, lng: PHARMAINNOX.lng });
+
+  addGoogleMarker(
+    { lat: PHARMAINNOX.lat, lng: PHARMAINNOX.lng },
+    'P',
+    'Pharmainox',
+    `<div style="font-family:Arial,sans-serif;max-width:280px"><b>Pharmainox</b><br>${escapeHtml(PHARMAINNOX.endereco)}</div>`,
+    true
+  );
 
   orderedForMarkers.forEach((s, idx) => {
-    L.marker([s.lat, s.lng], { icon: markerIcon(String(idx + 1), false) })
-      .bindPopup(`<b>${escapeHtml(s.supplierName)}</b><br>Cód. ${escapeHtml(s.supplierCode)}<br>${escapeHtml(s.address)}<br>Pedido(s): ${escapeHtml(s.orders.join(', ') || '—')}`)
-      .addTo(S.markersLayer);
-    bounds.push([s.lat, s.lng]);
+    addGoogleMarker(
+      { lat: s.lat, lng: s.lng },
+      String(idx + 1),
+      `${idx + 1} - ${s.supplierName}`,
+      `<div style="font-family:Arial,sans-serif;max-width:300px"><b>${escapeHtml(s.supplierName)}</b><br>Cód. ${escapeHtml(s.supplierCode || '—')}<br>${escapeHtml(s.address)}<br>Pedido(s): ${escapeHtml(s.orders.join(', ') || '—')}</div>`,
+      false
+    );
+    bounds.extend({ lat: s.lat, lng: s.lng });
   });
 
-  // Nunca desenha uma linha reta como se fosse uma rota rodoviária.
-  // A geometria abaixo é a geometria real retornada pelo OSRM.
-  if (route?.geometry?.coordinates?.length) {
-    const latlngs = route.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
-    L.polyline(latlngs, { weight: 10, opacity: 0.35, color: '#ffffff', lineCap: 'round', lineJoin: 'round' }).addTo(S.routeLayer);
-    L.polyline(latlngs, { weight: 5, opacity: 0.95, color: '#2f80ed', lineCap: 'round', lineJoin: 'round' }).addTo(S.routeLayer);
-    latlngs.forEach(p => bounds.push(p));
+  if (route?.path?.length) {
+    const polyline = new GooglePolylineClass({
+      path: route.path,
+      geodesic: false,
+      strokeColor: '#2f80ed',
+      strokeOpacity: 0.95,
+      strokeWeight: 5,
+      map: S.map
+    });
+    S.routeLayer.push(polyline);
   }
 
-  if (bounds.length) S.map.fitBounds(bounds, { padding: [35, 35], maxZoom: 13 });
-  setTimeout(() => S.map.invalidateSize(), 200);
+  if (route?.path?.length) {
+    route.path.forEach(point => {
+      const lat = typeof point.lat === 'function' ? point.lat() : point.lat;
+      const lng = typeof point.lng === 'function' ? point.lng() : point.lng;
+      if (Number.isFinite(lat) && Number.isFinite(lng)) bounds.extend({ lat, lng });
+    });
+  }
+
+  if (orderedForMarkers.length || route?.path?.length) {
+    S.map.fitBounds(bounds, { left: 40, right: 40, top: 40, bottom: 40 });
+    if (orderedForMarkers.length === 1) {
+      setTimeout(() => { if (S.map.getZoom() > 14) S.map.setZoom(14); }, 120);
+    }
+  } else {
+    S.map.setCenter({ lat: PHARMAINNOX.lat, lng: PHARMAINNOX.lng });
+    S.map.setZoom(10);
+  }
 
   const googleUrl = googleDirectionsUrl(orderedForMarkers);
   if (googleUrl) {
@@ -1405,5 +1454,5 @@ document.addEventListener('DOMContentLoaded', () => {
     const seenFuel=new Set();S.fuel=S.fuel.filter(r=>{const sig=[r.date?.getTime()||'',r.vehicle,r.km,Number.isFinite(r.value)?r.value.toFixed(2):''].join('|');if(seenFuel.has(sig))return false;seenFuel.add(sig);return true;});
     const seenJourney=new Set();S.journey=S.journey.filter(r=>{const sig=[r.date?.getTime()||'',r.vehicle,r.statusKey,r.km].join('|');if(seenJourney.has(sig))return false;seenJourney.add(sig);return true;});
     $('vehicleFileList').innerHTML=valid.map(x=>`<div class="detected-file-card ${x.type==='journey'?'source-journey':'source-fuel'}"><div class="detected-file-icon">${x.type==='journey'?'🛣️':'⛽'}</div><div class="detected-file-main"><strong>${escapeHtml(x.vehicle)}</strong><span>${x.type==='journey'?'JORNADA / KM':'ABASTECIMENTO'}</span><em>${escapeHtml(x.file.name)}</em><small>Dados carregados: ${x.rows.toLocaleString('pt-BR')} registros</small></div></div>`).join('');$('logFileList').innerHTML=S.sources.log.map(x=>`<span class="chip source-log">${escapeHtml(x.file)} · ${x.rows.toLocaleString('pt-BR')} registros</span>`).join('');$('vehicle').innerHTML='<option value="todos">Todos</option>'+detectedVehicles.map(v=>`<option>${escapeHtml(v)}</option>`).join('');populateRouteDate();update();await renderRoute();toast(`Atualizado. ${S.sources.journey.length} jornada(s), ${S.sources.fuel.length} abastecimento(s) e ${S.sources.log.length} arquivo(s) de pedidos.`);}catch(e){console.error(e);toast(e?.message||'Não foi possível carregar os arquivos selecionados.');}});
-  ['year','vehicle','start','end','periodicity'].forEach(id=>$(id).addEventListener('change',update));$('routeDate').addEventListener('change',renderRoute);$('routeRefresh').addEventListener('click',renderRoute);$('exportManualAddresses').addEventListener('click',exportManualAddresses);$('importManualAddresses').addEventListener('click',()=>$('manualAddressFile').click());$('manualAddressFile').addEventListener('change',e=>{if(e.target.files[0])importManualAddresses(e.target.files[0]);e.target.value='';});$('clearManualAddresses').addEventListener('click',clearManualAddresses);$('clearGeoCache').addEventListener('click',()=>{S.geocodeCache={};saveGeoCache();toast('Cache do mapa limpo. Revalidando os endereços…');renderRoute();});$('clear').addEventListener('click',()=>{$('year').value='todos';$('vehicle').value='todos';$('start').value='';$('end').value='';$('periodicity').value='month';update();});$('export').addEventListener('click',()=>{const rows=S.filteredFuel.map(r=>({Data:r.dateText,Veiculo:r.vehicle,Valor:r.value,PrecoPorLitro:Number.isFinite(r.price)?r.price:'',Litros:Number.isFinite(r.liters)?r.liters:'',KM:r.km}));const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Abastecimento');XLSX.writeFile(wb,'abastecimentos_filtrados.xlsx');});loadManualAddresses();loadGeoCache();initMap();renderVehicleFiles();update();
+  ['year','vehicle','start','end','periodicity'].forEach(id=>$(id).addEventListener('change',update));$('routeDate').addEventListener('change',renderRoute);$('routeRefresh').addEventListener('click',renderRoute);$('exportManualAddresses').addEventListener('click',exportManualAddresses);$('importManualAddresses').addEventListener('click',()=>$('manualAddressFile').click());$('manualAddressFile').addEventListener('change',e=>{if(e.target.files[0])importManualAddresses(e.target.files[0]);e.target.value='';});$('clearManualAddresses').addEventListener('click',clearManualAddresses);$('clearGeoCache').addEventListener('click',()=>{S.geocodeCache={};saveGeoCache();toast('Cache do Google Maps limpo. Revalidando os endereços…');renderRoute();});$('clear').addEventListener('click',()=>{$('year').value='todos';$('vehicle').value='todos';$('start').value='';$('end').value='';$('periodicity').value='month';update();});$('export').addEventListener('click',()=>{const rows=S.filteredFuel.map(r=>({Data:r.dateText,Veiculo:r.vehicle,Valor:r.value,PrecoPorLitro:Number.isFinite(r.price)?r.price:'',Litros:Number.isFinite(r.liters)?r.liters:'',KM:r.km}));const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Abastecimento');XLSX.writeFile(wb,'abastecimentos_filtrados.xlsx');});loadManualAddresses();loadGeoCache();renderVehicleFiles();update();initMap().then(()=>renderRoute()).catch(e=>{console.warn(e);$('routeBadge').textContent='Google Maps aguardando chave';});
 });
