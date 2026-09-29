@@ -1252,25 +1252,58 @@ function clearManualAddresses() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Fontes separadas: placas/veículos e pedidos/logística.
-  $('fuelFiles').addEventListener('change', e => {
-    S.fuelFiles = [...e.target.files];
-    $('fuelFileList').innerHTML = S.fuelFiles.map(f => `<span class="chip source-fuel">${escapeHtml(f.name)}</span>`).join('');
-    $('status').textContent = `${S.fuelFiles.length} arquivo(s) de placas e ${S.logFiles?.length || 0} arquivo(s) de pedidos selecionados.`;
-  });
+  // Seleção única: o usuário pode jogar os arquivos juntos e o sistema classifica
+  // automaticamente cada um como base de placas/consumo ou base logística.
+  $('files').addEventListener('change', async e => {
+    const files = [...e.target.files];
+    S.fuelFiles = [];
+    S.logFiles = [];
+    S.unknownFiles = [];
 
-  $('logFiles').addEventListener('change', e => {
-    S.logFiles = [...e.target.files];
-    $('logFileList').innerHTML = S.logFiles.map(f => `<span class="chip source-log">${escapeHtml(f.name)}</span>`).join('');
-    $('status').textContent = `${S.fuelFiles?.length || 0} arquivo(s) de placas e ${S.logFiles.length} arquivo(s) de pedidos selecionados.`;
+    if (!files.length) {
+      $('fileList').innerHTML = '';
+      $('status').textContent = 'Nenhum arquivo selecionado.';
+      return;
+    }
+
+    $('status').textContent = 'Analisando os arquivos selecionados…';
+    $('fileList').innerHTML = files.map(f => `<span class="chip source-unknown">${escapeHtml(f.name)} · analisando…</span>`).join('');
+
+    const classified = [];
+    for (const file of files) {
+      try {
+        const rows = await read(file);
+        const type = sourceType(rows);
+        classified.push({ file, type, rows: rows.length });
+      } catch (err) {
+        console.warn('Falha ao analisar arquivo', file.name, err);
+        classified.push({ file, type: 'unknown', rows: 0 });
+      }
+    }
+
+    S.fuelFiles = classified.filter(x => x.type === 'fuel').map(x => x.file);
+    S.logFiles = classified.filter(x => x.type === 'log').map(x => x.file);
+    S.unknownFiles = classified.filter(x => x.type === 'unknown').map(x => x.file);
+
+    $('fileList').innerHTML = classified.map(x => {
+      const cls = x.type === 'fuel' ? 'source-fuel' : (x.type === 'log' ? 'source-log' : 'source-unknown');
+      const label = x.type === 'fuel' ? 'PLACA' : (x.type === 'log' ? 'LOG' : 'NÃO IDENTIFICADO');
+      return `<span class="chip ${cls}">${escapeHtml(x.file.name)} · ${label}</span>`;
+    }).join('');
+
+    $('status').textContent = `${S.fuelFiles.length} arquivo(s) de placas · ${S.logFiles.length} arquivo(s) de pedidos` +
+      (S.unknownFiles.length ? ` · ${S.unknownFiles.length} não identificado(s)` : '');
   });
 
   $('update').addEventListener('click', async () => {
     const fuelFiles = S.fuelFiles || [];
     const logFiles = S.logFiles || [];
     if (!fuelFiles.length || !logFiles.length) {
-      toast('Adicione pelo menos 1 arquivo de placas e 1 arquivo de pedidos.');
+      toast('Selecione os arquivos das placas e a base da LOG. O sistema identifica cada arquivo automaticamente.');
       return;
+    }
+    if (S.unknownFiles?.length) {
+      toast(`Há ${S.unknownFiles.length} arquivo(s) que não foram reconhecidos. Eles não serão misturados aos cálculos.`);
     }
 
     try {
@@ -1358,6 +1391,12 @@ document.addEventListener('DOMContentLoaded', () => {
   ['year', 'vehicle', 'start', 'end'].forEach(id => $(id).addEventListener('change', update));
   $('routeDate').addEventListener('change', renderRoute);
   $('routeRefresh').addEventListener('click', renderRoute);
+  $('clearGeoCache').addEventListener('click', () => {
+    S.geocodeCache = {};
+    try { localStorage.removeItem('pharmainox_geo_cache_v1'); } catch {}
+    toast('Cache do mapa limpo. A próxima rota será revalidada.');
+    renderRoute();
+  });
   $('exportManualAddresses').addEventListener('click', exportManualAddresses);
   $('importManualAddresses').addEventListener('click', () => $('manualAddressFile').click());
   $('manualAddressFile').addEventListener('change', e => { if (e.target.files[0]) importManualAddresses(e.target.files[0]); e.target.value = ''; });

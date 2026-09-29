@@ -47,28 +47,18 @@
       </div>
     </header>
 
-    <section class="upload panel upload-sources">
-      <div class="upload-source-card">
+    <section class="upload panel">
+      <div class="upload-source-head">
         <div>
-          <p class="eyebrow">VEÍCULOS</p>
-          <b>Arquivos das placas</b>
-          <p>Adicione aqui somente as bases de abastecimento, quilometragem e consumo dos veículos.</p>
+          <p class="eyebrow">FONTES DE DADOS</p>
+          <b>Arquivos da LOG e dos veículos</b>
+          <p>Selecione os arquivos juntos. O dashboard identifica automaticamente as bases de placas e a base de pedidos.</p>
         </div>
-        <label for="fuelFiles" class="button secondary">Adicionar placas</label>
-        <input id="fuelFiles" type="file" accept=".csv,.xlsx,.xls" multiple hidden>
-        <div id="fuelFileList" class="source-file-list"></div>
+        <label for="files" class="button">Selecionar arquivos</label>
+        <input id="files" type="file" accept=".csv,.xlsx,.xls" multiple hidden>
       </div>
-      <div class="upload-source-card">
-        <div>
-          <p class="eyebrow">LOGÍSTICA</p>
-          <b>Arquivo dos pedidos</b>
-          <p>Adicione aqui a base de pedidos usada nos indicadores logísticos, fornecedores e mapa da rota.</p>
-        </div>
-        <label for="logFiles" class="button secondary">Adicionar pedidos</label>
-        <input id="logFiles" type="file" accept=".csv,.xlsx,.xls" multiple hidden>
-        <div id="logFileList" class="source-file-list"></div>
-      </div>
-      <p id="status" class="upload-status">Adicione pelo menos 1 arquivo de placas e 1 arquivo de pedidos.</p>
+      <div class="source-file-list" id="fileList"></div>
+      <p id="status" class="upload-status">Nenhum arquivo selecionado.</p>
     </section>
 
     <section class="filters panel">
