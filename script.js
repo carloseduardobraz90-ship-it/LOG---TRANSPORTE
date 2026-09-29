@@ -816,6 +816,16 @@ function saveGeoCache() {
 let lastNominatimRequest = 0;
 async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function buildGeoQueries(address, fallbackCity = '') {
   const a = String(address || '').trim();
   const c = String(fallbackCity || '').trim();
@@ -871,7 +881,7 @@ async function geocodePhoton(query) {
     limit: '5',
     lang: 'pt'
   });
-  const res = await fetch(url, { headers: { 'Accept-Language': 'pt-BR' } });
+  const res = await fetchWithTimeout(url, { headers: { 'Accept-Language': 'pt-BR' } }, 8000);
   if (!res.ok) return [];
   const data = await res.json();
   if (!Array.isArray(data?.features)) return [];
@@ -1290,8 +1300,10 @@ function saveRouteAddress(code, inputId, fallbackCity) {
     return;
   }
 
-  // SALVA PRIMEIRO. Não espera geocodificação nem redesenha a rota inteira.
-  // Isso evita o botão ficar preso em "Localizando endereços…" quando há várias pendências.
+  // O SALVAMENTO NÃO DEPENDE DA INTERNET.
+  // Primeiro persistimos o endereço no navegador e só depois, quando a rota for atualizada,
+  // o sistema tenta localizar o ponto no mapa. Isso evita o falso erro
+  // "foi salvo, mas não foi localizado automaticamente" após clicar em Salvar.
   S.manualAddresses[manualKey(normalizedCode)] = {
     endereco: address,
     cidade: fallbackCity || '',
@@ -1303,30 +1315,16 @@ function saveRouteAddress(code, inputId, fallbackCity) {
   delete S.geocodeCache[geoKey];
   saveManualAddresses();
   saveGeoCache();
-  markAddressSaved(inputId);
-  toast(`Endereço salvo para ${normalizedCode}. Clique em "Atualizar rota" para aplicar no mapa.`);
-
-  // A localização do endereço é feita em segundo plano, sem bloquear o salvamento.
-  // O resultado fica em cache para a próxima atualização da rota.
-  geocodeAddress(address, fallbackCity)
-    .then(geo => {
-      if (geo) {
-        S.geocodeCache[geoKey] = geo;
-        saveGeoCache();
-        toast(`Endereço do fornecedor ${normalizedCode} localizado e salvo. Agora a rota pode ser atualizada.`);
-      } else {
-        toast(`Endereço do fornecedor ${normalizedCode} foi salvo, mas não foi localizado automaticamente.`);
-      }
-    })
-    .catch(e => {
-      console.warn('Falha ao geocodificar endereço manual:', e);
-    });
+  markAddressSaved(inputId, 'Endereço salvo. Será usado na próxima atualização da rota.');
+  toast(`Endereço do fornecedor ${normalizedCode} salvo.`);
 }
 window.saveRouteAddress = saveRouteAddress;
 
 function openAddressSearch(inputId, city = '', supplierName = '') {
   const address = $(inputId)?.value.trim();
-  const query = [supplierName, address, city, 'SP', 'Brasil'].filter(Boolean).join(', ');
+  // Não usamos o nome do fornecedor na pesquisa, pois isso pode fazer o Google
+  // priorizar uma empresa/local diferente do endereço digitado.
+  const query = [address, city, 'SP', 'Brasil'].filter(Boolean).join(', ');
   if (!address) {
     toast('Digite o endereço para pesquisar no Google Maps.');
     return;
