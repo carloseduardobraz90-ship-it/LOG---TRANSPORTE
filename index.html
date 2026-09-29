@@ -47,38 +47,54 @@
       </div>
     </header>
 
-    <section class="upload panel upload-sources upload-sources-vehicles">
-      <div class="upload-section-title">
+    <section class="upload panel upload-sources">
+      <div class="upload-source-card">
         <div>
-          <p class="eyebrow">ARQUIVOS DOS VEÍCULOS</p>
-          <h2>Adicione os 4 arquivos dos veículos</h2>
-          <p>Selecione juntos os arquivos de <b>Jornada / KM</b> e <b>Abastecimento</b>. O sistema identifica automaticamente o tipo e o veículo pelos dados internos, sem usar o nome do arquivo.</p>
+          <p class="eyebrow">VEÍCULOS</p>
+          <b>Arquivos das placas</b>
+          <p>Adicione aqui somente as bases de abastecimento, quilometragem e consumo dos veículos.</p>
         </div>
-        <span class="source-rule">IDENTIFICAÇÃO PELO CONTEÚDO</span>
+        <label for="fuelFiles" class="button secondary">Adicionar placas</label>
+        <input id="fuelFiles" type="file" accept=".csv,.xlsx,.xls" multiple hidden>
+        <div id="fuelFileList" class="source-file-list"></div>
       </div>
-      <div class="upload-source-card vehicle-upload-all">
-        <div class="upload-all-head">
-          <div>
-            <p class="eyebrow">VEÍCULOS</p>
-            <b>Base dos veículos</b>
-            <p>O sistema espera 4 arquivos: 2 de Jornada/KM e 2 de Abastecimentos, formando um par por veículo.</p>
-          </div>
-          <label for="vehicleFiles" class="button secondary">Adicionar arquivos dos veículos</label>
-          <input id="vehicleFiles" type="file" accept=".csv,.xlsx,.xls" multiple hidden>
-        </div>
-        <div id="vehicleFileList" class="detected-file-list"></div>
-      </div>
-      <div class="upload-source-card logistics-upload-card">
+      <div class="upload-source-card">
         <div>
           <p class="eyebrow">LOGÍSTICA</p>
           <b>Arquivo dos pedidos</b>
-          <p>Base usada nos indicadores logísticos, fornecedores e mapa da rota.</p>
+          <p>Adicione aqui a base de pedidos usada nos indicadores logísticos, fornecedores e mapa da rota.</p>
         </div>
         <label for="logFiles" class="button secondary">Adicionar pedidos</label>
         <input id="logFiles" type="file" accept=".csv,.xlsx,.xls" multiple hidden>
         <div id="logFileList" class="source-file-list"></div>
       </div>
-      <p id="status" class="upload-status">Selecione os 4 arquivos dos veículos e pelo menos 1 arquivo de pedidos.</p>
+      <p id="status" class="upload-status">Adicione pelo menos 1 arquivo de placas e 1 arquivo de pedidos.</p>
+    </section>
+
+    <section class="filters panel">
+      <div>
+        <label for="year">Ano</label>
+        <select id="year">
+          <option value="todos">Todos</option>
+          <option>2025</option>
+          <option>2026</option>
+        </select>
+      </div>
+      <div>
+        <label for="vehicle">Veículo</label>
+        <select id="vehicle">
+          <option value="todos">Todos</option>
+        </select>
+      </div>
+      <div>
+        <label for="start">Data inicial</label>
+        <input id="start" type="date">
+      </div>
+      <div>
+        <label for="end">Data final</label>
+        <input id="end" type="date">
+      </div>
+      <button id="clear" class="button secondary">Limpar</button>
     </section>
 
     <section class="route-filter panel" id="rota">
@@ -137,60 +153,45 @@
       </article>
     </section>
 
-    <section id="logistica" class="logistics-section">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">LOGÍSTICA & PERFORMANCE</p>
-          <h2>Análise da operação</h2>
-          <p>Filtros e indicadores dos veículos, abastecimentos, quilometragem e consumo.</p>
-        </div>
-      </div>
-      <section class="filters panel logistics-filters">
-        <div><label for="year">Ano</label><select id="year"><option value="todos">Todos</option><option>2025</option><option>2026</option></select></div>
-        <div><label for="vehicle">Veículo</label><select id="vehicle"><option value="todos">Todos</option></select></div>
-        <div><label for="start">Data inicial</label><input id="start" type="date"></div>
-        <div><label for="end">Data final</label><input id="end" type="date"></div>
-        <div class="chart-period-control"><label for="periodicity">Período dos gráficos</label><select id="periodicity"><option value="month">Mês</option><option value="week">Semana</option><option value="year">Ano</option></select></div>
-        <button id="clear" class="button secondary">Limpar</button>
-      </section>
-      <section class="kpis">
-        <article class="kpi"><span>Valor abastecido</span><strong id="value">R$ 0,00</strong><small>Soma dos registros filtrados</small></article>
-        <article class="kpi"><span>Litros calculados</span><strong id="liters">—</strong><small>Valor ÷ preço do litro do ano</small></article>
-        <article class="kpi"><span>Abastecimentos</span><strong id="refuels">0</strong><small>Arquivos de abastecimento</small></article>
-        <article class="kpi"><span>Registros logísticos</span><strong id="logCount">0</strong><small>Base geral filtrada</small></article>
-        <article class="kpi"><span>KM percorridos</span><strong id="distance">0 km</strong><small>CHEGANDO − SAINDO</small></article>
-        <article class="kpi"><span>KM/L</span><strong id="kml">—</strong><small>KM rodados ÷ litros</small></article>
-        <article class="kpi"><span>Início / término</span><strong id="period" class="period-value">—</strong><small>Primeiro e último apontamento</small></article>
-      </section>
-      <section class="charts">
-        <article class="panel chart-card"><div class="chart-title-row"><h2 id="titleMonthValue">Valor por mês</h2><span class="chart-badge">Tempo</span></div><div class="chart-box"><canvas id="monthValue"></canvas></div></article>
-        <article class="panel chart-card"><div class="chart-title-row"><h2 id="titleMonthLiters">Litros calculados por mês</h2><span class="chart-badge">Tempo</span></div><div class="chart-box"><canvas id="monthLiters"></canvas></div></article>
-        <article class="panel chart-card"><h2>Valor por veículo</h2><div class="chart-box"><canvas id="vehicleValue"></canvas></div></article>
-        <article class="panel chart-card"><h2>Litros calculados por veículo</h2><div class="chart-box"><canvas id="vehicleLiters"></canvas></div></article>
-        <article class="panel chart-card"><h2>KM percorridos por veículo</h2><div class="chart-box"><canvas id="distanceVehicle"></canvas></div></article>
-        <article class="panel chart-card"><h2>KM/L por veículo</h2><div class="chart-box"><canvas id="kmlVehicle"></canvas></div></article>
-        <article class="panel chart-card"><div class="chart-title-row"><h2 id="titleDailyConsumption">Consumo por mês</h2><span class="chart-badge">Tempo</span></div><div class="chart-box"><canvas id="dailyConsumption"></canvas></div></article>
-        <article class="panel chart-card"><div class="chart-title-row"><h2 id="titleDailyDistance">KM rodados por mês</h2><span class="chart-badge">Tempo</span></div><div class="chart-box"><canvas id="dailyDistance"></canvas></div></article>
-        <article class="panel chart-card"><h2>Logística por status</h2><div class="chart-box"><canvas id="chartStatus"></canvas></div></article>
-        <article class="panel chart-card"><h2>Logística por cidade</h2><div class="chart-box"><canvas id="city"></canvas></div></article>
-        <article class="panel chart-card"><h2>Abastecimentos por dia da semana</h2><div class="chart-box"><canvas id="weekday"></canvas></div></article>
-      </section>
+    <section class="kpis">
+      <article class="kpi"><span>Valor abastecido</span><strong id="value">R$ 0,00</strong><small>Soma dos registros filtrados</small></article>
+      <article class="kpi"><span>Litros abastecidos (real)</span><strong id="liters">—</strong><small>Somente combustível realmente abastecido</small></article>
+      <article class="kpi"><span>Abastecimentos</span><strong id="refuels">0</strong><small>Dos arquivos de placas</small></article>
+      <article class="kpi"><span>Registros logísticos</span><strong id="logCount">0</strong><small>Base geral filtrada</small></article>
+      <article class="kpi"><span>KM percorridos</span><strong id="distance">0 km</strong><small>KM final − KM inicial de cada dia completo</small></article>
+      <article class="kpi"><span>KM/L</span><strong id="kml">—</strong><small>KM rodados ÷ litros calculados</small></article>
+      <article class="kpi"><span>Início / término</span><strong id="period" class="period-value">—</strong><small>Primeiro e último apontamento</small></article>
+    </section>
+
+    <section class="charts">
+      <article class="panel chart-card"><h2>Valor por mês</h2><div class="chart-box"><canvas id="monthValue"></canvas></div></article>
+      <article class="panel chart-card"><h2>Litros abastecidos por mês</h2><div class="chart-box"><canvas id="monthLiters"></canvas></div></article>
+      <article class="panel chart-card"><h2>Valor por veículo</h2><div class="chart-box"><canvas id="vehicleValue"></canvas></div></article>
+      <article class="panel chart-card"><h2>Litros abastecidos por veículo</h2><div class="chart-box"><canvas id="vehicleLiters"></canvas></div></article>
+      <article class="panel chart-card"><h2>KM percorridos por veículo</h2><div class="chart-box"><canvas id="distanceVehicle"></canvas></div></article>
+      <article class="panel chart-card"><h2>KM/L por veículo</h2><div class="chart-box"><canvas id="kmlVehicle"></canvas></div></article>
+      <article class="panel chart-card"><h2>Consumo diário</h2><div class="chart-box"><canvas id="dailyConsumption"></canvas></div></article>
+      <article class="panel chart-card"><h2>KM rodados por dia</h2><div class="chart-box"><canvas id="dailyDistance"></canvas></div></article>
+      <!-- ID alterado de 'status' para 'chartStatus' para evitar conflito com <p id="status"> -->
+      <article class="panel chart-card"><h2>Logística por status</h2><div class="chart-box"><canvas id="chartStatus"></canvas></div></article>
+      <article class="panel chart-card"><h2>Logística por cidade</h2><div class="chart-box"><canvas id="city"></canvas></div></article>
+      <article class="panel chart-card"><h2>Abastecimentos por dia da semana</h2><div class="chart-box"><canvas id="weekday"></canvas></div></article>
     </section>
 
     <section id="consumoDiario" class="panel table-panel">
       <div class="panel-head">
         <div>
-          <h2>Resumo diário de consumo</h2>
-          <span class="data-source-note">KM = SAINDO → CHEGANDO · Litros = VALOR_ABASTECIDO ÷ preço do ano · KM/L = KM rodados ÷ litros</span>
+          <h2>Resumo diário de consumo e saldo</h2>
+          <span class="data-source-note">Abastecido = combustível real · Consumo estimado = KM rodados ÷ KM/L de referência · Saldo = saldo inicial + abastecido − consumo</span>
         </div>
       </div>
       <div class="table-wrap">
         <table class="daily-table">
           <thead>
             <tr>
-              <th>Data</th><th>Veículo</th><th>Saída</th><th>KM inicial</th>
-              <th>Chegada</th><th>KM final</th><th>KM rodados</th>
-              <th>Valor abastecido</th><th>Litros</th><th>KM/L</th><th>L/100 km</th><th>Status</th>
+              <th>Data</th><th>Veículo</th><th>Início</th><th>KM inicial</th>
+              <th>Final</th><th>KM final</th><th>KM rodados</th>
+              <th>Valor abastecido</th><th>Abastecido real</th><th>KM/L ref.</th><th>Consumo estimado</th><th>Saldo inicial</th><th>Saldo final</th><th>Status</th>
             </tr>
           </thead>
           <tbody id="dailyTable"></tbody>
@@ -206,7 +207,7 @@
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>Data/Hora</th><th>Veículo</th><th>Valor</th><th>Preço/L</th><th>Litros</th><th>KM</th></tr>
+            <tr><th>Data/Hora</th><th>Veículo</th><th>Valor</th><th>Preço/L</th><th>Litros abastecidos</th><th>KM</th></tr>
           </thead>
           <tbody id="fuelTable"></tbody>
         </table>
