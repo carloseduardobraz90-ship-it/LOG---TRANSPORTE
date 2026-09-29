@@ -1,4 +1,19 @@
-const FUEL_PRICE_PER_LITER = 7.49;
+// Preço do combustível por ano.
+// 2025 = R$ 6,49/L | 2026 = R$ 7,49/L
+const FUEL_PRICES_PER_YEAR = {
+  2025: 6.49,
+  2026: 7.49
+};
+
+const DEFAULT_FUEL_PRICE_PER_LITER = 7.49;
+
+function fuelPriceForDate(date) {
+  const year = date instanceof Date && !isNaN(date)
+    ? date.getFullYear()
+    : null;
+
+  return FUEL_PRICES_PER_YEAR[year] ?? DEFAULT_FUEL_PRICE_PER_LITER;
+}
 
 const S = {
   files: [],
@@ -15,7 +30,10 @@ const S = {
   routeRunId: 0,
   geocodeCache: {},
   manualAddresses: {},
-  sources: { fuel: [], log: [] }
+  journey: [],
+  filteredJourney: [],
+  vehicleUploads: [],
+  sources: { fuel: [], journey: [], log: [] }
 };
 
 const $ = id => document.getElementById(id);
@@ -80,8 +98,24 @@ function isRouteType(type) {
 }
 
 function findKey(row, terms) {
+  const keys = Object.keys(row);
   const normalizedTerms = terms.map(cleanKey);
-  return Object.keys(row).find(k => normalizedTerms.some(t => cleanKey(k) === t || cleanKey(k).includes(t)));
+
+  // Primeiro procura correspondência EXATA.
+  // Isso evita que "veiculo" encontre, por exemplo,
+  // "NA PHARMAINNOX ESSE VEICULO ESTA:" antes da coluna PLACA/VEICULO.
+  for (const term of normalizedTerms) {
+    const exact = keys.find(k => cleanKey(k) === term);
+    if (exact !== undefined) return exact;
+  }
+
+  // Só depois faz a busca aproximada por parte do nome.
+  for (const term of normalizedTerms) {
+    const partial = keys.find(k => cleanKey(k).includes(term));
+    if (partial !== undefined) return partial;
+  }
+
+  return undefined;
 }
 
 function get(row, terms) {
@@ -97,15 +131,32 @@ function sourceType(rows) {
   const r = rows[0] || {};
   const keys = Object.keys(r).map(cleanKey);
 
-  const hasVehicle = keys.some(k => k === 'veiculo' || k.includes('veiculo') || k.includes('placa'));
+  const hasPlate = keys.some(k => k === 'placa' || k.includes('placa'));
+  const hasVehicle = keys.some(k => k === 'veiculo' || k.includes('veiculo'));
   const hasKm = keys.some(k =>
+    k === 'kilometragem' ||
+    k === 'quilometragem' ||
     k.includes('quilometragem') ||
+    k.includes('kilometragem') ||
     k.includes('km_incial') ||
     k.includes('km_inicial') ||
     k.includes('km_final')
   );
-  const hasFuelValue = keys.some(k => k.includes('valor_total') || k.includes('valor_abastecido'));
-  const hasDailyDate = keys.some(k => k.includes('data e hora inicial e final'));
+  const hasFuelValue = keys.some(k =>
+    k === 'valor_total' ||
+    k === 'valor_abastecido' ||
+    k.includes('valor_total') ||
+    k.includes('valor_abastecido')
+  );
+  const hasDate = keys.some(k =>
+    k === 'data' ||
+    k.includes('data e hora inicial e final') ||
+    k.includes('data hora')
+  );
+  const hasCheckStatus = keys.some(k =>
+    k.includes('na pharmainox esse veiculo esta') ||
+    k.includes('veiculo esta')
+  );
 
   const hasRouteSignals =
     keys.some(k => k === 'pedido_' || k === 'pedido' || k.includes('pedido')) &&
@@ -113,7 +164,13 @@ function sourceType(rows) {
     (keys.some(k => k === 'agendamento' || k.includes('agendamento')) ||
      keys.some(k => k === 'tipo' || k.includes('tipo')));
 
-  if (hasVehicle && hasKm && hasFuelValue && (hasDailyDate || keys.some(k => k.includes('valor_total')))) {
+  // Jornada / KM: PLACA + KILOMETRAGEM + DATA + campo de SAINDO/CHEGANDO.
+  if (hasPlate && hasKm && hasDate && hasCheckStatus && !hasFuelValue) {
+    return 'journey';
+  }
+
+  // Abastecimento: VEICULO + QUILOMETRAGEM + VALOR_TOTAL + DATA.
+  if (hasVehicle && hasKm && hasFuelValue && hasDate) {
     return 'fuel';
   }
 
@@ -125,6 +182,10 @@ function isFuel(rows) {
   return sourceType(rows) === 'fuel';
 }
 
+function isJourney(rows) {
+  return sourceType(rows) === 'journey';
+}
+
 function fuelValueFromRow(r) {
   return number(get(r, [
     'valor_abastecido',
@@ -134,24 +195,24 @@ function fuelValueFromRow(r) {
   ]));
 }
 
-function vehicleFromRow(r, fileName) {
-  return String(
-    get(r, ['veiculo', 'placa']) ||
-    positional(r, 2) ||
-    fileName.match(/[A-Z]{3}[0-9][A-Z0-9][0-9]{2}/i)?.[0] ||
-    fileName.match(/fvb2c57|fcl9986/i)?.[0] ||
-    'Não identificado'
-  ).toUpperCase().trim();
+function vehicleFromRow(r, fileName, fallbackVehicle = '') {
+  // O nome do arquivo NÃO identifica o veículo.
+  // A identificação vem do conteúdo (PLACA/VEICULO).
+  // fallbackVehicle representa apenas o campo/slot escolhido na tela.
+  const internalVehicle = get(r, ['veiculo', 'placa']) || positional(r, 2);
+  return String(internalVehicle || fallbackVehicle || 'Não identificado')
+    .toUpperCase()
+    .trim();
 }
 
-function normalizeFuel(rows, fileName) {
+function normalizeFuel(rows, fileName, expectedVehicle = '') {
   return rows.map((r, idx) => {
     const d = parseDate(
       get(r, ['data e hora inicial e final', 'data', 'data hora', 'data/hora']) ||
       positional(r, 0)
     );
 
-    const vehicle = vehicleFromRow(r, fileName);
+    const vehicle = vehicleFromRow(r, fileName, expectedVehicle);
 
     const km = mileage(
       get(r, [
@@ -159,16 +220,17 @@ function normalizeFuel(rows, fileName) {
         'km_inicial x km_final',
         'quilometragem',
         'quilometragem atual',
+        'kilometragem',
         'km'
       ]) ||
       positional(r, 3)
     );
 
     const value = fuelValueFromRow(r);
+    const price = fuelPriceForDate(d);
 
-    // Regra de negócio: litros = valor abastecido / R$ 7,49.
-    const liters = Number.isFinite(value) && value > 0
-      ? value / FUEL_PRICE_PER_LITER
+    const liters = Number.isFinite(value) && value > 0 && price > 0
+      ? value / price
       : NaN;
 
     return {
@@ -176,13 +238,84 @@ function normalizeFuel(rows, fileName) {
       dateText: d ? d.toLocaleDateString('pt-BR') : '',
       vehicle,
       value,
-      price: FUEL_PRICE_PER_LITER,
+      price,
       liters,
       km,
       sourceFile: fileName,
       sourceRow: idx + 2
     };
   }).filter(r => Number.isFinite(r.value) || Number.isFinite(r.km));
+}
+
+function journeyStatusFromRow(r) {
+  return String(get(r, [
+    'na pharmainox esse veiculo esta',
+    'veiculo esta',
+    'status'
+  ]) || positional(r, 1) || '').trim();
+}
+
+function normalizeJourney(rows, fileName, expectedVehicle = '') {
+  return rows.map((r, idx) => {
+    const d = parseDate(get(r, ['data', 'data hora', 'data/hora']) || positional(r, 7));
+    const vehicle = vehicleFromRow(r, fileName, expectedVehicle);
+    const status = journeyStatusFromRow(r);
+    const statusKey = cleanKey(status);
+    const km = mileage(get(r, ['kilometragem', 'quilometragem', 'km atual', 'km']) || positional(r, 3));
+
+    return {
+      date: d,
+      dateText: d ? d.toLocaleDateString('pt-BR') : '',
+      vehicle,
+      status,
+      statusKey,
+      km,
+      sourceFile: fileName,
+      sourceRow: idx + 2
+    };
+  }).filter(r =>
+    r.date &&
+    r.vehicle &&
+    Number.isFinite(r.km) &&
+    (r.statusKey === 'saindo' || r.statusKey === 'chegando')
+  );
+}
+
+function valueFromVehicleField(row) {
+  return String(get(row, ['placa', 'veiculo']) || positional(row, 2) || '').toUpperCase().trim();
+}
+
+function validateExpectedVehicle(rows, expectedVehicle) {
+  const found = [...new Set(rows.map(valueFromVehicleField).filter(Boolean))];
+  return {
+    ok: found.length === 1 && found[0] === expectedVehicle,
+    found
+  };
+}
+
+function validateVehicleFile(rows, expectedVehicle, expectedType, fileName) {
+  const type = sourceType(rows);
+
+  if (type !== expectedType) {
+    const labels = {
+      journey: 'JORNADA / KM',
+      fuel: 'ABASTECIMENTO'
+    };
+    throw new Error(
+      `O conteúdo de "${fileName}" não corresponde ao campo ${labels[expectedType] || expectedType}. ` +
+      'O nome do arquivo não é usado para identificar a categoria.'
+    );
+  }
+
+  const check = validateExpectedVehicle(rows, expectedVehicle);
+
+  if (!check.ok) {
+    const found = check.found.length ? check.found.join(', ') : 'nenhuma placa/veículo encontrada';
+    throw new Error(
+      `O conteúdo selecionado para ${expectedVehicle} contém: ${found}. ` +
+      'O veículo é identificado pelos dados internos do arquivo, não pelo nome.'
+    );
+  }
 }
 
 function normalizeLog(rows) {
@@ -222,7 +355,7 @@ async function read(file) {
     const text = await file.text();
     const firstLine = text.split(/\r?\n/, 1)[0] || '';
     const fs = (firstLine.match(/;/g) || []).length >= (firstLine.match(/,/g) || []).length ? ';' : ',';
-    const wb = XLSX.read(text, { type: 'string', FS: fs, raw: false });
+    const wb = XLSX.read(text, { type: 'string', FS: fs, raw: true });
     return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
   }
   const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
@@ -250,14 +383,16 @@ function apply() {
   const start = $('start').value;
   const end = $('end').value;
 
-  S.filteredFuel = S.fuel.filter(r => {
-    const k = key(r.date);
-    return (y === 'todos' || r.date?.getFullYear() == y) &&
-      (v === 'todos' || r.vehicle === v) &&
+  const inFilter = (date, vehicle = '') => {
+    const k = key(date);
+    return (y === 'todos' || date?.getFullYear() == y) &&
+      (v === 'todos' || vehicle === v) &&
       (!start || k >= start) &&
       (!end || k <= end);
-  });
+  };
 
+  S.filteredFuel = S.fuel.filter(r => inFilter(r.date, r.vehicle));
+  S.filteredJourney = S.journey.filter(r => inFilter(r.date, r.vehicle));
   S.filteredLog = S.log.filter(r => {
     const k = key(r._date);
     return (y === 'todos' || r._date?.getFullYear() == y) &&
@@ -265,172 +400,119 @@ function apply() {
       (!end || k <= end);
   });
 
-  // O saldo de combustível é calculado sobre todo o histórico carregado,
-  // para que filtros de data não quebrem a continuidade entre os dias.
-  S.dailyMetrics = buildDailyMetrics(S.fuel);
-  S.filteredDaily = S.dailyMetrics.filter(r => {
-    return (y === 'todos' || r.date?.getFullYear() == y) &&
-      (v === 'todos' || r.vehicle === v) &&
-      (!start || r.dateKey >= start) &&
-      (!end || r.dateKey <= end);
-  });
+  S.filteredDaily = buildDailyMetrics(S.filteredJourney, S.filteredFuel);
 }
 
-function buildDailyMetrics(fuelRows) {
-  const cleanRows = fuelRows
-    .filter(r => r.date && r.vehicle)
+function buildDailyMetrics(journeyRows, fuelRows) {
+  const journeyClean = journeyRows
+    .filter(r => r.date && r.vehicle && Number.isFinite(r.km))
     .slice()
     .sort((a, b) => a.date - b.date);
 
-  const byVehicleDay = new Map();
+  const fuelByDay = new Map();
+  fuelRows
+    .filter(r => r.date && r.vehicle)
+    .forEach(r => {
+      const groupKey = `${r.vehicle}__${key(r.date)}`;
+      if (!fuelByDay.has(groupKey)) {
+        fuelByDay.set(groupKey, { totalValue: 0, liters: 0, refuels: 0 });
+      }
+      const g = fuelByDay.get(groupKey);
+      if (Number.isFinite(r.value)) g.totalValue += r.value;
+      if (Number.isFinite(r.liters)) g.liters += r.liters;
+      g.refuels += 1;
+    });
 
-  cleanRows.forEach(r => {
+  const byDay = new Map();
+  journeyClean.forEach(r => {
     const dateKey = key(r.date);
     const groupKey = `${r.vehicle}__${dateKey}`;
-
-    if (!byVehicleDay.has(groupKey)) {
-      byVehicleDay.set(groupKey, {
+    if (!byDay.has(groupKey)) {
+      byDay.set(groupKey, {
         vehicle: r.vehicle,
         dateKey,
         date: new Date(r.date),
-        rows: [],
-        totalValue: 0,
-        actualLiters: 0
+        leaving: [],
+        arriving: []
       });
     }
-
-    const g = byVehicleDay.get(groupKey);
-    g.rows.push(r);
-
-    if (Number.isFinite(r.value)) g.totalValue += r.value;
-    if (Number.isFinite(r.liters)) g.actualLiters += r.liters;
+    const g = byDay.get(groupKey);
+    if (r.statusKey === 'saindo') g.leaving.push(r);
+    if (r.statusKey === 'chegando') g.arriving.push(r);
   });
 
-  const rowsByVehicle = new Map();
-  [...byVehicleDay.values()].forEach(g => {
-    if (!rowsByVehicle.has(g.vehicle)) rowsByVehicle.set(g.vehicle, []);
-    rowsByVehicle.get(g.vehicle).push(g);
-  });
+  return [...byDay.values()]
+    .map(g => {
+      g.leaving.sort((a, b) => a.date - b.date);
+      g.arriving.sort((a, b) => a.date - b.date);
 
-  const result = [];
+      const start = g.leaving[0] || null;
+      const end = g.arriving[g.arriving.length - 1] || null;
 
-  for (const [vehicle, groups] of rowsByVehicle.entries()) {
-    groups.sort((a, b) => a.date - b.date);
-
-    // A média de referência é construída progressivamente, usando apenas
-    // dias anteriores (ou o próprio dia quando houve abastecimento real).
-    let weightedDistance = 0;
-    let weightedLiters = 0;
-    let rollingAvgKmL = NaN;
-    let balance = 0;
-    let balanceKnown = false;
-
-    for (const g of groups) {
-      const rows = g.rows.slice().sort((a, b) => a.date - b.date);
-      const first = rows[0];
-      const last = rows[rows.length - 1];
-
-      const kmInitial = Number.isFinite(first?.km) ? first.km : NaN;
-      const kmFinal = Number.isFinite(last?.km) ? last.km : NaN;
-
+      const kmInitial = Number.isFinite(start?.km) ? start.km : NaN;
+      const kmFinal = Number.isFinite(end?.km) ? end.km : NaN;
       let kmDriven = NaN;
-      let status = 'Sem par inicial/final';
+      let status = 'Sem saída e chegada';
 
-      if (rows.length >= 2 && Number.isFinite(kmInitial) && Number.isFinite(kmFinal)) {
+      if (!start && !end) {
+        status = 'Sem saída e chegada';
+      } else if (!start) {
+        status = 'Sem registro de SAINDO';
+      } else if (!end) {
+        status = 'Sem registro de CHEGANDO';
+      } else if (kmFinal < kmInitial) {
+        status = 'KM inconsistente';
+      } else {
         kmDriven = kmFinal - kmInitial;
-        if (kmDriven >= 0) status = 'Calculado';
-        else {
-          kmDriven = NaN;
-          status = 'KM inconsistente';
-        }
+        status = 'Calculado';
       }
 
-      const actualLiters = Number.isFinite(g.actualLiters) && g.actualLiters > 0 ? g.actualLiters : 0;
-      const dailyActualKmL = Number.isFinite(kmDriven) && kmDriven > 0 && actualLiters > 0
-        ? kmDriven / actualLiters
+      const fuel = fuelByDay.get(`${g.vehicle}__${g.dateKey}`) || {
+        totalValue: 0,
+        liters: 0,
+        refuels: 0
+      };
+
+      const kmPerLiter = Number.isFinite(kmDriven) && kmDriven > 0 && fuel.liters > 0
+        ? kmDriven / fuel.liters
         : NaN;
 
-      if (Number.isFinite(dailyActualKmL) && dailyActualKmL > 0) {
-        weightedDistance += kmDriven;
-        weightedLiters += actualLiters;
-        rollingAvgKmL = weightedDistance / weightedLiters;
-      }
+      const litersPer100 = Number.isFinite(kmDriven) && kmDriven > 0 && fuel.liters > 0
+        ? (fuel.liters / kmDriven) * 100
+        : NaN;
 
-      // Em dia com abastecimento, mostramos o KM/L calculado pelo próprio dia.
-      // Em dia sem abastecimento, usamos a média progressiva do veículo.
-      const referenceKmL = Number.isFinite(dailyActualKmL) && dailyActualKmL > 0
-        ? Number(dailyActualKmL.toFixed(2))
-        : (Number.isFinite(rollingAvgKmL) && rollingAvgKmL > 0 ? Number(rollingAvgKmL.toFixed(2)) : NaN);
-
-      let estimatedConsumption = NaN;
-      if (Number.isFinite(kmDriven) && kmDriven > 0 && Number.isFinite(referenceKmL) && referenceKmL > 0) {
-        estimatedConsumption = kmDriven / referenceKmL;
-      }
-
-      // Para o primeiro dia do histórico, o saldo inicial é uma convenção de 0 L,
-      // pois não existe no arquivo um estoque anterior informado.
-      const openingBalance = balanceKnown ? balance : 0;
-      let closingBalance = NaN;
-
-      if (Number.isFinite(estimatedConsumption) || actualLiters > 0) {
-        closingBalance = openingBalance + actualLiters - (Number.isFinite(estimatedConsumption) ? estimatedConsumption : 0);
-        balance = closingBalance;
-        balanceKnown = true;
-      }
-
-      let dailyStatus = status;
-      if (!Number.isFinite(referenceKmL) && Number.isFinite(kmDriven)) {
-        dailyStatus = 'Sem média de KM/L';
-      }
-      if (Number.isFinite(closingBalance) && closingBalance < -0.01) {
-        dailyStatus = 'Saldo negativo';
-      } else if (dailyStatus === 'Calculado' && Number.isFinite(estimatedConsumption)) {
-        dailyStatus = actualLiters > 0 ? 'Calculado' : 'Estimado pela média';
-      }
-
-      result.push({
-        vehicle,
+      return {
+        vehicle: g.vehicle,
         dateKey: g.dateKey,
         date: g.date,
-        start: first?.date || null,
-        end: last?.date || null,
+        start: start?.date || null,
+        end: end?.date || null,
         kmInitial,
         kmFinal,
         kmDriven,
-        totalValue: g.totalValue,
-        // Este campo é abastecimento REAL (valor informado ÷ preço do litro).
-        actualLiters,
-        // Mantemos liters por compatibilidade com gráficos/rotinas existentes.
-        liters: actualLiters,
-        refuels: rows.length,
-        dailyActualKmL,
-        referenceKmL,
-        estimatedConsumption,
-        openingBalance,
-        closingBalance,
-        // KM/L exibido na tabela: real quando houve abastecimento; média quando não houve.
-        kmPerLiter: referenceKmL,
-        litersPer100: Number.isFinite(referenceKmL) && referenceKmL > 0 ? 100 / referenceKmL : NaN,
-        status: dailyStatus
-      });
-    }
-  }
-
-  return result.sort((a, b) => a.date - b.date || a.vehicle.localeCompare(b.vehicle));
+        totalValue: fuel.totalValue,
+        liters: fuel.liters,
+        kmPerLiter,
+        litersPer100,
+        refuels: fuel.refuels,
+        status,
+        leavingCount: g.leaving.length,
+        arrivingCount: g.arriving.length
+      };
+    })
+    .sort((a, b) => a.date - b.date || a.vehicle.localeCompare(b.vehicle));
 }
 
 function summarizeConsumption(dailyRows) {
-  // Distância do KPI considera todos os dias com início/fim válidos,
-  // inclusive dias em que não houve abastecimento.
   const distanceValid = dailyRows.filter(r =>
-    Number.isFinite(r.kmDriven) && r.kmDriven > 0
+    Number.isFinite(r.kmDriven) && r.kmDriven >= 0
   );
 
-  // A média de KM/L continua baseada somente nos dias em que existe
-  // combustível realmente abastecido, para não transformar estimativas
-  // em abastecimento real.
-  const fuelValid = distanceValid.filter(r =>
-    Number.isFinite(r.actualLiters) && r.actualLiters > 0
+  const complete = dailyRows.filter(r =>
+    Number.isFinite(r.kmDriven) &&
+    r.kmDriven > 0 &&
+    Number.isFinite(r.liters) &&
+    r.liters > 0
   );
 
   const totalValue = dailyRows.reduce(
@@ -439,22 +521,25 @@ function summarizeConsumption(dailyRows) {
   );
 
   const totalLiters = dailyRows.reduce(
-    (sum, r) => sum + (Number.isFinite(r.actualLiters) ? r.actualLiters : 0),
+    (sum, r) => sum + (Number.isFinite(r.liters) ? r.liters : 0),
     0
   );
 
-  const totalDistance = distanceValid.reduce((sum, r) => sum + r.kmDriven, 0);
-  const fuelDistance = fuelValid.reduce((sum, r) => sum + r.kmDriven, 0);
-  const fuelLiters = fuelValid.reduce((sum, r) => sum + r.actualLiters, 0);
+  const totalDistance = distanceValid.reduce(
+    (sum, r) => sum + (Number.isFinite(r.kmDriven) ? r.kmDriven : 0),
+    0
+  );
+
+  const completeLiters = complete.reduce((sum, r) => sum + r.liters, 0);
 
   return {
     totalValue,
     totalLiters,
     totalDistance,
-    avgKmL: fuelLiters > 0 ? fuelDistance / fuelLiters : NaN,
+    avgKmL: completeLiters > 0 ? complete.reduce((sum, r) => sum + r.kmDriven, 0) / completeLiters : NaN,
     validDays: distanceValid.length,
-    fuelValidDays: fuelValid.length,
-    incompleteDays: dailyRows.length - distanceValid.length,
+    completeConsumptionDays: complete.length,
+    incompleteDays: dailyRows.length - complete.length,
     totalDays: dailyRows.length
   };
 }
@@ -468,289 +553,89 @@ function monthLabel(k) {
   return `${names[Number(m) - 1]}/${y}`;
 }
 
-function make(id, name, type, labels, data, label, indexAxis) {
-  destroy(name);
-
-  const canvas = $(id);
-  if (!canvas) return;
-
-  const isDoughnut = type === 'doughnut';
-
-  S.charts[name] = new Chart(canvas, {
-    type,
-    data: {
-      labels,
-      datasets: [{
-        label,
-        data,
-        borderWidth: type === 'line' ? 2 : 1,
-        tension: type === 'line' ? 0.28 : 0,
-        fill: false,
-        pointRadius: type === 'line' ? 2.5 : 0
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      resizeDelay: 100,
-      indexAxis: indexAxis || 'x',
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { display: isDoughnut, position: 'bottom' },
-        tooltip: {
-          callbacks: {
-            label: ctx => {
-              const value = ctx.parsed?.y ?? ctx.parsed ?? ctx.raw;
-              const lname = String(name).toLowerCase();
-
-              if (lname.includes('value')) return `${ctx.dataset.label}: ${money(value)}`;
-              if (lname.includes('liters')) return `${ctx.dataset.label}: ${fmt(value)} L`;
-              if (lname.includes('kml') || lname.includes('consumption')) return `${ctx.dataset.label}: ${fmt(value)} km/L`;
-
-              return `${ctx.dataset.label}: ${fmt(value)}`;
-            }
-          }
+// Rótulos internos: os valores ficam visíveis no próprio gráfico, sem depender do hover.
+const dataLabelsPlugin = {
+  id: 'pharmainoxDataLabels',
+  afterDatasetsDraw(chart) {
+    const name = String(chart.canvas?.id || '').toLowerCase();
+    const isDoughnut = chart.config.type === 'doughnut';
+    const format = n => {
+      if (name.includes('value')) return money(n);
+      if (name.includes('liters')) return `${fmt(n)} L`;
+      if (name.includes('kml') || name.includes('consumption')) return `${fmt(n)} km/L`;
+      if (name.includes('distance')) return `${fmt(n)} km`;
+      return fmt(n);
+    };
+    const ctx=chart.ctx; ctx.save(); ctx.font='700 10px Segoe UI,Arial,sans-serif'; ctx.textBaseline='middle';
+    chart.data.datasets.forEach((ds,di)=>{
+      const meta=chart.getDatasetMeta(di);
+      meta.data.forEach((el,idx)=>{
+        const value=Number(ds.data[idx]); if(!Number.isFinite(value)) return;
+        const text=format(value); const p=el.tooltipPosition();
+        if(isDoughnut){
+          ctx.textAlign='center'; ctx.fillStyle='#172033'; ctx.strokeStyle='rgba(255,255,255,.95)'; ctx.lineWidth=3;
+          ctx.strokeText(text,p.x,p.y); ctx.fillText(text,p.x,p.y); return;
         }
-      },
-      scales: isDoughnut ? {} : {
-        x: { beginAtZero: true, ticks: { autoSkip: true, maxTicksLimit: 14 } },
-        y: { beginAtZero: true, ticks: { autoSkip: true, maxTicksLimit: 14 } }
-      }
-    }
-  });
+        const horizontal=chart.options.indexAxis==='y'; let x=p.x, y=p.y-9, align='center';
+        if(horizontal){x=p.x+7;y=p.y;align='left';}
+        ctx.textAlign=align; const m=ctx.measureText(text); const pad=4,h=15; const bx=align==='left'?x-pad:x-m.width/2-pad;
+        ctx.fillStyle='rgba(255,255,255,.92)'; ctx.strokeStyle='rgba(23,32,51,.12)'; ctx.lineWidth=1; ctx.beginPath();
+        if(ctx.roundRect) ctx.roundRect(bx,y-h/2,m.width+pad*2,h,4); else ctx.rect(bx,y-h/2,m.width+pad*2,h); ctx.fill(); ctx.stroke();
+        ctx.fillStyle='#172033'; ctx.fillText(text,x,y);
+      });
+    }); ctx.restore();
+  }
+};
+if(typeof Chart!=='undefined' && !Chart.registry.plugins.get('pharmainoxDataLabels')) Chart.register(dataLabelsPlugin);
+
+function periodLabel(key,mode){
+  if(!key) return '';
+  if(mode==='year') return key;
+  if(mode==='month') return monthLabel(key);
+  const [y,w]=key.split('-W'); return `Sem ${w}/${y}`;
+}
+function startOfWeek(date){
+  const d=new Date(date); d.setHours(0,0,0,0); const day=d.getDay(); const diff=day===0?-6:1-day; d.setDate(d.getDate()+diff); return d;
+}
+function isoWeekKey(date){
+  const d=startOfWeek(date); const year=d.getFullYear(); const firstMonday=startOfWeek(new Date(year,0,4)); const week=Math.floor((d-firstMonday)/604800000)+1; return `${year}-W${String(week).padStart(2,'0')}`;
+}
+function aggregateTimeRows(rows,mode,valueFn){
+  const out={}; rows.forEach(r=>{ if(!r.date) return; const k=mode==='year'?String(r.date.getFullYear()):mode==='week'?isoWeekKey(r.date):`${r.date.getFullYear()}-${String(r.date.getMonth()+1).padStart(2,'0')}`; const v=Number(valueFn(r)); if(Number.isFinite(v)) out[k]=(out[k]||0)+v; }); return out;
+}
+
+function make(id,name,type,labels,data,label,indexAxis){
+  destroy(name); const canvas=$(id); if(!canvas) return; const isDoughnut=type==='doughnut';
+  S.charts[name]=new Chart(canvas,{type,data:{labels,datasets:[{label,data,borderWidth:type==='line'?2:1,tension:type==='line'?.28:0,fill:false,pointRadius:type==='line'?3:0}]},options:{responsive:true,maintainAspectRatio:false,resizeDelay:100,indexAxis:indexAxis||'x',interaction:{mode:'index',intersect:false},layout:{padding:{top:22,right:26,bottom:8,left:8}},plugins:{legend:{display:isDoughnut,position:'bottom'},tooltip:{callbacks:{label:ctx=>{const value=ctx.parsed?.y??ctx.parsed??ctx.raw;const lname=String(name).toLowerCase();if(lname.includes('value'))return `${ctx.dataset.label}: ${money(value)}`;if(lname.includes('liters'))return `${ctx.dataset.label}: ${fmt(value)} L`;if(lname.includes('kml')||lname.includes('consumption'))return `${ctx.dataset.label}: ${fmt(value)} km/L`;if(lname.includes('distance'))return `${ctx.dataset.label}: ${fmt(value)} km`;return `${ctx.dataset.label}: ${fmt(value)}`;}}}},scales:isDoughnut?{}:{x:{beginAtZero:true,ticks:{autoSkip:true,maxTicksLimit:16}},y:{beginAtZero:true,ticks:{autoSkip:true,maxTicksLimit:14}}}}});
 }
 
 function update() {
   apply();
-
-  const f = S.filteredFuel;
-  const l = S.filteredLog;
-  const daily = S.filteredDaily;
-  const summary = summarizeConsumption(daily);
-
-  $('value').textContent = money(summary.totalValue);
-  $('liters').textContent = summary.totalLiters > 0 ? `${fmt(summary.totalLiters)} L` : '—';
-  $('refuels').textContent = f.length.toLocaleString('pt-BR');
-  $('logCount').textContent = l.length.toLocaleString('pt-BR');
-  $('distance').textContent = fmt(summary.totalDistance) + ' km';
-  $('kml').textContent = fmt(summary.avgKmL);
-
-  const dates = f.filter(r => r.date).map(r => r.date).sort((a, b) => a - b);
-  $('period').textContent = dates.length
-    ? `${dateTime(dates[0])} → ${dateTime(dates[dates.length - 1])}`
-    : '—';
-
-  const monthValue = {};
-  const monthLiters = {};
-  const monthDistance = {};
-  const vehicleValue = {};
-  const vehicleLiters = {};
-  const vehicleDistance = {};
-  const weekday = {};
-
-  f.forEach(r => {
-    const m = r.date
-      ? `${r.date.getFullYear()}-${String(r.date.getMonth() + 1).padStart(2, '0')}`
-      : 'Sem data';
-
-    monthValue[m] = (monthValue[m] || 0) + (Number.isFinite(r.value) ? r.value : 0);
-    monthLiters[m] = (monthLiters[m] || 0) + (Number.isFinite(r.liters) ? r.liters : 0);
-
-    vehicleValue[r.vehicle] = (vehicleValue[r.vehicle] || 0) + (Number.isFinite(r.value) ? r.value : 0);
-    vehicleLiters[r.vehicle] = (vehicleLiters[r.vehicle] || 0) + (Number.isFinite(r.liters) ? r.liters : 0);
-
-    const w = r.date
-      ? ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][r.date.getDay()]
-      : 'Sem data';
-
-    weekday[w] = (weekday[w] || 0) + 1;
-  });
-
-  daily.forEach(r => {
-    if (Number.isFinite(r.kmDriven) && r.kmDriven > 0) {
-      const m = r.dateKey.slice(0, 7);
-      monthDistance[m] = (monthDistance[m] || 0) + r.kmDriven;
-      vehicleDistance[r.vehicle] = (vehicleDistance[r.vehicle] || 0) + r.kmDriven;
-    }
-  });
-
-  const sortedValue = Object.keys(monthValue).sort();
-  make(
-    'monthValue',
-    'monthValue',
-    'bar',
-    sortedValue.map(monthLabel),
-    sortedValue.map(k => monthValue[k]),
-    'Valor abastecido'
-  );
-
-  const sortedLiters = Object.keys(monthLiters).sort();
-  make(
-    'monthLiters',
-    'monthLiters',
-    'line',
-    sortedLiters.map(monthLabel),
-    sortedLiters.map(k => monthLiters[k]),
-    'Litros calculados'
-  );
-
-  make('vehicleValue', 'vehicleValue', 'doughnut',
-    Object.keys(vehicleValue),
-    Object.values(vehicleValue),
-    'Valor abastecido'
-  );
-
-  make('vehicleLiters', 'vehicleLiters', 'bar',
-    Object.keys(vehicleLiters),
-    Object.values(vehicleLiters),
-    'Litros calculados'
-  );
-
-  make('distanceVehicle', 'distanceVehicle', 'bar',
-    Object.keys(vehicleDistance),
-    Object.values(vehicleDistance),
-    'KM rodados'
-  );
-
-  const vehicleKml = {};
-  Object.keys(vehicleDistance).forEach(vehicle => {
-    const valid = daily.filter(r =>
-      r.vehicle === vehicle &&
-      Number.isFinite(r.kmDriven) &&
-      r.kmDriven > 0 &&
-      Number.isFinite(r.liters) &&
-      r.liters > 0
-    );
-
-    const dist = valid.reduce((sum, r) => sum + r.kmDriven, 0);
-    const liters = valid.reduce((sum, r) => sum + r.liters, 0);
-
-    if (liters > 0) vehicleKml[vehicle] = dist / liters;
-  });
-
-  make('kmlVehicle', 'kmlVehicle', 'bar',
-    Object.keys(vehicleKml),
-    Object.values(vehicleKml),
-    'KM/L'
-  );
-
-  const dailyValid = daily.filter(r =>
-    Number.isFinite(r.kmPerLiter) &&
-    Number.isFinite(r.kmDriven) &&
-    r.kmDriven > 0
-  );
-
-  make(
-    'dailyConsumption',
-    'dailyConsumption',
-    'line',
-    dailyValid.map(r => `${r.vehicle} · ${new Date(`${r.dateKey}T12:00:00`).toLocaleDateString('pt-BR')}`),
-    dailyValid.map(r => r.kmPerLiter),
-    'Consumo diário (KM/L)'
-  );
-
-  make(
-    'dailyDistance',
-    'dailyDistance',
-    'bar',
-    dailyValid.map(r => `${r.vehicle} · ${new Date(`${r.dateKey}T12:00:00`).toLocaleDateString('pt-BR')}`),
-    dailyValid.map(r => r.kmDriven),
-    'KM rodados no dia'
-  );
-
-  const statuses = {};
-  const cities = {};
-
-  l.forEach(r => {
-    statuses[r._status] = (statuses[r._status] || 0) + 1;
-    cities[r._city] = (cities[r._city] || 0) + 1;
-  });
-
-  const topCities = Object.entries(cities)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 15);
-
-  make('chartStatus', 'chartStatus', 'bar',
-    Object.keys(statuses).slice(0, 20),
-    Object.values(statuses).slice(0, 20),
-    'Registros',
-    'y'
-  );
-
-  make('city', 'city', 'bar',
-    topCities.map(x => x[0]),
-    topCities.map(x => x[1]),
-    'Registros',
-    'y'
-  );
-
-  const days = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
-
-  make('weekday', 'weekday', 'bar',
-    days,
-    days.map(d => weekday[d] || 0),
-    'Abastecimentos'
-  );
-
-  const dailyRowsForTable = daily
-    .slice()
-    .sort((a, b) => b.date - a.date || a.vehicle.localeCompare(b.vehicle));
-
-  $('dailyTable').innerHTML = dailyRowsForTable.map(r => {
-    const statusClass = r.status === 'Saldo negativo' ? 'daily-alert' : (r.status === 'Calculado' || r.status === 'Estimado pela média' ? 'daily-ok' : 'daily-warn');
-    const statusText = r.status;
-
-    return `<tr>
-      <td>${new Date(`${r.dateKey}T12:00:00`).toLocaleDateString('pt-BR')}</td>
-      <td>${escapeHtml(r.vehicle)}</td>
-      <td>${r.start ? escapeHtml(dateTime(r.start)) : '—'}</td>
-      <td>${Number.isFinite(r.kmInitial) ? r.kmInitial.toLocaleString('pt-BR') : '—'}</td>
-      <td>${r.end ? escapeHtml(dateTime(r.end)) : '—'}</td>
-      <td>${Number.isFinite(r.kmFinal) ? r.kmFinal.toLocaleString('pt-BR') : '—'}</td>
-      <td><strong>${Number.isFinite(r.kmDriven) ? fmt(r.kmDriven) + ' km' : '—'}</strong></td>
-      <td>${money(r.totalValue)}</td>
-      <td>${Number.isFinite(r.actualLiters) && r.actualLiters > 0 ? fmt(r.actualLiters) + ' L' : '0 L'}</td>
-      <td><strong>${Number.isFinite(r.referenceKmL) ? fmt(r.referenceKmL) + ' km/L' : '—'}</strong></td>
-      <td>${Number.isFinite(r.estimatedConsumption) ? fmt(r.estimatedConsumption) + ' L' : '—'}</td>
-      <td>${Number.isFinite(r.openingBalance) ? fmt(r.openingBalance) + ' L' : '—'}</td>
-      <td><strong>${Number.isFinite(r.closingBalance) ? fmt(r.closingBalance) + ' L' : '—'}</strong></td>
-      <td><span class="${statusClass}">${escapeHtml(statusText)}</span></td>
-    </tr>`;
-  }).join('') || '<tr><td colspan="14">Nenhum dia encontrado.</td></tr>';
-
-
-  $('fuelTable').innerHTML = f
-    .slice()
-    .sort((a, b) => (b.date || 0) - (a.date || 0))
-    .slice(0, 300)
-    .map(r => {
-      const litersText = Number.isFinite(r.liters) ? `${fmt(r.liters)} L` : '—';
-
-      return `<tr>
-        <td>${r.dateText}</td>
-        <td>${escapeHtml(r.vehicle)}</td>
-        <td>${money(r.value)}</td>
-        <td>${money(FUEL_PRICE_PER_LITER)}</td>
-        <td>${litersText}</td>
-        <td>${Number.isFinite(r.km) ? r.km.toLocaleString('pt-BR') : '—'}</td>
-      </tr>`;
-    }).join('') || '<tr><td colspan="6">Nenhum registro.</td></tr>';
-
-  const first = l[0] || {};
-  const keys = Object.keys(first).filter(k => !k.startsWith('_')).slice(0, 8);
-
-  $('logHead').innerHTML = keys.map(k => `<th>${escapeHtml(k)}</th>`).join('');
-  $('logTable').innerHTML = l.slice(0, 100).map(r =>
-    `<tr>${keys.map(k => `<td>${escapeHtml(String(r[k] ?? ''))}</td>`).join('')}</tr>`
-  ).join('');
-
-  const incompleteNote = summary.incompleteDays
-    ? `${summary.validDays} dia(s) calculado(s) · ${summary.incompleteDays} dia(s) sem par inicial/final`
-    : `${summary.validDays} dia(s) calculado(s)`;
-
-  $('distance').title = incompleteNote;
-  $('kml').title = `Consumo médio calculado apenas com dias completos. ${incompleteNote}`;
+  const f=S.filteredFuel,l=S.filteredLog,daily=S.filteredDaily,summary=summarizeConsumption(daily),mode=$('periodicity')?.value||'month';
+  $('value').textContent=money(summary.totalValue); $('liters').textContent=summary.totalLiters>0?`${fmt(summary.totalLiters)} L`:'—'; $('refuels').textContent=f.length.toLocaleString('pt-BR'); $('logCount').textContent=l.length.toLocaleString('pt-BR'); $('distance').textContent=fmt(summary.totalDistance)+' km'; $('kml').textContent=fmt(summary.avgKmL);
+  const dates=(S.filteredJourney.length?S.filteredJourney:f).filter(r=>r.date).map(r=>r.date).sort((a,b)=>a-b); $('period').textContent=dates.length?`${dateTime(dates[0])} → ${dateTime(dates[dates.length-1])}`:'—';
+  const keyFor=(date)=>mode==='year'?String(date.getFullYear()):mode==='week'?isoWeekKey(date):`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`;
+  const timeValue=aggregateTimeRows(f,mode,r=>r.value), timeLiters=aggregateTimeRows(f,mode,r=>r.liters), timeDistance={};
+  daily.forEach(r=>{if(Number.isFinite(r.kmDriven)&&r.kmDriven>0&&r.date){const k=keyFor(r.date);timeDistance[k]=(timeDistance[k]||0)+r.kmDriven;}});
+  const vehicleValue={},vehicleLiters={},vehicleDistance={};
+  f.forEach(r=>{vehicleValue[r.vehicle]=(vehicleValue[r.vehicle]||0)+(Number.isFinite(r.value)?r.value:0);vehicleLiters[r.vehicle]=(vehicleLiters[r.vehicle]||0)+(Number.isFinite(r.liters)?r.liters:0);});
+  daily.forEach(r=>{if(Number.isFinite(r.kmDriven)&&r.kmDriven>0)vehicleDistance[r.vehicle]=(vehicleDistance[r.vehicle]||0)+r.kmDriven;});
+  const timeKeys=[...new Set([...Object.keys(timeValue),...Object.keys(timeLiters),...Object.keys(timeDistance)])].sort(),labels=timeKeys.map(k=>periodLabel(k,mode)),suffix=mode==='month'?'mês':mode==='week'?'semana':'ano';
+  $('titleMonthValue').textContent=`Valor por ${suffix}`; $('titleMonthLiters').textContent=`Litros calculados por ${suffix}`; $('titleDailyConsumption').textContent=`Consumo por ${suffix}`; $('titleDailyDistance').textContent=`KM rodados por ${suffix}`;
+  make('monthValue','monthValue','bar',labels,timeKeys.map(k=>timeValue[k]||0),'Valor abastecido'); make('monthLiters','monthLiters','line',labels,timeKeys.map(k=>timeLiters[k]||0),'Litros calculados');
+  make('vehicleValue','vehicleValue','doughnut',Object.keys(vehicleValue),Object.values(vehicleValue),'Valor abastecido'); make('vehicleLiters','vehicleLiters','bar',Object.keys(vehicleLiters),Object.values(vehicleLiters),'Litros calculados'); make('distanceVehicle','distanceVehicle','bar',Object.keys(vehicleDistance),Object.values(vehicleDistance),'KM rodados');
+  const vehicleKml={}; Object.keys(vehicleDistance).forEach(v=>{const rows=daily.filter(r=>r.vehicle===v&&Number.isFinite(r.kmDriven)&&r.kmDriven>0&&Number.isFinite(r.liters)&&r.liters>0);const dist=rows.reduce((s,r)=>s+r.kmDriven,0),lit=rows.reduce((s,r)=>s+r.liters,0);if(lit>0)vehicleKml[v]=dist/lit;}); make('kmlVehicle','kmlVehicle','bar',Object.keys(vehicleKml),Object.values(vehicleKml),'KM/L');
+  const timeKml={}; daily.forEach(r=>{if(!r.date||!Number.isFinite(r.kmDriven)||r.kmDriven<=0||!Number.isFinite(r.liters)||r.liters<=0)return;const k=keyFor(r.date);timeKml[k]=(timeKml[k]||0)+r.kmDriven/r.liters;});
+  // Consumo do período: usa KM e litros agregados, não a média das médias.
+  const distAgg={},litAgg={}; daily.forEach(r=>{if(!r.date||!Number.isFinite(r.kmDriven)||r.kmDriven<=0||!Number.isFinite(r.liters)||r.liters<=0)return;const k=keyFor(r.date);distAgg[k]=(distAgg[k]||0)+r.kmDriven;litAgg[k]=(litAgg[k]||0)+r.liters;}); Object.keys(distAgg).forEach(k=>{timeKml[k]=litAgg[k]>0?distAgg[k]/litAgg[k]:NaN;});
+  const kmlKeys=Object.keys(timeKml).filter(k=>Number.isFinite(timeKml[k])).sort(); make('dailyConsumption','dailyConsumption','line',kmlKeys.map(k=>periodLabel(k,mode)),kmlKeys.map(k=>timeKml[k]),'KM/L'); const distKeys=Object.keys(timeDistance).sort(); make('dailyDistance','dailyDistance','bar',distKeys.map(k=>periodLabel(k,mode)),distKeys.map(k=>timeDistance[k]),'KM rodados');
+  const statuses={},cities={}; l.forEach(r=>{statuses[r._status]=(statuses[r._status]||0)+1;cities[r._city]=(cities[r._city]||0)+1;}); const topCities=Object.entries(cities).sort((a,b)=>b[1]-a[1]).slice(0,15); make('chartStatus','chartStatus','bar',Object.keys(statuses).slice(0,20),Object.values(statuses).slice(0,20),'Registros','y'); make('city','city','bar',topCities.map(x=>x[0]),topCities.map(x=>x[1]),'Registros','y'); const weekday={}; f.forEach(r=>{const w=r.date?['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][r.date.getDay()]:'Sem data';weekday[w]=(weekday[w]||0)+1;}); const days=['Seg','Ter','Qua','Qui','Sex','Sáb','Dom']; make('weekday','weekday','bar',days,days.map(d=>weekday[d]||0),'Abastecimentos');
+  const dailyRowsForTable=daily.slice().sort((a,b)=>b.date-a.date||a.vehicle.localeCompare(b.vehicle)); $('dailyTable').innerHTML=dailyRowsForTable.map(r=>{const statusClass=r.status==='Calculado'?'daily-ok':'daily-warn';return `<tr><td>${new Date(`${r.dateKey}T12:00:00`).toLocaleDateString('pt-BR')}</td><td>${escapeHtml(r.vehicle)}</td><td>${r.start?escapeHtml(dateTime(r.start)):'—'}</td><td>${Number.isFinite(r.kmInitial)?r.kmInitial.toLocaleString('pt-BR'):'—'}</td><td>${r.end?escapeHtml(dateTime(r.end)):'—'}</td><td>${Number.isFinite(r.kmFinal)?r.kmFinal.toLocaleString('pt-BR'):'—'}</td><td><strong>${Number.isFinite(r.kmDriven)?fmt(r.kmDriven)+' km':'—'}</strong></td><td>${money(r.totalValue)}</td><td>${Number.isFinite(r.liters)?fmt(r.liters)+' L':'—'}</td><td><strong>${Number.isFinite(r.kmPerLiter)?fmt(r.kmPerLiter)+' km/L':'—'}</strong></td><td>${Number.isFinite(r.litersPer100)?fmt(r.litersPer100)+' L/100 km':'—'}</td><td><span class="${statusClass}">${escapeHtml(r.status)}</span></td></tr>`;}).join('')||'<tr><td colspan="12">Nenhum dia encontrado.</td></tr>';
+  $('fuelTable').innerHTML=f.slice().sort((a,b)=>(b.date||0)-(a.date||0)).slice(0,300).map(r=>`<tr><td>${r.dateText}</td><td>${escapeHtml(r.vehicle)}</td><td>${money(r.value)}</td><td>${money(r.price)}</td><td>${Number.isFinite(r.liters)?fmt(r.liters)+' L':'—'}</td><td>${Number.isFinite(r.km)?r.km.toLocaleString('pt-BR'):'—'}</td></tr>`).join('')||'<tr><td colspan="6">Nenhum registro.</td></tr>';
+  const first=l[0]||{};const keys=Object.keys(first).filter(k=>!k.startsWith('_')).slice(0,8);$('logHead').innerHTML=keys.map(k=>`<th>${escapeHtml(k)}</th>`).join('');$('logTable').innerHTML=l.slice(0,100).map(r=>`<tr>${keys.map(k=>`<td>${escapeHtml(String(r[k]??''))}</td>`).join('')}</tr>`).join('');
+  const incompleteNote=summary.incompleteDays?`${summary.validDays} dia(s) calculado(s) · ${summary.incompleteDays} dia(s) sem par inicial/final`:`${summary.validDays} dia(s) calculado(s)`;$('distance').title=incompleteNote;$('kml').title=`Consumo médio calculado apenas com dias completos. ${incompleteNote}`;
 }
+
 
 function normalizeText(s) {
   return String(s || '')
@@ -776,10 +661,17 @@ function isGoodAddress(addr) {
   const value = String(addr || '').trim();
   if (!value) return false;
   if (value.toLowerCase() === 'endereço não encontrado') return false;
-  // Evita tratar uma cidade isolada como endereço válido.
   if (value.length < 8) return false;
-  if (!/\d/.test(value) && !/\bS\/?N\b/i.test(value) && !/\bKM\b/i.test(value)) return false;
-  return true;
+  // Para endereços da base, ainda exigimos algum indicador concreto de localização.
+  return /\d/.test(value) || /\bS\/?N\b/i.test(value) || /\bKM\b/i.test(value);
+}
+
+function isGoodManualAddress(addr) {
+  const value = String(addr || '').trim();
+  if (!value) return false;
+  if (value.toLowerCase() === 'endereço não encontrado') return false;
+  // Cadastro manual pode ser uma referência válida sem número (ex.: condomínio, rodovia, galpão, ponto conhecido).
+  return value.length >= 5;
 }
 
 function manualKey(code) { return normalizeCode(code); }
@@ -802,7 +694,7 @@ function saveManualAddresses() {
 
 function getManualAddress(code) {
   const item = S.manualAddresses[manualKey(code)];
-  return item && isGoodAddress(item.endereco) ? item : null;
+  return item && isGoodManualAddress(item.endereco) ? item : null;
 }
 
 function resolveSupplier(code, name) {
@@ -876,11 +768,18 @@ const PHARMAINNOX = {
 
 function initMap() {
   if (S.map) return;
-  S.map = L.map('routeMap', { zoomControl: true, scrollWheelZoom: true }).setView([PHARMAINNOX.lat, PHARMAINNOX.lng], 10);
-  L.maplibreGL({
-    style: 'https://tiles.openfreemap.org/styles/liberty',
-    attribution: 'OpenFreeMap · © OpenMapTiles · Data from OpenStreetMap contributors'
+  S.map = L.map('routeMap', {
+    zoomControl: true,
+    scrollWheelZoom: true,
+    preferCanvas: true
+  }).setView([PHARMAINNOX.lat, PHARMAINNOX.lng], 10);
+
+  // Mapa base simples e estável. A rota é desenhada separadamente pelo OSRM.
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
   }).addTo(S.map);
+
   S.markersLayer = L.layerGroup().addTo(S.map);
   S.routeLayer = L.layerGroup().addTo(S.map);
 }
@@ -895,9 +794,9 @@ function markerIcon(label, isOrigin = false) {
   return L.divIcon({
     className: 'route-marker-wrap',
     html: `<div class="route-marker ${isOrigin ? 'origin' : ''}">${escapeHtml(label)}</div>`,
-    iconSize: [34, 34],
-    iconAnchor: [17, 17],
-    popupAnchor: [0, -18]
+    iconSize: [38, 38],
+    iconAnchor: [19, 19],
+    popupAnchor: [0, -20]
   });
 }
 
@@ -917,35 +816,118 @@ function saveGeoCache() {
 let lastNominatimRequest = 0;
 async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-async function geocodeAddress(address, fallbackCity = '') {
-  const full = [address, fallbackCity].filter(Boolean).join(', ');
-  const keyCache = cacheKeyForGeo(full);
-  if (S.geocodeCache[keyCache]) return S.geocodeCache[keyCache];
+function buildGeoQueries(address, fallbackCity = '') {
+  const a = String(address || '').trim();
+  const c = String(fallbackCity || '').trim();
+  const queries = [
+    [a, c, 'SP', 'Brasil'].filter(Boolean).join(', '),
+    [a, c, 'Brasil'].filter(Boolean).join(', '),
+    [a, 'SP', 'Brasil'].filter(Boolean).join(', '),
+    `${a}, Brasil`
+  ];
+  return [...new Set(queries.map(q => q.trim()).filter(Boolean))];
+}
 
+async function geocodeNominatim(query) {
   const wait = Math.max(0, 1100 - (Date.now() - lastNominatimRequest));
   if (wait) await sleep(wait);
   lastNominatimRequest = Date.now();
 
   const url = 'https://nominatim.openstreetmap.org/search?' + new URLSearchParams({
     format: 'jsonv2',
-    q: `${full}, Brasil`,
+    q: query,
     countrycodes: 'br',
-    limit: '1',
+    limit: '3',
     addressdetails: '1'
   });
 
   const res = await fetch(url, { headers: { 'Accept-Language': 'pt-BR' } });
   if (!res.ok) throw new Error(`Geocodificação HTTP ${res.status}`);
   const data = await res.json();
-  if (!Array.isArray(data) || !data.length) return null;
+  if (!Array.isArray(data)) return [];
 
-  const result = { lat: Number(data[0].lat), lng: Number(data[0].lon), displayName: data[0].display_name || full };
-  if (Number.isFinite(result.lat) && Number.isFinite(result.lng)) {
-    S.geocodeCache[keyCache] = result;
-    saveGeoCache();
-    return result;
+  return data.map(item => ({
+    lat: Number(item.lat),
+    lng: Number(item.lon),
+    displayName: item.display_name || query,
+    type: item.type || '',
+    importance: Number(item.importance) || 0
+  })).filter(x => Number.isFinite(x.lat) && Number.isFinite(x.lng));
+}
+
+async function geocodePhoton(query) {
+  const url = 'https://photon.komoot.io/api/?' + new URLSearchParams({
+    q: query,
+    limit: '5',
+    lang: 'pt'
+  });
+  const res = await fetch(url, { headers: { 'Accept-Language': 'pt-BR' } });
+  if (!res.ok) return [];
+  const data = await res.json();
+  if (!Array.isArray(data?.features)) return [];
+  return data.features.map(f => ({
+    lat: Number(f.geometry?.coordinates?.[1]),
+    lng: Number(f.geometry?.coordinates?.[0]),
+    displayName: f.properties?.name || query,
+    type: f.properties?.type || '',
+    importance: Number(f.properties?.importance) || 0
+  })).filter(x => Number.isFinite(x.lat) && Number.isFinite(x.lng));
+}
+
+function scoreGeoResult(result, city = '') {
+  const text = normalizeText(`${result.displayName || ''} ${result.type || ''}`);
+  const cityText = normalizeText(city);
+  let score = Number(result.importance || 0);
+  if (cityText && text.includes(cityText)) score += 3;
+  if (['house', 'building', 'residential', 'commercial'].includes(result.type)) score += 1.5;
+  return score;
+}
+
+async function geocodeAddress(address, fallbackCity = '') {
+  const full = [address, fallbackCity].filter(Boolean).join(', ');
+  const keyCache = cacheKeyForGeo(full);
+  if (S.geocodeCache[keyCache]) return S.geocodeCache[keyCache];
+
+  const queries = buildGeoQueries(address, fallbackCity);
+  let candidates = [];
+
+  // Primeiro tenta Nominatim com mais de uma forma de consulta.
+  for (const query of queries) {
+    try {
+      const results = await geocodeNominatim(query);
+      candidates.push(...results);
+      if (results.length) break;
+    } catch (e) {
+      console.warn('Nominatim falhou:', e);
+    }
   }
-  return null;
+
+  // Fallback para Photon quando Nominatim não localizar o endereço.
+  if (!candidates.length) {
+    try {
+      for (const query of queries.slice(0, 2)) {
+        candidates.push(...await geocodePhoton(query));
+        if (candidates.length) break;
+      }
+    } catch (e) {
+      console.warn('Photon falhou:', e);
+    }
+  }
+
+  if (!candidates.length) return null;
+
+  const best = candidates
+    .sort((a, b) => scoreGeoResult(b, fallbackCity) - scoreGeoResult(a, fallbackCity))[0];
+
+  const result = {
+    lat: best.lat,
+    lng: best.lng,
+    displayName: best.displayName || full
+  };
+
+  S.geocodeCache[keyCache] = result;
+  saveGeoCache();
+  return result;
 }
 
 function formatDuration(seconds) {
@@ -978,20 +960,84 @@ function googleDirectionsUrl(orderedStops) {
   return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&travelmode=driving&waypoints=${encodeURIComponent(waypoints)}`;
 }
 
-async function calculateRoute(points) {
+async function osrmRoute(points) {
   const coords = points.map(p => `${p.lng},${p.lat}`).join(';');
-  if (points.length < 2) return null;
-  const url = `https://router.project-osrm.org/trip/v1/driving/${coords}?source=first&destination=first&roundtrip=true&steps=false&geometries=geojson&overview=full`;
+  const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false&alternatives=false&continue_straight=false`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Roteamento HTTP ${res.status}`);
   const data = await res.json();
-  if (data.code !== 'Ok' || !data.trips?.length) throw new Error(data.message || 'Não foi possível calcular a rota.');
-  data.waypoints?.forEach((wp, i) => {
-    const p = points[i];
-    if (p) p._waypointIndex = Number.isFinite(wp.waypoint_index) ? wp.waypoint_index : i;
-  });
-  const orderedFinal = points.slice().sort((a, b) => (a._waypointIndex ?? 0) - (b._waypointIndex ?? 0));
-  return { trip: data.trips[0], ordered: orderedFinal };
+  if (data.code !== 'Ok' || !data.routes?.length) {
+    throw new Error(data.message || 'Não foi possível encontrar uma rota pelas ruas.');
+  }
+  return data.routes[0];
+}
+
+async function calculateRoute(points) {
+  if (points.length < 2) return null;
+
+  let ordered = points.slice();
+  let optimized = false;
+
+  // 1) Tenta otimizar a sequência quando o volume é compatível com o serviço público.
+  if (points.length <= 60) {
+    try {
+      const coords = points.map(p => `${p.lng},${p.lat}`).join(';');
+      const url = `https://router.project-osrm.org/trip/v1/driving/${coords}?source=first&destination=first&roundtrip=true&steps=false&geometries=geojson&overview=full`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.code === 'Ok' && data.trips?.length) {
+          data.waypoints?.forEach((wp, i) => {
+            const p = points[i];
+            if (p) p._waypointIndex = Number.isFinite(wp.waypoint_index) ? wp.waypoint_index : i;
+          });
+          ordered = points.slice().sort((a, b) => (a._waypointIndex ?? 0) - (b._waypointIndex ?? 0));
+          optimized = true;
+        }
+      }
+    } catch (e) {
+      console.warn('Otimização OSRM falhou; usando ordem atual.', e);
+    }
+  }
+
+  // 2) Calcula a geometria seguindo as ruas. Primeiro tenta uma chamada única.
+  const routePoints = ordered.concat([{ ...points[0], isReturn: true }]);
+  try {
+    const route = await osrmRoute(routePoints);
+    return { route, ordered, optimized };
+  } catch (e) {
+    console.warn('Rota completa falhou; usando cálculo por trechos.', e);
+  }
+
+  // 3) Fallback robusto: calcula trecho a trecho. Assim, um limite do serviço
+  // para uma rota muito grande não derruba o mapa inteiro.
+  const legs = [];
+  let totalDistance = 0;
+  let totalDuration = 0;
+  const geometry = [];
+
+  for (let i = 0; i < routePoints.length - 1; i++) {
+    const legPoints = [routePoints[i], routePoints[i + 1]];
+    const leg = await osrmRoute(legPoints);
+    legs.push(leg);
+    totalDistance += Number(leg.distance) || 0;
+    totalDuration += Number(leg.duration) || 0;
+    const coords = leg.geometry?.coordinates || [];
+    if (!coords.length) continue;
+    if (geometry.length) geometry.push(...coords.slice(1));
+    else geometry.push(...coords);
+  }
+
+  if (!geometry.length) throw new Error('Não foi possível obter a geometria dos trechos da rota.');
+  return {
+    route: {
+      distance: totalDistance,
+      duration: totalDuration,
+      geometry: { type: 'LineString', coordinates: geometry }
+    },
+    ordered,
+    optimized
+  };
 }
 
 function routeIssueLabel(state) {
@@ -1022,7 +1068,10 @@ function renderRouteIssues(groupedRows) {
         </div>
         <div class="route-address-editor">
           <input id="${id}" type="text" value="${escapeHtml(current)}" placeholder="Digite o endereço completo...">
-          <button class="button secondary mini-button" onclick="saveRouteAddress('${escapeHtml(code)}','${id}','${escapeHtml(s.city)}')">Salvar endereço</button>
+          <div class="route-address-actions">
+            <button class="button secondary mini-button" onclick="saveRouteAddress('${escapeHtml(code)}','${id}','${escapeHtml(s.city)}')">Salvar endereço</button>
+            <button class="button secondary mini-button" onclick="openAddressSearch('${id}','${escapeHtml(s.city)}')">Google Maps</button>
+          </div>
         </div>
       </div>`;
   }).join('');
@@ -1063,7 +1112,6 @@ async function renderRoute() {
 
   const grouped = groupRouteStops(dateKey);
   const baseValid = grouped.filter(s => s.resolution.state === 'ok');
-  // Contagem da rota: somente linhas com AGENDAMENTO na data e TIPO = COLETA ou ENTREGA.
   const scheduledRows = S.log.filter(r => key(r._scheduleDate) === dateKey && isRouteType(r._type));
   const uniqueOrders = new Set(scheduledRows.map(r => r._order).filter(Boolean));
   const ordersCount = uniqueOrders.size || scheduledRows.length;
@@ -1114,24 +1162,26 @@ async function renderRoute() {
 
   const points = [{ ...PHARMAINNOX, isOrigin: true }, ...geoPoints];
   let ordered = geoPoints.slice();
-  let trip = null;
+  let route = null;
+  let optimized = false;
 
   try {
-    if (points.length > 1) {
+    if (points.length > 2) {
       const calc = await calculateRoute(points);
       if (runId !== S.routeRunId) return;
-      trip = calc.trip;
+      route = calc.route;
+      optimized = calc.optimized;
       ordered = calc.ordered.filter(p => !p.isOrigin);
-      $('routeDistance').textContent = formatDistance(trip.distance);
-      $('routeDuration').textContent = formatDuration(trip.duration);
-      $('routeBadge').textContent = 'Rota calculada';
+      $('routeDistance').textContent = formatDistance(route.distance);
+      $('routeDuration').textContent = formatDuration(route.duration);
+      $('routeBadge').textContent = optimized ? 'Rota otimizada pelas ruas' : 'Rota calculada pelas ruas';
     }
   } catch (e) {
-    console.error(e);
+    console.error('Erro no roteamento:', e);
     $('routeBadge').textContent = 'Rota não calculada';
     $('routeDistance').textContent = '—';
     $('routeDuration').textContent = '—';
-    toast('Não foi possível calcular a rota automaticamente. Os pontos encontrados continuam disponíveis no mapa.');
+    toast('Os endereços foram localizados, mas o roteamento não conseguiu ligar todas as paradas. Verifique se algum ponto está fora da malha rodoviária e use o Google Maps para conferir.');
   }
 
   const orderedForMarkers = ordered.length ? ordered : geoPoints;
@@ -1151,17 +1201,17 @@ async function renderRoute() {
     bounds.push([s.lat, s.lng]);
   });
 
-  if (trip?.geometry?.coordinates?.length) {
-    const latlngs = trip.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
-    L.polyline(latlngs, { weight: 5, opacity: 0.82 }).addTo(S.routeLayer);
+  // Nunca desenha uma linha reta como se fosse uma rota rodoviária.
+  // A geometria abaixo é a geometria real retornada pelo OSRM.
+  if (route?.geometry?.coordinates?.length) {
+    const latlngs = route.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+    L.polyline(latlngs, { weight: 10, opacity: 0.35, color: '#ffffff', lineCap: 'round', lineJoin: 'round' }).addTo(S.routeLayer);
+    L.polyline(latlngs, { weight: 5, opacity: 0.95, color: '#2f80ed', lineCap: 'round', lineJoin: 'round' }).addTo(S.routeLayer);
     latlngs.forEach(p => bounds.push(p));
-  } else if (orderedForMarkers.length) {
-    const latlngs = [[PHARMAINNOX.lat, PHARMAINNOX.lng], ...orderedForMarkers.map(s => [s.lat, s.lng]), [PHARMAINNOX.lat, PHARMAINNOX.lng]];
-    L.polyline(latlngs, { weight: 4, dashArray: '8 8', opacity: 0.7 }).addTo(S.routeLayer);
   }
 
-  if (bounds.length) S.map.fitBounds(bounds, { padding: [25, 25] });
-  setTimeout(() => S.map.invalidateSize(), 150);
+  if (bounds.length) S.map.fitBounds(bounds, { padding: [35, 35], maxZoom: 13 });
+  setTimeout(() => S.map.invalidateSize(), 200);
 
   const googleUrl = googleDirectionsUrl(orderedForMarkers);
   if (googleUrl) {
@@ -1189,7 +1239,7 @@ function populateRouteDate() {
   $('routeDate').value = dates.includes(today) ? today : dates[dates.length - 1];
 }
 
-function saveRouteAddress(code, inputId, fallbackCity) {
+async function saveRouteAddress(code, inputId, fallbackCity) {
   const address = $(inputId)?.value.trim();
   if (!address) {
     toast('Digite um endereço antes de salvar.');
@@ -1200,16 +1250,51 @@ function saveRouteAddress(code, inputId, fallbackCity) {
     toast('Este fornecedor está sem código. Para cadastrar manualmente, precisamos do código.');
     return;
   }
+  if (!isGoodManualAddress(address)) {
+    toast('Digite um endereço ou referência válida.');
+    return;
+  }
+
   S.manualAddresses[manualKey(normalizedCode)] = {
     endereco: address,
     cidade: fallbackCity || '',
-    origem: 'manual'
+    origem: 'manual',
+    atualizadoEm: new Date().toISOString()
   };
+
+  const geoKey = cacheKeyForGeo([address, fallbackCity].filter(Boolean).join(', '));
+  delete S.geocodeCache[geoKey];
   saveManualAddresses();
-  toast(`Endereço salvo para o fornecedor ${normalizedCode}.`);
+  saveGeoCache();
+
+  // Tenta localizar imediatamente o endereço recém-cadastrado.
+  try {
+    const geo = await geocodeAddress(address, fallbackCity);
+    if (!geo) {
+      toast(`Endereço salvo para ${normalizedCode}, mas o mapa não conseguiu localizar esse endereço. Confira no Google Maps.`);
+    } else {
+      toast(`Endereço salvo e localizado para ${normalizedCode}. Atualizando rota…`);
+    }
+  } catch (e) {
+    console.warn('Falha ao geocodificar endereço manual:', e);
+    toast(`Endereço salvo para ${normalizedCode}. Houve falha ao localizar no mapa; tente revalidar.`);
+  }
+
   renderRoute();
 }
 window.saveRouteAddress = saveRouteAddress;
+
+function openAddressSearch(inputId, city = '') {
+  const address = $(inputId)?.value.trim();
+  const query = [address, city].filter(Boolean).join(', ');
+  if (!query) {
+    toast('Digite um endereço para pesquisar.');
+    return;
+  }
+  const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${query}, Brasil`)}`;
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+window.openAddressSearch = openAddressSearch;
 
 function exportManualAddresses() {
   const blob = new Blob([JSON.stringify(S.manualAddresses, null, 2)], { type: 'application/json;charset=utf-8' });
@@ -1252,181 +1337,13 @@ function clearManualAddresses() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Seleção única: o usuário pode jogar os arquivos juntos e o sistema classifica
-  // automaticamente cada um como base de placas/consumo ou base logística.
-  $('files').addEventListener('change', async e => {
-    const files = [...e.target.files];
-    S.fuelFiles = [];
-    S.logFiles = [];
-    S.unknownFiles = [];
-
-    if (!files.length) {
-      $('fileList').innerHTML = '';
-      $('status').textContent = 'Nenhum arquivo selecionado.';
-      return;
-    }
-
-    $('status').textContent = 'Analisando os arquivos selecionados…';
-    $('fileList').innerHTML = files.map(f => `<span class="chip source-unknown">${escapeHtml(f.name)} · analisando…</span>`).join('');
-
-    const classified = [];
-    for (const file of files) {
-      try {
-        const rows = await read(file);
-        const type = sourceType(rows);
-        classified.push({ file, type, rows: rows.length });
-      } catch (err) {
-        console.warn('Falha ao analisar arquivo', file.name, err);
-        classified.push({ file, type: 'unknown', rows: 0 });
-      }
-    }
-
-    S.fuelFiles = classified.filter(x => x.type === 'fuel').map(x => x.file);
-    S.logFiles = classified.filter(x => x.type === 'log').map(x => x.file);
-    S.unknownFiles = classified.filter(x => x.type === 'unknown').map(x => x.file);
-
-    $('fileList').innerHTML = classified.map(x => {
-      const cls = x.type === 'fuel' ? 'source-fuel' : (x.type === 'log' ? 'source-log' : 'source-unknown');
-      const label = x.type === 'fuel' ? 'PLACA' : (x.type === 'log' ? 'LOG' : 'NÃO IDENTIFICADO');
-      return `<span class="chip ${cls}">${escapeHtml(x.file.name)} · ${label}</span>`;
-    }).join('');
-
-    $('status').textContent = `${S.fuelFiles.length} arquivo(s) de placas · ${S.logFiles.length} arquivo(s) de pedidos` +
-      (S.unknownFiles.length ? ` · ${S.unknownFiles.length} não identificado(s)` : '');
-  });
-
-  $('update').addEventListener('click', async () => {
-    const fuelFiles = S.fuelFiles || [];
-    const logFiles = S.logFiles || [];
-    if (!fuelFiles.length || !logFiles.length) {
-      toast('Selecione os arquivos das placas e a base da LOG. O sistema identifica cada arquivo automaticamente.');
-      return;
-    }
-    if (S.unknownFiles?.length) {
-      toast(`Há ${S.unknownFiles.length} arquivo(s) que não foram reconhecidos. Eles não serão misturados aos cálculos.`);
-    }
-
-    try {
-      S.fuel = [];
-      S.log = [];
-      S.sources = { fuel: [], log: [] };
-
-      // Os arquivos já vêm separados pela área de upload.
-      // Não misturamos mais as fontes nem dependemos da identificação automática para cruzá-las.
-      for (const file of fuelFiles) {
-        const rows = await read(file);
-        const type = sourceType(rows);
-        if (type !== 'fuel') {
-          throw new Error(`O arquivo "${file.name}" não parece ser uma base de placa/veículo.`);
-        }
-        const normalized = normalizeFuel(rows, file.name);
-        S.fuel.push(...normalized);
-        S.sources.fuel.push({ file: file.name, rows: normalized.length });
-      }
-
-      for (const file of logFiles) {
-        const rows = await read(file);
-        const type = sourceType(rows);
-        if (type !== 'log') {
-          throw new Error(`O arquivo "${file.name}" não parece ser uma base de pedidos/logística.`);
-        }
-        const normalized = normalizeLog(rows);
-        S.log.push(...normalized);
-        S.sources.log.push({ file: file.name, rows: normalized.length });
-      }
-
-      const unknownFiles = [];
-
-      // Evita somar a mesma linha duas vezes quando a exportação vier duplicada.
-      const seen = new Set();
-
-      S.fuel = S.fuel.filter(r => {
-        const signature = [
-          r.date?.getTime() || '',
-          r.vehicle,
-          r.km,
-          Number.isFinite(r.value) ? r.value.toFixed(2) : ''
-        ].join('|');
-
-        if (seen.has(signature)) return false;
-
-        seen.add(signature);
-        return true;
-      });
-
-      $('fuelFileList').innerHTML = S.sources.fuel.map(x => `<span class="chip source-fuel">${escapeHtml(x.file)} · ${x.rows.toLocaleString('pt-BR')} registros</span>`).join('');
-      $('logFileList').innerHTML = S.sources.log.map(x => `<span class="chip source-log">${escapeHtml(x.file)} · ${x.rows.toLocaleString('pt-BR')} registros</span>`).join('');
-
-      const vehicles = [...new Set(S.fuel.map(r => r.vehicle))].sort();
-
-      $('vehicle').innerHTML =
-        '<option value="todos">Todos</option>' +
-        vehicles.map(v => `<option>${escapeHtml(v)}</option>`).join('');
-
-      populateRouteDate();
-      update();
-
-      await renderRoute();
-
-      const scheduled = S.log.filter(
-        r => r._scheduleDate && isRouteType(r._type)
-      ).length;
-
-      const sourceText = [
-        ...S.sources.fuel.map(x => `Placas: ${x.file} (${x.rows} registros)`),
-        ...S.sources.log.map(x => `Pedidos: ${x.file} (${x.rows} registros)`)
-      ].join(' · ');
-
-      toast(
-        `Atualizado. ${sourceText || 'Nenhuma fonte identificada.'} · ` +
-        `Rota: ${scheduled} registros com AGENDAMENTO em COLETA/ENTREGA.`
-      );
-
-    } catch (e) {
-      console.error(e);
-      toast('Não foi possível ler algum arquivo. Verifique o formato CSV/XLSX.');
-    }
-  });
-
-  ['year', 'vehicle', 'start', 'end'].forEach(id => $(id).addEventListener('change', update));
-  $('routeDate').addEventListener('change', renderRoute);
-  $('routeRefresh').addEventListener('click', renderRoute);
-  $('clearGeoCache').addEventListener('click', () => {
-    S.geocodeCache = {};
-    try { localStorage.removeItem('pharmainox_geo_cache_v1'); } catch {}
-    toast('Cache do mapa limpo. A próxima rota será revalidada.');
-    renderRoute();
-  });
-  $('exportManualAddresses').addEventListener('click', exportManualAddresses);
-  $('importManualAddresses').addEventListener('click', () => $('manualAddressFile').click());
-  $('manualAddressFile').addEventListener('change', e => { if (e.target.files[0]) importManualAddresses(e.target.files[0]); e.target.value = ''; });
-  $('clearManualAddresses').addEventListener('click', clearManualAddresses);
-
-  $('clear').addEventListener('click', () => {
-    $('year').value = 'todos';
-    $('vehicle').value = 'todos';
-    $('start').value = '';
-    $('end').value = '';
-    update();
-  });
-
-  $('export').addEventListener('click', () => {
-    const rows = S.filteredFuel.map(r => ({
-      Data: r.dateText,
-      Veiculo: r.vehicle,
-      Valor: r.value,
-      PrecoPorLitro: Number.isFinite(r.price) ? r.price : '',
-      Litros: Number.isFinite(r.liters) ? r.liters : '',
-      KM: r.km
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Abastecimento');
-    XLSX.writeFile(wb, 'abastecimentos_filtrados.xlsx');
-  });
-
-  loadManualAddresses();
-  loadGeoCache();
-  initMap();
-  update();
+  const renderVehicleFiles=()=>{const list=$('vehicleFileList');if(!list)return;if(!S.vehicleUploads.length){list.innerHTML='<div class="upload-empty-state">Nenhum arquivo selecionado.</div>';return;}list.innerHTML=S.vehicleUploads.map((item,idx)=>{const kind=item.type==='journey'?'JORNADA / KM':item.type==='fuel'?'ABASTECIMENTO':'NÃO IDENTIFICADO';const cls=item.type==='journey'?'source-journey':item.type==='fuel'?'source-fuel':'source-unknown';return `<div class="detected-file-card ${cls}"><div class="detected-file-icon">${item.type==='journey'?'🛣️':item.type==='fuel'?'⛽':'📄'}</div><div class="detected-file-main"><strong>${escapeHtml(item.vehicle||'Veículo não identificado')}</strong><span>${kind}</span><em>${escapeHtml(item.file.name)}</em>${item.error?`<small class="detected-error">${escapeHtml(item.error)}</small>`:`<small>${item.rows.toLocaleString('pt-BR')} registros detectados</small>`}</div><button type="button" class="remove-file-button" data-remove-vehicle-file="${idx}" title="Remover">×</button></div>`;}).join('');list.querySelectorAll('[data-remove-vehicle-file]').forEach(btn=>btn.addEventListener('click',()=>{S.vehicleUploads.splice(Number(btn.dataset.removeVehicleFile),1);renderVehicleFiles();updateSourceStatus();}));};
+  const updateSourceStatus=()=>{const valid=S.vehicleUploads.filter(x=>!x.error&&(x.type==='journey'||x.type==='fuel'));$('status').textContent=`${valid.length}/4 arquivos de veículos identificados e ${S.logFiles?.length||0} arquivo(s) de pedidos selecionados.`;};
+  $('vehicleFiles').addEventListener('change',async e=>{const files=[...(e.target.files||[])];e.target.value='';for(const file of files){try{const rows=await read(file),type=sourceType(rows);if(type!=='journey'&&type!=='fuel'){S.vehicleUploads.push({file,rows:0,type:'unknown',vehicle:'',error:'Formato não reconhecido como Jornada ou Abastecimento.'});continue;}const vehicleValues=rows.map(r=>String(get(r,type==='journey'?['placa']:['veiculo','placa'])||'').toUpperCase().trim()).filter(Boolean);const allVehicles=[...new Set(vehicleValues)];const vehicle=allVehicles.length===1?allVehicles[0]:'';S.vehicleUploads.push({file,rows:rows.length,type,vehicle,error:allVehicles.length>1?`Mais de um veículo encontrado: ${allVehicles.join(', ')}`:'',parsedRows:rows});}catch(err){S.vehicleUploads.push({file,rows:0,type:'unknown',vehicle:'',error:err?.message||'Não foi possível ler o arquivo.'});}}renderVehicleFiles();updateSourceStatus();});
+  $('logFiles').addEventListener('change',e=>{S.logFiles=[...e.target.files];$('logFileList').innerHTML=S.logFiles.map(f=>`<span class="chip source-log">${escapeHtml(f.name)}</span>`).join('');updateSourceStatus();});
+  $('update').addEventListener('click',async()=>{const valid=S.vehicleUploads.filter(x=>!x.error&&(x.type==='journey'||x.type==='fuel')),bad=S.vehicleUploads.filter(x=>x.error),logs=S.logFiles||[];const journeys=valid.filter(x=>x.type==='journey'),fuels=valid.filter(x=>x.type==='fuel');if(valid.length!==4||bad.length||!logs.length||journeys.length!==2||fuels.length!==2){toast(`Selecione 4 arquivos válidos de veículos (2 Jornada + 2 Abastecimento). Encontrados: ${journeys.length} jornada e ${fuels.length} abastecimento${logs.length?'':' · falta o arquivo de pedidos'}.`);return;}try{S.fuel=[];S.journey=[];S.log=[];S.sources={fuel:[],journey:[],log:[]};const detectedVehicles=[...new Set(valid.map(x=>x.vehicle).filter(Boolean))].sort();if(detectedVehicles.length!==2||!detectedVehicles.every(v=>valid.some(x=>x.vehicle===v&&x.type==='journey')&&valid.some(x=>x.vehicle===v&&x.type==='fuel')))throw new Error(`Os 4 arquivos não formam dois pares completos por veículo. Veículos encontrados: ${detectedVehicles.join(', ')||'nenhum'}.`);for(const item of valid){const rows=item.parsedRows||await read(item.file);if(item.type==='journey'){const n=normalizeJourney(rows,item.file.name,item.vehicle);S.journey.push(...n);S.sources.journey.push({vehicle:item.vehicle,file:item.file.name,rows:n.length});}else{const n=normalizeFuel(rows,item.file.name,item.vehicle);S.fuel.push(...n);S.sources.fuel.push({vehicle:item.vehicle,file:item.file.name,rows:n.length});}}for(const file of logs){const rows=await read(file),type=sourceType(rows);if(type!=='log')throw new Error(`O arquivo "${file.name}" não parece ser uma base de pedidos/logística.`);const n=normalizeLog(rows);S.log.push(...n);S.sources.log.push({file:file.name,rows:n.length});}
+    const seenFuel=new Set();S.fuel=S.fuel.filter(r=>{const sig=[r.date?.getTime()||'',r.vehicle,r.km,Number.isFinite(r.value)?r.value.toFixed(2):''].join('|');if(seenFuel.has(sig))return false;seenFuel.add(sig);return true;});
+    const seenJourney=new Set();S.journey=S.journey.filter(r=>{const sig=[r.date?.getTime()||'',r.vehicle,r.statusKey,r.km].join('|');if(seenJourney.has(sig))return false;seenJourney.add(sig);return true;});
+    $('vehicleFileList').innerHTML=valid.map(x=>`<div class="detected-file-card ${x.type==='journey'?'source-journey':'source-fuel'}"><div class="detected-file-icon">${x.type==='journey'?'🛣️':'⛽'}</div><div class="detected-file-main"><strong>${escapeHtml(x.vehicle)}</strong><span>${x.type==='journey'?'JORNADA / KM':'ABASTECIMENTO'}</span><em>${escapeHtml(x.file.name)}</em><small>Dados carregados: ${x.rows.toLocaleString('pt-BR')} registros</small></div></div>`).join('');$('logFileList').innerHTML=S.sources.log.map(x=>`<span class="chip source-log">${escapeHtml(x.file)} · ${x.rows.toLocaleString('pt-BR')} registros</span>`).join('');$('vehicle').innerHTML='<option value="todos">Todos</option>'+detectedVehicles.map(v=>`<option>${escapeHtml(v)}</option>`).join('');populateRouteDate();update();await renderRoute();toast(`Atualizado. ${S.sources.journey.length} jornada(s), ${S.sources.fuel.length} abastecimento(s) e ${S.sources.log.length} arquivo(s) de pedidos.`);}catch(e){console.error(e);toast(e?.message||'Não foi possível carregar os arquivos selecionados.');}});
+  ['year','vehicle','start','end','periodicity'].forEach(id=>$(id).addEventListener('change',update));$('routeDate').addEventListener('change',renderRoute);$('routeRefresh').addEventListener('click',renderRoute);$('exportManualAddresses').addEventListener('click',exportManualAddresses);$('importManualAddresses').addEventListener('click',()=>$('manualAddressFile').click());$('manualAddressFile').addEventListener('change',e=>{if(e.target.files[0])importManualAddresses(e.target.files[0]);e.target.value='';});$('clearManualAddresses').addEventListener('click',clearManualAddresses);$('clearGeoCache').addEventListener('click',()=>{S.geocodeCache={};saveGeoCache();toast('Cache do mapa limpo. Revalidando os endereços…');renderRoute();});$('clear').addEventListener('click',()=>{$('year').value='todos';$('vehicle').value='todos';$('start').value='';$('end').value='';$('periodicity').value='month';update();});$('export').addEventListener('click',()=>{const rows=S.filteredFuel.map(r=>({Data:r.dateText,Veiculo:r.vehicle,Valor:r.value,PrecoPorLitro:Number.isFinite(r.price)?r.price:'',Litros:Number.isFinite(r.liters)?r.liters:'',KM:r.km}));const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Abastecimento');XLSX.writeFile(wb,'abastecimentos_filtrados.xlsx');});loadManualAddresses();loadGeoCache();initMap();renderVehicleFiles();update();
 });
