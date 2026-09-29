@@ -1284,7 +1284,7 @@ function markAddressSaved(inputId, message = 'Endereço salvo. Será usado na pr
   input.style.background = '#f2fbf6';
 }
 
-function saveRouteAddress(code, inputId, fallbackCity) {
+async function saveRouteAddress(code, inputId, fallbackCity) {
   const address = $(inputId)?.value.trim();
   if (!address) {
     toast('Digite um endereço antes de salvar.');
@@ -1300,23 +1300,45 @@ function saveRouteAddress(code, inputId, fallbackCity) {
     return;
   }
 
-  // O SALVAMENTO NÃO DEPENDE DA INTERNET.
-  // Primeiro persistimos o endereço no navegador e só depois, quando a rota for atualizada,
-  // o sistema tenta localizar o ponto no mapa. Isso evita o falso erro
-  // "foi salvo, mas não foi localizado automaticamente" após clicar em Salvar.
+  // 1) Salva primeiro, sem depender da internet.
   S.manualAddresses[manualKey(normalizedCode)] = {
     endereco: address,
     cidade: fallbackCity || '',
     origem: 'manual',
     atualizadoEm: new Date().toISOString()
   };
-
   const geoKey = cacheKeyForGeo([address, fallbackCity].filter(Boolean).join(', '));
   delete S.geocodeCache[geoKey];
   saveManualAddresses();
   saveGeoCache();
-  markAddressSaved(inputId, 'Endereço salvo. Será usado na próxima atualização da rota.');
-  toast(`Endereço do fornecedor ${normalizedCode} salvo.`);
+  markAddressSaved(inputId, 'Endereço salvo. Localizando no mapa...');
+
+  // 2) Cancela qualquer localização anterior para não deixar o indicador preso
+  // em "Localizando endereços..." enquanto uma consulta antiga ainda roda.
+  S.routeRunId++;
+  $('routeBadge').textContent = 'Localizando endereço salvo...';
+  toast(`Endereço do fornecedor ${normalizedCode} salvo. Localizando no mapa...`);
+
+  // 3) Tenta localizar imediatamente o endereço que acabou de ser informado.
+  try {
+    const geo = await geocodeAddress(address, fallbackCity);
+    if (geo) {
+      S.geocodeCache[geoKey] = geo;
+      saveGeoCache();
+      markAddressSaved(inputId, 'Endereço localizado. Atualizando a rota...');
+      toast(`Endereço do fornecedor ${normalizedCode} localizado. Atualizando a rota...`);
+    } else {
+      markAddressSaved(inputId, 'Endereço salvo. Não foi possível obter coordenadas automaticamente.');
+      toast(`Endereço do fornecedor ${normalizedCode} foi salvo, mas não foi localizado automaticamente.`);
+    }
+  } catch (e) {
+    console.warn('Falha ao localizar endereço manual:', e);
+    markAddressSaved(inputId, 'Endereço salvo. Falha temporária ao localizar no mapa.');
+    toast(`Endereço do fornecedor ${normalizedCode} foi salvo. Falha temporária ao localizar no mapa.`);
+  }
+
+  // 4) Recalcula a rota usando o endereço salvo.
+  await renderRoute();
 }
 window.saveRouteAddress = saveRouteAddress;
 
