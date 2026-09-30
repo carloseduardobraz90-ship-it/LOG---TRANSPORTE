@@ -29,8 +29,6 @@ const S = {
   markersLayer: null,
   routeRunId: 0,
   geocodeCache: {},
-  geocoder: null,
-  googleReady: false,
   manualAddresses: {},
   journey: [],
   filteredJourney: [],
@@ -768,192 +766,39 @@ const PHARMAINNOX = {
   endereco: 'R. Maranhão, 2300 - Lot. São Pedro, Jaguariúna - SP, 13912-812'
 };
 
-// ============================================================
-// GOOGLE MAPS — deixe APENAS este campo para inserir sua chave
-// ============================================================
-const GOOGLE_MAPS_API_KEY = 'AIzaSyBSNGwoR64xwI9go572LIANufdKwItaSvo';
+function initMap() {
+  if (S.map) return;
+  S.map = L.map('routeMap', {
+    zoomControl: true,
+    scrollWheelZoom: true,
+    preferCanvas: true
+  }).setView([PHARMAINNOX.lat, PHARMAINNOX.lng], 10);
 
-let GoogleMapClass = null;
-let GoogleAdvancedMarkerElement = null;
-let GoogleGeocoderClass = null;
-let GoogleRouteClass = null;
-let GoogleInfoWindowClass = null;
-let GoogleLatLngBoundsClass = null;
-let GooglePolylineClass = null;
-let GooglePlaceClass = null;
-let googleMapsReadyPromise = null;
+  // Mapa base simples e estável. A rota é desenhada separadamente pelo OSRM.
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(S.map);
 
-function loadGoogleMapsApi() {
-  if (window.google?.maps?.importLibrary) return Promise.resolve();
-  if (googleMapsReadyPromise) return googleMapsReadyPromise;
-
-  googleMapsReadyPromise = new Promise((resolve, reject) => {
-    if (!GOOGLE_MAPS_API_KEY || GOOGLE_MAPS_API_KEY.trim().length < 20) {
-      reject(new Error('Google Maps API Key não configurada.'));
-      return;
-    }
-
-    // Bootstrap oficial do Google Maps Dynamic Library Import.
-    // O erro anterior ocorria porque o script era carregado diretamente,
-    // mas o código tentava usar google.maps.importLibrary() sem o bootstrap
-    // que cria essa função de carregamento.
-    const g = window.google || (window.google = {});
-    const d = g.maps || (g.maps = {});
-    const l = 'importLibrary';
-    const q = '__ib__';
-    const r = new Set();
-    const e = new URLSearchParams();
-    let h;
-    const a = document.createElement('script');
-
-    const u = () => h || (h = new Promise((f, n) => {
-      e.set('libraries', [...r] + '');
-      e.set('key', GOOGLE_MAPS_API_KEY);
-      e.set('v', 'weekly');
-      e.set('callback', 'google.maps.' + q);
-      a.src = 'https://maps.googleapis.com/maps/api/js?' + e.toString();
-      a.async = true;
-      a.defer = true;
-      a.dataset.pharmainoxGoogleMapsBootstrap = '1';
-      a.onerror = () => n(new Error('Não foi possível carregar a Google Maps JavaScript API.'));
-      a.nonce = document.querySelector('script[nonce]')?.nonce || '';
-      document.head.append(a);
-    }));
-
-    if (d[l]) {
-      // O Google Maps já possui o loader. Não carregamos uma segunda instância.
-      resolve();
-      return;
-    }
-
-    d[q] = resolve;
-    d[l] = (f, ...n) => r.add(f) && u().then(() => d[l](f, ...n));
-
-    // O script é carregado quando a primeira biblioteca for solicitada pelo initMap().
-    // Não chamamos u() aqui para evitar duas cargas concorrentes.
-  });
-
-  return googleMapsReadyPromise;
-}
-
-window.gm_authFailure = function () {
-  S.googleReady = false;
-  setMapStatus('Google Maps: chave recusada');
-  const list = $('routeStopsList');
-  if (list) {
-    list.innerHTML = '<div class="empty-route">O Google recusou a autenticação da chave. Verifique a API habilitada, o faturamento e as restrições do domínio no Google Cloud.</div>';
-  }
-  try { toast('Google Maps recusou a chave. Verifique a configuração no Google Cloud.'); } catch {}
-};
-
-async function initMap() {
-  if (S.map && S.googleReady) return S.map;
-
-  if (!GOOGLE_MAPS_API_KEY) {
-    $('routeBadge').textContent = 'Chave do Google Maps não configurada';
-    throw new Error('Insira sua chave no campo GOOGLE_MAPS_API_KEY do script.js.');
-  }
-
-  await loadGoogleMapsApi();
-
-  if (typeof google?.maps?.importLibrary !== 'function') {
-    throw new Error('O carregador do Google Maps não disponibilizou importLibrary(). Recarregue a página e verifique o console.');
-  }
-
-  let mapsLib, markerLib, geocodingLib, routesLib, coreLib;
-  try {
-    [mapsLib, markerLib, geocodingLib, routesLib, coreLib] = await Promise.all([
-      google.maps.importLibrary('maps'),
-      google.maps.importLibrary('marker'),
-      google.maps.importLibrary('geocoding'),
-      google.maps.importLibrary('routes'),
-      google.maps.importLibrary('core')
-    ]);
-  } catch (error) {
-    const message = String(error?.message || error || '');
-    if (/ApiNotActivatedMapError/i.test(message)) {
-      throw new Error('A Maps JavaScript API não está ativada no projeto associado à sua chave. Ative-a no Google Cloud e recarregue a página.');
-    }
-    throw error;
-  }
-
-  GoogleMapClass = mapsLib.Map;
-  GoogleAdvancedMarkerElement = markerLib.AdvancedMarkerElement;
-  GoogleGeocoderClass = geocodingLib.Geocoder;
-  GoogleRouteClass = routesLib.Route;
-  GoogleInfoWindowClass = mapsLib.InfoWindow;
-  GoogleLatLngBoundsClass = coreLib.LatLngBounds;
-  GooglePolylineClass = mapsLib.Polyline;
-
-  if (!S.map) {
-    S.map = new GoogleMapClass($('routeMap'), {
-      center: { lat: PHARMAINNOX.lat, lng: PHARMAINNOX.lng },
-      zoom: 10,
-      mapId: 'DEMO_MAP_ID',
-      mapTypeControl: true,
-      streetViewControl: true,
-      fullscreenControl: true,
-      gestureHandling: 'greedy'
-    });
-    S.markersLayer = [];
-    S.routeLayer = [];
-  }
-
-  if (!S.geocoder) S.geocoder = new GoogleGeocoderClass();
-  S.googleReady = true;
-  setMapStatus('Google Maps conectado', true);
-  return S.map;
-}
-
-function setMapStatus(message, ok = false) {
-  const badge = $('routeBadge');
-  if (!badge) return;
-  badge.textContent = message;
-  badge.style.background = ok ? '#effaf3' : '#edf5ff';
-  badge.style.color = ok ? '#28724a' : '#24558f';
+  S.markersLayer = L.layerGroup().addTo(S.map);
+  S.routeLayer = L.layerGroup().addTo(S.map);
+  S.map.on('click', handleMapPick);
 }
 
 function clearMap() {
-  if (!S.map) return;
-
-  (S.markersLayer || []).forEach(marker => {
-    try { marker.map = null; } catch {}
-  });
-  (S.routeLayer || []).forEach(polyline => {
-    try { polyline.setMap(null); } catch {}
-  });
-
-  S.markersLayer = [];
-  S.routeLayer = [];
+  initMap();
+  S.markersLayer.clearLayers();
+  S.routeLayer.clearLayers();
 }
 
-function createGoogleMarkerContent(label, isOrigin = false) {
-  const wrap = document.createElement('div');
-  wrap.className = 'route-marker-wrap';
-
-  const marker = document.createElement('div');
-  marker.className = `route-marker ${isOrigin ? 'origin' : ''}`;
-  marker.textContent = label;
-  marker.title = isOrigin ? 'Pharmainox' : `Parada ${label}`;
-  wrap.appendChild(marker);
-  return wrap;
-}
-
-function addGoogleMarker(position, label, title, popupHtml, isOrigin = false) {
-  const marker = new GoogleAdvancedMarkerElement({
-    map: S.map,
-    position,
-    title,
-    content: createGoogleMarkerContent(label, isOrigin)
+function markerIcon(label, isOrigin = false) {
+  return L.divIcon({
+    className: 'route-marker-wrap',
+    html: `<div class="route-marker ${isOrigin ? 'origin' : ''}">${escapeHtml(label)}</div>`,
+    iconSize: [38, 38],
+    iconAnchor: [19, 19],
+    popupAnchor: [0, -20]
   });
-
-  if (popupHtml) {
-    const infoWindow = new GoogleInfoWindowClass({ content: popupHtml });
-    marker.addListener('click', () => infoWindow.open({ map: S.map, anchor: marker }));
-  }
-
-  S.markersLayer.push(marker);
-  return marker;
 }
 
 function cacheKeyForGeo(address) {
@@ -961,176 +806,196 @@ function cacheKeyForGeo(address) {
 }
 
 function loadGeoCache() {
-  try { S.geocodeCache = JSON.parse(localStorage.getItem('pharmainox_google_geo_cache_v2') || '{}') || {}; }
+  try { S.geocodeCache = JSON.parse(localStorage.getItem('pharmainox_geo_cache_v1') || '{}') || {}; }
   catch { S.geocodeCache = {}; }
 }
 
 function saveGeoCache() {
-  try { localStorage.setItem('pharmainox_google_geo_cache_v2', JSON.stringify(S.geocodeCache)); } catch {}
+  try { localStorage.setItem('pharmainox_geo_cache_v1', JSON.stringify(S.geocodeCache)); } catch {}
 }
 
-function buildGeoQueries(address, fallbackCity = '', supplierName = '') {
+// Coordenadas confirmadas manualmente por fornecedor.
+// Isso evita depender de um geocodificador toda vez que a rota é aberta.
+function loadSupplierCoords() {
+  try { S.supplierCoords = JSON.parse(localStorage.getItem('pharmainox_supplier_coords_v1') || '{}') || {}; }
+  catch { S.supplierCoords = {}; }
+}
+
+function saveSupplierCoords() {
+  try { localStorage.setItem('pharmainox_supplier_coords_v1', JSON.stringify(S.supplierCoords)); } catch {}
+}
+
+function getSupplierCoords(code) {
+  const item = S.supplierCoords?.[normalizeCode(code)];
+  if (!item) return null;
+  const lat = Number(item.lat), lng = Number(item.lng);
+  return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+}
+
+function setSupplierCoords(code, lat, lng, origem = 'manual-mapa') {
+  const keyCode = normalizeCode(code);
+  if (!keyCode) return false;
+  const nlat = Number(lat), nlng = Number(lng);
+  if (!Number.isFinite(nlat) || !Number.isFinite(nlng)) return false;
+  S.supplierCoords[keyCode] = { lat: nlat, lng: nlng, origem, atualizadoEm: new Date().toISOString() };
+  saveSupplierCoords();
+  return true;
+}
+
+let lastNominatimRequest = 0;
+async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function cleanStreetAbbreviations(address) {
+  return String(address || '')
+    .replace(/^\s*R\.\s*/i, 'Rua ')
+    .replace(/^\s*Av\.\s*/i, 'Avenida ')
+    .replace(/^\s*Rod\.\s*/i, 'Rodovia ')
+    .replace(/^\s*Al\.\s*/i, 'Alameda ')
+    .replace(/^\s*Tv\.\s*/i, 'Travessa ')
+    .replace(/\bSao\b/gi, 'São')
+    .replace(/\s*-\s*/g, ', ')
+    .replace(/,\s*,/g, ', ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function buildGeoQueries(address, fallbackCity = '') {
   const a = String(address || '').trim();
+  const cleaned = cleanStreetAbbreviations(a);
   const c = String(fallbackCity || '').trim();
-  const n = String(supplierName || '').trim();
   const queries = [
-    [a, c, 'SP, Brasil'].filter(Boolean).join(', '),
-    [a, 'SP, Brasil'].filter(Boolean).join(', '),
-    [a, 'Brasil'].filter(Boolean).join(', '),
-    [n, a, c, 'SP, Brasil'].filter(Boolean).join(', '),
-    [n, c, 'SP, Brasil'].filter(Boolean).join(', ')
+    [cleaned, c, 'São Paulo', 'Brasil'].filter(Boolean).join(', '),
+    [cleaned, c, 'SP', 'Brasil'].filter(Boolean).join(', '),
+    [a, c, 'SP', 'Brasil'].filter(Boolean).join(', '),
+    [cleaned, 'Brasil'].filter(Boolean).join(', '),
+    [a, 'Brasil'].filter(Boolean).join(', ')
   ];
   return [...new Set(queries.map(q => q.trim()).filter(Boolean))];
 }
 
-function extractPostalCode(address) {
-  const m = String(address || '').match(/\b(\d{5})[- ]?(\d{3})\b/);
-  return m ? `${m[1]}-${m[2]}` : '';
-}
-
-async function placesTextFallback(address, fallbackCity = '', supplierName = '') {
+async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const placesLib = await google.maps.importLibrary('places');
-    GooglePlaceClass = placesLib.Place;
-    if (!GooglePlaceClass?.searchByText) return null;
-
-    const postal = extractPostalCode(address);
-    const queries = [
-      [supplierName, address, fallbackCity, 'SP, Brasil'].filter(Boolean).join(', '),
-      [address, fallbackCity, 'SP, Brasil'].filter(Boolean).join(', '),
-      [supplierName, fallbackCity, postal, 'SP, Brasil'].filter(Boolean).join(', ')
-    ];
-
-    for (const textQuery of [...new Set(queries)]) {
-      if (!textQuery) continue;
-      try {
-        const { places } = await GooglePlaceClass.searchByText({
-          textQuery,
-          fields: ['displayName', 'location', 'formattedAddress', 'id', 'googleMapsURI', 'businessStatus'],
-          language: 'pt-BR',
-          region: 'BR',
-          maxResultCount: 5
-        });
-
-        if (!Array.isArray(places) || !places.length) continue;
-
-        // Prefer a result whose returned address contains the postal code or street number.
-        const ranked = places
-          .filter(p => p?.location)
-          .map(p => {
-            const fa = String(p.formattedAddress || '');
-            const dn = String(p.displayName || '');
-            let score = 0;
-            if (postal && fa.includes(postal)) score += 6;
-            if (/\b110\b/.test(fa) && /carlopolis/i.test(fa)) score += 4;
-            if (supplierName && normalizeText(dn).includes(normalizeText(supplierName).slice(0, 18))) score += 2;
-            if (fallbackCity && normalizeText(fa).includes(normalizeText(fallbackCity))) score += 2;
-            return { p, score };
-          })
-          .sort((x, y) => y.score - x.score);
-
-        const best = ranked[0]?.p;
-        if (!best?.location) continue;
-
-        const loc = best.location;
-        const result = {
-          lat: Number(typeof loc.lat === 'function' ? loc.lat() : loc.lat),
-          lng: Number(typeof loc.lng === 'function' ? loc.lng() : loc.lng),
-          displayName: best.formattedAddress || best.displayName || textQuery,
-          placeId: best.id || '',
-          locationType: 'PLACE_SEARCH',
-          googleMapsURI: best.googleMapsURI || ''
-        };
-
-        if (Number.isFinite(result.lat) && Number.isFinite(result.lng)) return result;
-      } catch (e) {
-        console.warn('Places Text Search falhou para', textQuery, e);
-      }
-    }
-  } catch (e) {
-    console.warn('Places API não disponível para fallback:', e);
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
   }
-
-  return null;
 }
 
-function readableGoogleMapsError(error) {
-  const raw = String(error?.message || error?.status || error || '');
-  if (/REQUEST_DENIED|not authorized|not authorized to use/i.test(raw)) {
-    return 'A chave não está autorizada para Geocoding/Places ou a API necessária não está habilitada.';
-  }
-  if (/OVER_QUERY_LIMIT|quota/i.test(raw)) {
-    return 'O limite de consultas da API foi atingido temporariamente.';
-  }
-  if (/ZERO_RESULTS/i.test(raw)) {
-    return 'O Google não encontrou esse endereço por Geocoding.';
-  }
-  return raw || 'Não foi possível localizar o endereço.';
+async function geocodeNominatim(query) {
+  const wait = Math.max(0, 1100 - (Date.now() - lastNominatimRequest));
+  if (wait) await sleep(wait);
+  lastNominatimRequest = Date.now();
+
+  const url = 'https://nominatim.openstreetmap.org/search?' + new URLSearchParams({
+    format: 'jsonv2',
+    q: query,
+    countrycodes: 'br',
+    limit: '3',
+    addressdetails: '1'
+  });
+
+  const res = await fetchWithTimeout(url, { headers: { 'Accept-Language': 'pt-BR' } }, 8000);
+  if (!res.ok) throw new Error(`Geocodificação HTTP ${res.status}`);
+  const data = await res.json();
+  if (!Array.isArray(data)) return [];
+
+  return data.map(item => ({
+    lat: Number(item.lat),
+    lng: Number(item.lon),
+    displayName: item.display_name || query,
+    type: item.type || '',
+    importance: Number(item.importance) || 0
+  })).filter(x => Number.isFinite(x.lat) && Number.isFinite(x.lng));
 }
 
-async function geocodeAddress(address, fallbackCity = '', supplierName = '') {
+async function geocodePhoton(query) {
+  const url = 'https://photon.komoot.io/api/?' + new URLSearchParams({
+    q: query,
+    limit: '5',
+    lang: 'pt'
+  });
+  const res = await fetchWithTimeout(url, { headers: { 'Accept-Language': 'pt-BR' } }, 8000);
+  if (!res.ok) return [];
+  const data = await res.json();
+  if (!Array.isArray(data?.features)) return [];
+  return data.features.map(f => ({
+    lat: Number(f.geometry?.coordinates?.[1]),
+    lng: Number(f.geometry?.coordinates?.[0]),
+    displayName: f.properties?.name || query,
+    type: f.properties?.type || '',
+    importance: Number(f.properties?.importance) || 0
+  })).filter(x => Number.isFinite(x.lat) && Number.isFinite(x.lng));
+}
+
+function scoreGeoResult(result, city = '') {
+  const text = normalizeText(`${result.displayName || ''} ${result.type || ''}`);
+  const cityText = normalizeText(city);
+  let score = Number(result.importance || 0);
+  if (cityText && text.includes(cityText)) score += 3;
+  if (['house', 'building', 'residential', 'commercial'].includes(result.type)) score += 1.5;
+  return score;
+}
+
+async function geocodeAddress(address, fallbackCity = '', supplierCode = '') {
+  const saved = getSupplierCoords(supplierCode);
+  if (saved) return { ...saved, displayName: [address, fallbackCity].filter(Boolean).join(', ') };
+
   const full = [address, fallbackCity].filter(Boolean).join(', ');
-  const keyCache = cacheKeyForGeo([supplierName, full].filter(Boolean).join(' | '));
+  const keyCache = cacheKeyForGeo(full);
   if (S.geocodeCache[keyCache]) return S.geocodeCache[keyCache];
 
-  if (!S.geocoder) await initMap();
+  const queries = buildGeoQueries(address, fallbackCity);
+  let candidates = [];
 
-  const queries = buildGeoQueries(address, fallbackCity, supplierName);
-  let response = null;
-  let lastError = null;
-
+  // Primeiro tenta Nominatim com mais de uma forma de consulta.
   for (const query of queries) {
     try {
-      response = await S.geocoder.geocode({
-        address: query,
-        componentRestrictions: { country: 'BR' },
-        region: 'BR',
-        language: 'pt-BR',
-        fulfillOnZeroResults: true
-      });
-      if (response?.results?.length) break;
+      const results = await geocodeNominatim(query);
+      candidates.push(...results);
+      if (results.length) break;
     } catch (e) {
-      lastError = e;
-      console.warn('Geocoding falhou para a consulta:', query, e);
-    }
-    // Pequena pausa evita uma rajada de consultas quando vários fornecedores precisam ser localizados.
-    await new Promise(r => setTimeout(r, 180));
-  }
-
-  if (response?.results?.length) {
-    // Choose the result that looks most like the requested street/number instead of blindly
-    // taking result[0]. This matters for generic or abbreviated street names.
-    const wanted = normalizeText(`${address} ${fallbackCity}`);
-    const best = response.results
-      .map(r => ({ r, score: similarity(wanted, normalizeText(r.formatted_address || '')) }))
-      .sort((a, b) => b.score - a.score)[0]?.r || response.results[0];
-
-    const loc = best.geometry.location;
-    const result = {
-      lat: Number(typeof loc.lat === 'function' ? loc.lat() : loc.lat),
-      lng: Number(typeof loc.lng === 'function' ? loc.lng() : loc.lng),
-      displayName: best.formatted_address || full,
-      placeId: best.place_id || '',
-      locationType: best.geometry.location_type || ''
-    };
-
-    if (Number.isFinite(result.lat) && Number.isFinite(result.lng)) {
-      S.geocodeCache[keyCache] = result;
-      saveGeoCache();
-      return result;
+      console.warn('Nominatim falhou:', e);
     }
   }
 
-  // Fallback for companies/addresses that Google Geocoding does not resolve precisely.
-  const placeResult = await placesTextFallback(address, fallbackCity, supplierName);
-  if (placeResult) {
-    S.geocodeCache[keyCache] = placeResult;
-    saveGeoCache();
-    return placeResult;
+  // Fallback para Photon quando Nominatim não localizar o endereço.
+  if (!candidates.length) {
+    try {
+      for (const query of queries.slice(0, 2)) {
+        candidates.push(...await geocodePhoton(query));
+        if (candidates.length) break;
+      }
+    } catch (e) {
+      console.warn('Photon falhou:', e);
+    }
   }
 
-  if (lastError) throw lastError;
-  return null;
+  if (!candidates.length) return null;
+
+  const best = candidates
+    .sort((a, b) => scoreGeoResult(b, fallbackCity) - scoreGeoResult(a, fallbackCity))[0];
+
+  const result = {
+    lat: best.lat,
+    lng: best.lng,
+    displayName: best.displayName || full
+  };
+
+  S.geocodeCache[keyCache] = result;
+  saveGeoCache();
+  return result;
 }
 
 function formatDuration(seconds) {
@@ -1163,60 +1028,91 @@ function googleDirectionsUrl(orderedStops) {
   return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&travelmode=driving&waypoints=${encodeURIComponent(waypoints)}`;
 }
 
+async function osrmRoute(points) {
+  const coords = points.map(p => `${p.lng},${p.lat}`).join(';');
+  const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false&alternatives=false&continue_straight=false`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Roteamento HTTP ${res.status}`);
+  const data = await res.json();
+  if (data.code !== 'Ok' || !data.routes?.length) {
+    throw new Error(data.message || 'Não foi possível encontrar uma rota pelas ruas.');
+  }
+  return data.routes[0];
+}
+
 async function calculateRoute(points) {
   if (points.length < 2) return null;
-  await initMap();
 
-  // O Routes API aceita até 25 waypoints intermediários por solicitação.
-  // Para o cenário normal do dashboard, usamos todos os pontos e pedimos
-  // otimização da ordem. A saída devolve os índices reorganizados.
-  const intermediates = points.slice(1).map(p => ({
-    location: { lat: p.lat, lng: p.lng },
-  }));
+  let ordered = points.slice();
+  let optimized = false;
 
-  if (intermediates.length > 25) {
-    throw new Error('A rota do dia tem mais de 25 paradas. O Google Routes API limita a 25 waypoints intermediários por solicitação.');
+  // 1) Tenta otimizar a sequência quando o volume é compatível com o serviço público.
+  if (points.length <= 60) {
+    try {
+      const coords = points.map(p => `${p.lng},${p.lat}`).join(';');
+      const url = `https://router.project-osrm.org/trip/v1/driving/${coords}?source=first&destination=first&roundtrip=true&steps=false&geometries=geojson&overview=full`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.code === 'Ok' && data.trips?.length) {
+          data.waypoints?.forEach((wp, i) => {
+            const p = points[i];
+            if (p) p._waypointIndex = Number.isFinite(wp.waypoint_index) ? wp.waypoint_index : i;
+          });
+          ordered = points.slice().sort((a, b) => (a._waypointIndex ?? 0) - (b._waypointIndex ?? 0));
+          optimized = true;
+        }
+      }
+    } catch (e) {
+      console.warn('Otimização OSRM falhou; usando ordem atual.', e);
+    }
   }
 
-  const request = {
-    origin: { lat: points[0].lat, lng: points[0].lng },
-    destination: { lat: points[0].lat, lng: points[0].lng },
-    intermediates,
-    travelMode: 'DRIVING',
-    routingPreference: 'TRAFFIC_UNAWARE',
-    optimizeWaypointOrder: intermediates.length > 1,
-    units: 'METRIC',
-    language: 'pt-BR',
-    region: 'BR',
-    fields: ['path', 'distanceMeters', 'durationMillis', 'optimizedIntermediateWaypointIndices', 'legs']
-  };
+  // 2) Calcula a geometria seguindo as ruas. Primeiro tenta uma chamada única.
+  const routePoints = ordered.concat([{ ...points[0], isReturn: true }]);
+  try {
+    const route = await osrmRoute(routePoints);
+    return { route, ordered, optimized };
+  } catch (e) {
+    console.warn('Rota completa falhou; usando cálculo por trechos.', e);
+  }
 
-  const { routes } = await GoogleRouteClass.computeRoutes(request);
-  const route = routes?.[0];
-  if (!route) throw new Error('O Google não encontrou uma rota viável para as paradas selecionadas.');
+  // 3) Fallback robusto: calcula trecho a trecho. Assim, um limite do serviço
+  // para uma rota muito grande não derruba o mapa inteiro.
+  const legs = [];
+  let totalDistance = 0;
+  let totalDuration = 0;
+  const geometry = [];
 
-  const inputStops = points.slice(1);
-  const optimizedIndexes = Array.isArray(route.optimizedIntermediateWaypointIndices)
-    ? route.optimizedIntermediateWaypointIndices
-    : inputStops.map((_, i) => i);
+  for (let i = 0; i < routePoints.length - 1; i++) {
+    const legPoints = [routePoints[i], routePoints[i + 1]];
+    const leg = await osrmRoute(legPoints);
+    legs.push(leg);
+    totalDistance += Number(leg.distance) || 0;
+    totalDuration += Number(leg.duration) || 0;
+    const coords = leg.geometry?.coordinates || [];
+    if (!coords.length) continue;
+    if (geometry.length) geometry.push(...coords.slice(1));
+    else geometry.push(...coords);
+  }
 
-  const orderedStops = optimizedIndexes
-    .map(index => inputStops[index])
-    .filter(Boolean);
-
+  if (!geometry.length) throw new Error('Não foi possível obter a geometria dos trechos da rota.');
   return {
-    route,
-    ordered: [points[0], ...orderedStops],
-    optimized: optimizedIndexes.length === inputStops.length && optimizedIndexes.some((value, i) => value !== i),
-    distance: Number(route.distanceMeters) || NaN,
-    duration: Number(route.durationMillis) ? Number(route.durationMillis) / 1000 : NaN
+    route: {
+      distance: totalDistance,
+      duration: totalDuration,
+      geometry: { type: 'LineString', coordinates: geometry }
+    },
+    ordered,
+    optimized
   };
 }
 
 function routeIssueLabel(state) {
   if (state === 'missing-address') return 'Endereço não cadastrado';
   if (state === 'ambiguous') return 'Mais de um endereço';
-  if (state === 'geocode-failed') return 'Endereço não localizado no Google Maps';
+  if (state === 'geocode-pending') return 'Localização pendente — clique em Localizar';
+  if (state === 'geocode-failed') return 'Endereço não localizado no mapa';
   return 'Fornecedor não localizado';
 }
 
@@ -1231,28 +1127,84 @@ function renderRouteIssues(groupedRows) {
     const code = s.supplierCode || '';
     const id = `addr_${safeId(code || s.supplierName)}`;
     const manual = getManualAddress(code);
-    const current = manual?.endereco || '';
+    const current = manual?.endereco || s.resolution?.entry?.endereco || '';
+    const hasAddress = isGoodManualAddress(current);
+    const savedCoords = getSupplierCoords(code);
+    const mapButtonDisabled = !code || !hasAddress ? 'disabled' : '';
+    const coordinateText = savedCoords
+      ? `<small class="route-coord-saved">📍 Coordenadas salvas: ${savedCoords.lat.toFixed(6)}, ${savedCoords.lng.toFixed(6)}</small>`
+      : '';
+
     return `
       <div class="route-issue route-issue-editable">
         <div class="route-issue-main">
           <b>${escapeHtml(s.supplierName)}</b>
           <small>Código ${escapeHtml(code || 'não informado')} · ${escapeHtml(s.city)}</small>
-          <small>Status: ${escapeHtml(routeIssueLabel(s.resolution.state))}${s.resolution.errorMessage ? ` · ${escapeHtml(s.resolution.errorMessage)}` : ''}</small>
+          <small>Status: ${escapeHtml(routeIssueLabel(s.resolution.state))}</small>
+          ${coordinateText}
         </div>
         <div class="route-address-editor">
           <input id="${id}" type="text" value="${escapeHtml(current)}" placeholder="Digite o endereço completo...">
           <div class="route-address-actions">
-            <button type="button" class="button secondary mini-button save-route-address" data-code="${escapeHtml(code)}" data-input="${escapeHtml(id)}" data-city="${escapeHtml(s.city)}" data-supplier="${escapeHtml(s.supplierName)}">Salvar endereço</button>
+            <button type="button" class="button secondary mini-button save-route-address" data-code="${escapeHtml(code)}" data-input="${escapeHtml(id)}" data-city="${escapeHtml(s.city)}">Salvar endereço</button>
+            <button type="button" class="button secondary mini-button locate-route-address" data-code="${escapeHtml(code)}" data-input="${escapeHtml(id)}" data-city="${escapeHtml(s.city)}" ${mapButtonDisabled}>Localizar</button>
+            <button type="button" class="button secondary mini-button mark-map-address" data-code="${escapeHtml(code)}" data-input="${escapeHtml(id)}" data-city="${escapeHtml(s.city)}" data-supplier="${escapeHtml(s.supplierName)}" ${mapButtonDisabled}>Marcar no mapa</button>
             <button type="button" class="button secondary mini-button open-address-search" data-input="${escapeHtml(id)}" data-city="${escapeHtml(s.city)}" data-supplier="${escapeHtml(s.supplierName)}">Google Maps</button>
           </div>
         </div>
       </div>`;
   }).join('');
 
-  $('routeIssues').innerHTML = `<div class="route-issues-title">Pendências de endereço — você pode cadastrar aqui</div>${rows}`;
+  $('routeIssues').innerHTML = `<div class="route-issues-title">Pendências de endereço — você pode cadastrar e confirmar a localização aqui</div>${rows}`;
 
   $('routeIssues').querySelectorAll('.save-route-address').forEach(btn => {
     btn.addEventListener('click', () => saveRouteAddress(
+      btn.dataset.code || '',
+      btn.dataset.input || '',
+      btn.dataset.city || ''
+    ));
+  });
+
+  $('routeIssues').querySelectorAll('.locate-route-address').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const input = $(btn.dataset.input || '');
+      const code = btn.dataset.code || '';
+      const address = input?.value.trim();
+      if (!code || !address) {
+        toast('Informe e salve um endereço antes de localizar.');
+        return;
+      }
+      btn.disabled = true;
+      try {
+        const geo = await geocodeAddress(address, btn.dataset.city || '', code);
+        if (geo) {
+          setSupplierCoords(code, geo.lat, geo.lng, 'geocode');
+          const manual = getManualAddress(code);
+          if (!manual) {
+            S.manualAddresses[manualKey(code)] = {
+              endereco: address,
+              cidade: btn.dataset.city || '',
+              origem: 'geocode',
+              atualizadoEm: new Date().toISOString()
+            };
+            saveManualAddresses();
+          }
+          toast(`Fornecedor ${normalizeCode(code)} localizado e salvo.`);
+        } else {
+          toast('Não foi encontrado automaticamente. Use “Marcar no mapa”.');
+        }
+      } catch (e) {
+        console.warn('Falha na localização manual:', e);
+        toast('Não foi possível localizar automaticamente. Use “Marcar no mapa”.');
+      } finally {
+        btn.disabled = false;
+      }
+      await renderRoute();
+    });
+  });
+
+  $('routeIssues').querySelectorAll('.mark-map-address').forEach(btn => {
+    btn.addEventListener('click', () => startMapPick(
       btn.dataset.code || '',
       btn.dataset.input || '',
       btn.dataset.city || '',
@@ -1274,8 +1226,7 @@ function renderStopsList(ordered) {
     const buyer = s.buyers.length ? s.buyers.join(', ') : '—';
     const orders = s.orders.length ? s.orders.join(', ') : '—';
     const source = s.resolution?.source === 'manual' ? ' · endereço manual' : '';
-    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.address || '')}`;
-    return `<div class="route-stop" data-stop-id="${escapeHtml(s.supplierCode || '')}"><div class="stop-number">${i + 1}</div><div class="stop-content"><strong>${escapeHtml(s.supplierName)}</strong><span>Cód. ${escapeHtml(s.supplierCode || '—')} · ${escapeHtml(s.city)}${escapeHtml(source)}</span><span>Comprador: ${escapeHtml(buyer)}</span><span>Pedido(s): ${escapeHtml(orders)}</span><small>${escapeHtml(s.address)}</small><a class="button secondary mini-button" style="width:max-content;margin-top:3px" target="_blank" rel="noopener noreferrer" href="${mapsUrl}">Abrir no Google Maps</a></div></div>`;
+    return `<div class="route-stop"><div class="stop-number">${i + 1}</div><div class="stop-content"><strong>${escapeHtml(s.supplierName)}</strong><span>Cód. ${escapeHtml(s.supplierCode || '—')} · ${escapeHtml(s.city)}${escapeHtml(source)}</span><span>Comprador: ${escapeHtml(buyer)}</span><span>Pedido(s): ${escapeHtml(orders)}</span><small>${escapeHtml(s.address)}</small></div></div>`;
   }).join('');
   $('routeStopsList').innerHTML = cards || '<div class="empty-route">Nenhuma parada com endereço confirmado neste dia.</div>';
 }
@@ -1283,21 +1234,6 @@ function renderStopsList(ordered) {
 async function renderRoute() {
   const runId = ++S.routeRunId;
   const dateKey = $('routeDate').value;
-
-  try {
-    await initMap();
-  } catch (e) {
-    clearMap();
-    $('openGoogleRoute').disabled = true;
-    $('openGoogleRoute').onclick = null;
-    $('routeBadge').textContent = 'Google Maps não configurado';
-    $('routeDistance').textContent = '—';
-    $('routeDuration').textContent = '—';
-    $('routeStopsList').innerHTML = '<div class="empty-route">Insira sua chave na linha GOOGLE_MAPS_API_KEY do script.js e recarregue a página.</div>';
-    console.warn(e);
-    return;
-  }
-
   clearMap();
   $('openGoogleRoute').disabled = true;
   $('openGoogleRoute').onclick = null;
@@ -1328,8 +1264,6 @@ async function renderRoute() {
   $('routeStops').textContent = grouped.length.toLocaleString('pt-BR');
   $('routeFound').textContent = baseValid.length.toLocaleString('pt-BR');
   $('routeMissing').textContent = (grouped.length - baseValid.length).toLocaleString('pt-BR');
-  $('routeDistance').textContent = '—';
-  $('routeDuration').textContent = '—';
   renderRouteIssues(grouped);
 
   if (!baseValid.length) {
@@ -1337,32 +1271,27 @@ async function renderRoute() {
     return;
   }
 
-  $('routeBadge').textContent = 'Localizando endereços no Google Maps…';
+  $('routeBadge').textContent = 'Usando endereços já confirmados…';
   const geoPoints = [];
 
   for (const s of baseValid) {
     if (runId !== S.routeRunId) return;
-    try {
-      const address = s.resolution.entry.endereco;
-      const city = s.resolution.entry.cidade || s.city;
-      const geo = await geocodeAddress(address, city, s.supplierName);
-      if (geo) {
-        geoPoints.push({
-          ...s,
-          address,
-          lat: geo.lat,
-          lng: geo.lng,
-          geocodeName: geo.displayName,
-          placeId: geo.placeId || '',
-          locationType: geo.locationType || ''
-        });
-      } else {
-        s.resolution.state = 'geocode-failed';
-      }
-    } catch (e) {
-      console.warn('Geocode Google falhou', s.supplierName, e);
-      s.resolution.state = 'geocode-failed';
-      s.resolution.errorMessage = readableGoogleMapsError(e);
+    const address = s.resolution.entry.endereco;
+    const city = s.resolution.entry.cidade || s.city;
+    const saved = getSupplierCoords(s.supplierCode);
+    const cached = S.geocodeCache[cacheKeyForGeo([address, city].filter(Boolean).join(', '))];
+    const geo = saved || cached;
+
+    if (geo && Number.isFinite(Number(geo.lat)) && Number.isFinite(Number(geo.lng))) {
+      geoPoints.push({
+        ...s,
+        address,
+        lat: Number(geo.lat),
+        lng: Number(geo.lng),
+        geocodeName: geo.displayName || address
+      });
+    } else {
+      s.resolution.state = 'geocode-pending';
     }
   }
 
@@ -1383,75 +1312,46 @@ async function renderRoute() {
       route = calc.route;
       optimized = calc.optimized;
       ordered = calc.ordered.filter(p => !p.isOrigin);
-      $('routeDistance').textContent = formatDistance(calc.distance);
-      $('routeDuration').textContent = formatDuration(calc.duration);
-      $('routeBadge').textContent = optimized ? 'Rota otimizada pelo Google' : 'Rota calculada pelo Google';
-    } else {
-      $('routeBadge').textContent = '1 parada localizada';
+      $('routeDistance').textContent = formatDistance(route.distance);
+      $('routeDuration').textContent = formatDuration(route.duration);
+      $('routeBadge').textContent = optimized ? 'Rota otimizada pelas ruas' : 'Rota calculada pelas ruas';
     }
   } catch (e) {
-    console.error('Erro no roteamento Google:', e);
+    console.error('Erro no roteamento:', e);
     $('routeBadge').textContent = 'Rota não calculada';
     $('routeDistance').textContent = '—';
     $('routeDuration').textContent = '—';
-    toast(e?.message || 'Os endereços foram localizados, mas o Google não conseguiu calcular a rota.');
+    toast('Os endereços foram localizados, mas o roteamento não conseguiu ligar todas as paradas. Verifique se algum ponto está fora da malha rodoviária e use o Google Maps para conferir.');
   }
 
   const orderedForMarkers = ordered.length ? ordered : geoPoints;
   renderStopsList(orderedForMarkers);
 
   clearMap();
-  const bounds = new GoogleLatLngBoundsClass();
-  bounds.extend({ lat: PHARMAINNOX.lat, lng: PHARMAINNOX.lng });
-
-  addGoogleMarker(
-    { lat: PHARMAINNOX.lat, lng: PHARMAINNOX.lng },
-    'P',
-    'Pharmainox',
-    `<div style="font-family:Arial,sans-serif;max-width:280px"><b>Pharmainox</b><br>${escapeHtml(PHARMAINNOX.endereco)}</div>`,
-    true
-  );
+  const bounds = [];
+  L.marker([PHARMAINNOX.lat, PHARMAINNOX.lng], { icon: markerIcon('P', true) })
+    .bindPopup(`<b>Pharmainox</b><br>${escapeHtml(PHARMAINNOX.endereco)}`)
+    .addTo(S.markersLayer);
+  bounds.push([PHARMAINNOX.lat, PHARMAINNOX.lng]);
 
   orderedForMarkers.forEach((s, idx) => {
-    addGoogleMarker(
-      { lat: s.lat, lng: s.lng },
-      String(idx + 1),
-      `${idx + 1} - ${s.supplierName}`,
-      `<div style="font-family:Arial,sans-serif;max-width:300px"><b>${escapeHtml(s.supplierName)}</b><br>Cód. ${escapeHtml(s.supplierCode || '—')}<br>${escapeHtml(s.address)}<br>Pedido(s): ${escapeHtml(s.orders.join(', ') || '—')}</div>`,
-      false
-    );
-    bounds.extend({ lat: s.lat, lng: s.lng });
+    L.marker([s.lat, s.lng], { icon: markerIcon(String(idx + 1), false) })
+      .bindPopup(`<b>${escapeHtml(s.supplierName)}</b><br>Cód. ${escapeHtml(s.supplierCode)}<br>${escapeHtml(s.address)}<br>Pedido(s): ${escapeHtml(s.orders.join(', ') || '—')}`)
+      .addTo(S.markersLayer);
+    bounds.push([s.lat, s.lng]);
   });
 
-  if (route?.path?.length) {
-    const polyline = new GooglePolylineClass({
-      path: route.path,
-      geodesic: false,
-      strokeColor: '#2f80ed',
-      strokeOpacity: 0.95,
-      strokeWeight: 5,
-      map: S.map
-    });
-    S.routeLayer.push(polyline);
+  // Nunca desenha uma linha reta como se fosse uma rota rodoviária.
+  // A geometria abaixo é a geometria real retornada pelo OSRM.
+  if (route?.geometry?.coordinates?.length) {
+    const latlngs = route.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+    L.polyline(latlngs, { weight: 10, opacity: 0.35, color: '#ffffff', lineCap: 'round', lineJoin: 'round' }).addTo(S.routeLayer);
+    L.polyline(latlngs, { weight: 5, opacity: 0.95, color: '#2f80ed', lineCap: 'round', lineJoin: 'round' }).addTo(S.routeLayer);
+    latlngs.forEach(p => bounds.push(p));
   }
 
-  if (route?.path?.length) {
-    route.path.forEach(point => {
-      const lat = typeof point.lat === 'function' ? point.lat() : point.lat;
-      const lng = typeof point.lng === 'function' ? point.lng() : point.lng;
-      if (Number.isFinite(lat) && Number.isFinite(lng)) bounds.extend({ lat, lng });
-    });
-  }
-
-  if (orderedForMarkers.length || route?.path?.length) {
-    S.map.fitBounds(bounds, { left: 40, right: 40, top: 40, bottom: 40 });
-    if (orderedForMarkers.length === 1) {
-      setTimeout(() => { if (S.map.getZoom() > 14) S.map.setZoom(14); }, 120);
-    }
-  } else {
-    S.map.setCenter({ lat: PHARMAINNOX.lat, lng: PHARMAINNOX.lng });
-    S.map.setZoom(10);
-  }
+  if (bounds.length) S.map.fitBounds(bounds, { padding: [35, 35], maxZoom: 13 });
+  setTimeout(() => S.map.invalidateSize(), 200);
 
   const googleUrl = googleDirectionsUrl(orderedForMarkers);
   if (googleUrl) {
@@ -1488,7 +1388,7 @@ function markAddressSaved(inputId, message = 'Endereço salvo. Será usado na pr
   input.style.background = '#f2fbf6';
 }
 
-async function saveRouteAddress(code, inputId, fallbackCity, supplierName = '') {
+async function saveRouteAddress(code, inputId, fallbackCity) {
   const address = $(inputId)?.value.trim();
   if (!address) {
     toast('Digite um endereço antes de salvar.');
@@ -1511,7 +1411,7 @@ async function saveRouteAddress(code, inputId, fallbackCity, supplierName = '') 
     origem: 'manual',
     atualizadoEm: new Date().toISOString()
   };
-  const geoKey = cacheKeyForGeo([supplierName, address, fallbackCity].filter(Boolean).join(' | '));
+  const geoKey = cacheKeyForGeo([address, fallbackCity].filter(Boolean).join(', '));
   delete S.geocodeCache[geoKey];
   saveManualAddresses();
   saveGeoCache();
@@ -1525,10 +1425,11 @@ async function saveRouteAddress(code, inputId, fallbackCity, supplierName = '') 
 
   // 3) Tenta localizar imediatamente o endereço que acabou de ser informado.
   try {
-    const geo = await geocodeAddress(address, fallbackCity, supplierName);
+    const geo = await geocodeAddress(address, fallbackCity, normalizedCode);
     if (geo) {
       S.geocodeCache[geoKey] = geo;
       saveGeoCache();
+      setSupplierCoords(normalizedCode, geo.lat, geo.lng, 'geocode');
       markAddressSaved(inputId, 'Endereço localizado. Atualizando a rota...');
       toast(`Endereço do fornecedor ${normalizedCode} localizado. Atualizando a rota...`);
     } else {
@@ -1537,9 +1438,8 @@ async function saveRouteAddress(code, inputId, fallbackCity, supplierName = '') 
     }
   } catch (e) {
     console.warn('Falha ao localizar endereço manual:', e);
-    const reason = readableGoogleMapsError(e);
-    markAddressSaved(inputId, `Endereço salvo. ${reason}`);
-    toast(`Fornecedor ${normalizedCode}: ${reason}`);
+    markAddressSaved(inputId, 'Endereço salvo. Falha temporária ao localizar no mapa.');
+    toast(`Endereço do fornecedor ${normalizedCode} foi salvo. Falha temporária ao localizar no mapa.`);
   }
 
   // 4) Recalcula a rota usando o endereço salvo.
@@ -1547,13 +1447,79 @@ async function saveRouteAddress(code, inputId, fallbackCity, supplierName = '') 
 }
 window.saveRouteAddress = saveRouteAddress;
 
+let activeMapPick = null;
+let activeMapPickMarker = null;
+
+function clearMapPickMode(message = '') {
+  activeMapPick = null;
+  if (activeMapPickMarker) {
+    try { S.map.removeLayer(activeMapPickMarker); } catch {}
+    activeMapPickMarker = null;
+  }
+  if (S.map?.getContainer()) S.map.getContainer().style.cursor = '';
+  if (message) toast(message);
+}
+
+function startMapPick(code, inputId, city = '', supplierName = '') {
+  if (!S.map) {
+    toast('O mapa ainda está carregando. Aguarde um instante.');
+    return;
+  }
+  if (!normalizeCode(code)) {
+    toast('Este fornecedor está sem código e não pode ter coordenada salva.');
+    return;
+  }
+  const address = $(inputId)?.value.trim();
+  if (!isGoodManualAddress(address)) {
+    toast('Preencha e salve um endereço antes de marcar a localização no mapa.');
+    return;
+  }
+
+  activeMapPick = { code: normalizeCode(code), inputId, city, supplierName, address };
+  S.map.getContainer().style.cursor = 'crosshair';
+  $('routeBadge').textContent = `Clique no mapa para marcar: ${supplierName || code}`;
+  toast(`Modo de marcação ativo para ${supplierName || code}. Clique no ponto exato no mapa.`);
+}
+window.startMapPick = startMapPick;
+
+function handleMapPick(e) {
+  if (!activeMapPick) return;
+  const { code, address, city, supplierName } = activeMapPick;
+  const lat = e.latlng.lat;
+  const lng = e.latlng.lng;
+
+  activeMapPickMarker = L.marker([lat, lng], { icon: markerIcon('?', false) }).addTo(S.map)
+    .bindPopup(`<b>${escapeHtml(supplierName || code)}</b><br>${escapeHtml(address)}<br>Lat: ${lat.toFixed(6)}<br>Lng: ${lng.toFixed(6)}`)
+    .openPopup();
+
+  const ok = setSupplierCoords(code, lat, lng, 'manual-mapa');
+  if (!ok) {
+    clearMapPickMode('Não foi possível salvar a coordenada.');
+    return;
+  }
+
+  const keyCode = manualKey(code);
+  if (!S.manualAddresses[keyCode]) {
+    S.manualAddresses[keyCode] = {
+      endereco: address,
+      cidade: city || '',
+      origem: 'manual-mapa',
+      atualizadoEm: new Date().toISOString()
+    };
+    saveManualAddresses();
+  }
+
+  clearMapPickMode(`Localização salva para ${supplierName || code}.`);
+  renderRoute();
+}
+
 function openAddressSearch(inputId, city = '', supplierName = '') {
   const address = $(inputId)?.value.trim();
-  // Para conferência manual, o nome do fornecedor ajuda a encontrar a empresa
-  // quando o endereço não está bem indexado pelo Google.
-  const query = [supplierName, address, city, 'SP', 'Brasil'].filter(Boolean).join(', ');
-  if (!address) {
-    toast('Digite o endereço para pesquisar no Google Maps.');
+  const query = address
+    ? [address, city, 'SP', 'Brasil'].filter(Boolean).join(', ')
+    : [supplierName, city, 'SP', 'Brasil'].filter(Boolean).join(', ');
+  if (!query) {
+    toast('Informe o fornecedor ou endereço para pesquisar no Google Maps.');
     return;
   }
   const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
@@ -1610,5 +1576,5 @@ document.addEventListener('DOMContentLoaded', () => {
     const seenFuel=new Set();S.fuel=S.fuel.filter(r=>{const sig=[r.date?.getTime()||'',r.vehicle,r.km,Number.isFinite(r.value)?r.value.toFixed(2):''].join('|');if(seenFuel.has(sig))return false;seenFuel.add(sig);return true;});
     const seenJourney=new Set();S.journey=S.journey.filter(r=>{const sig=[r.date?.getTime()||'',r.vehicle,r.statusKey,r.km].join('|');if(seenJourney.has(sig))return false;seenJourney.add(sig);return true;});
     $('vehicleFileList').innerHTML=valid.map(x=>`<div class="detected-file-card ${x.type==='journey'?'source-journey':'source-fuel'}"><div class="detected-file-icon">${x.type==='journey'?'🛣️':'⛽'}</div><div class="detected-file-main"><strong>${escapeHtml(x.vehicle)}</strong><span>${x.type==='journey'?'JORNADA / KM':'ABASTECIMENTO'}</span><em>${escapeHtml(x.file.name)}</em><small>Dados carregados: ${x.rows.toLocaleString('pt-BR')} registros</small></div></div>`).join('');$('logFileList').innerHTML=S.sources.log.map(x=>`<span class="chip source-log">${escapeHtml(x.file)} · ${x.rows.toLocaleString('pt-BR')} registros</span>`).join('');$('vehicle').innerHTML='<option value="todos">Todos</option>'+detectedVehicles.map(v=>`<option>${escapeHtml(v)}</option>`).join('');populateRouteDate();update();await renderRoute();toast(`Atualizado. ${S.sources.journey.length} jornada(s), ${S.sources.fuel.length} abastecimento(s) e ${S.sources.log.length} arquivo(s) de pedidos.`);}catch(e){console.error(e);toast(e?.message||'Não foi possível carregar os arquivos selecionados.');}});
-  ['year','vehicle','start','end','periodicity'].forEach(id=>$(id).addEventListener('change',update));$('routeDate').addEventListener('change',renderRoute);$('routeRefresh').addEventListener('click',renderRoute);$('exportManualAddresses').addEventListener('click',exportManualAddresses);$('importManualAddresses').addEventListener('click',()=>$('manualAddressFile').click());$('manualAddressFile').addEventListener('change',e=>{if(e.target.files[0])importManualAddresses(e.target.files[0]);e.target.value='';});$('clearManualAddresses').addEventListener('click',clearManualAddresses);$('clearGeoCache').addEventListener('click',()=>{S.geocodeCache={};saveGeoCache();toast('Cache do Google Maps limpo. Revalidando os endereços…');renderRoute();});$('clear').addEventListener('click',()=>{$('year').value='todos';$('vehicle').value='todos';$('start').value='';$('end').value='';$('periodicity').value='month';update();});$('export').addEventListener('click',()=>{const rows=S.filteredFuel.map(r=>({Data:r.dateText,Veiculo:r.vehicle,Valor:r.value,PrecoPorLitro:Number.isFinite(r.price)?r.price:'',Litros:Number.isFinite(r.liters)?r.liters:'',KM:r.km}));const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Abastecimento');XLSX.writeFile(wb,'abastecimentos_filtrados.xlsx');});loadManualAddresses();loadGeoCache();renderVehicleFiles();update();initMap().then(()=>renderRoute()).catch(e=>{console.warn(e);$('routeBadge').textContent='Google Maps aguardando chave';});
+  ['year','vehicle','start','end','periodicity'].forEach(id=>$(id).addEventListener('change',update));$('routeDate').addEventListener('change',renderRoute);$('routeRefresh').addEventListener('click',renderRoute);$('exportManualAddresses').addEventListener('click',exportManualAddresses);$('importManualAddresses').addEventListener('click',()=>$('manualAddressFile').click());$('manualAddressFile').addEventListener('change',e=>{if(e.target.files[0])importManualAddresses(e.target.files[0]);e.target.value='';});$('clearManualAddresses').addEventListener('click',clearManualAddresses);$('clearGeoCache').addEventListener('click',()=>{S.geocodeCache={};saveGeoCache();toast('Cache automático limpo. As coordenadas confirmadas manualmente foram mantidas.');renderRoute();});$('clear').addEventListener('click',()=>{$('year').value='todos';$('vehicle').value='todos';$('start').value='';$('end').value='';$('periodicity').value='month';update();});$('export').addEventListener('click',()=>{const rows=S.filteredFuel.map(r=>({Data:r.dateText,Veiculo:r.vehicle,Valor:r.value,PrecoPorLitro:Number.isFinite(r.price)?r.price:'',Litros:Number.isFinite(r.liters)?r.liters:'',KM:r.km}));const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Abastecimento');XLSX.writeFile(wb,'abastecimentos_filtrados.xlsx');});loadManualAddresses();loadGeoCache();loadSupplierCoords();initMap();renderVehicleFiles();update();
 });
