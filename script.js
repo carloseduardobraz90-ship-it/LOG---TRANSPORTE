@@ -780,6 +780,7 @@ let GoogleRouteClass = null;
 let GoogleInfoWindowClass = null;
 let GoogleLatLngBoundsClass = null;
 let GooglePolylineClass = null;
+let GooglePlaceClass = null;
 let googleMapsReadyPromise = null;
 
 function loadGoogleMapsApi() {
@@ -968,25 +969,113 @@ function saveGeoCache() {
   try { localStorage.setItem('pharmainox_google_geo_cache_v2', JSON.stringify(S.geocodeCache)); } catch {}
 }
 
-function buildGeoQueries(address, fallbackCity = '') {
+function buildGeoQueries(address, fallbackCity = '', supplierName = '') {
   const a = String(address || '').trim();
   const c = String(fallbackCity || '').trim();
+  const n = String(supplierName || '').trim();
   const queries = [
     [a, c, 'SP, Brasil'].filter(Boolean).join(', '),
     [a, 'SP, Brasil'].filter(Boolean).join(', '),
-    [a, 'Brasil'].filter(Boolean).join(', ')
+    [a, 'Brasil'].filter(Boolean).join(', '),
+    [n, a, c, 'SP, Brasil'].filter(Boolean).join(', '),
+    [n, c, 'SP, Brasil'].filter(Boolean).join(', ')
   ];
   return [...new Set(queries.map(q => q.trim()).filter(Boolean))];
 }
 
-async function geocodeAddress(address, fallbackCity = '') {
+function extractPostalCode(address) {
+  const m = String(address || '').match(/\b(\d{5})[- ]?(\d{3})\b/);
+  return m ? `${m[1]}-${m[2]}` : '';
+}
+
+async function placesTextFallback(address, fallbackCity = '', supplierName = '') {
+  try {
+    const placesLib = await google.maps.importLibrary('places');
+    GooglePlaceClass = placesLib.Place;
+    if (!GooglePlaceClass?.searchByText) return null;
+
+    const postal = extractPostalCode(address);
+    const queries = [
+      [supplierName, address, fallbackCity, 'SP, Brasil'].filter(Boolean).join(', '),
+      [address, fallbackCity, 'SP, Brasil'].filter(Boolean).join(', '),
+      [supplierName, fallbackCity, postal, 'SP, Brasil'].filter(Boolean).join(', ')
+    ];
+
+    for (const textQuery of [...new Set(queries)]) {
+      if (!textQuery) continue;
+      try {
+        const { places } = await GooglePlaceClass.searchByText({
+          textQuery,
+          fields: ['displayName', 'location', 'formattedAddress', 'id', 'googleMapsURI', 'businessStatus'],
+          language: 'pt-BR',
+          region: 'BR',
+          maxResultCount: 5
+        });
+
+        if (!Array.isArray(places) || !places.length) continue;
+
+        // Prefer a result whose returned address contains the postal code or street number.
+        const ranked = places
+          .filter(p => p?.location)
+          .map(p => {
+            const fa = String(p.formattedAddress || '');
+            const dn = String(p.displayName || '');
+            let score = 0;
+            if (postal && fa.includes(postal)) score += 6;
+            if (/\b110\b/.test(fa) && /carlopolis/i.test(fa)) score += 4;
+            if (supplierName && normalizeText(dn).includes(normalizeText(supplierName).slice(0, 18))) score += 2;
+            if (fallbackCity && normalizeText(fa).includes(normalizeText(fallbackCity))) score += 2;
+            return { p, score };
+          })
+          .sort((x, y) => y.score - x.score);
+
+        const best = ranked[0]?.p;
+        if (!best?.location) continue;
+
+        const loc = best.location;
+        const result = {
+          lat: Number(typeof loc.lat === 'function' ? loc.lat() : loc.lat),
+          lng: Number(typeof loc.lng === 'function' ? loc.lng() : loc.lng),
+          displayName: best.formattedAddress || best.displayName || textQuery,
+          placeId: best.id || '',
+          locationType: 'PLACE_SEARCH',
+          googleMapsURI: best.googleMapsURI || ''
+        };
+
+        if (Number.isFinite(result.lat) && Number.isFinite(result.lng)) return result;
+      } catch (e) {
+        console.warn('Places Text Search falhou para', textQuery, e);
+      }
+    }
+  } catch (e) {
+    console.warn('Places API não disponível para fallback:', e);
+  }
+
+  return null;
+}
+
+function readableGoogleMapsError(error) {
+  const raw = String(error?.message || error?.status || error || '');
+  if (/REQUEST_DENIED|not authorized|not authorized to use/i.test(raw)) {
+    return 'A chave não está autorizada para Geocoding/Places ou a API necessária não está habilitada.';
+  }
+  if (/OVER_QUERY_LIMIT|quota/i.test(raw)) {
+    return 'O limite de consultas da API foi atingido temporariamente.';
+  }
+  if (/ZERO_RESULTS/i.test(raw)) {
+    return 'O Google não encontrou esse endereço por Geocoding.';
+  }
+  return raw || 'Não foi possível localizar o endereço.';
+}
+
+async function geocodeAddress(address, fallbackCity = '', supplierName = '') {
   const full = [address, fallbackCity].filter(Boolean).join(', ');
-  const keyCache = cacheKeyForGeo(full);
+  const keyCache = cacheKeyForGeo([supplierName, full].filter(Boolean).join(' | '));
   if (S.geocodeCache[keyCache]) return S.geocodeCache[keyCache];
 
   if (!S.geocoder) await initMap();
 
-  const queries = buildGeoQueries(address, fallbackCity);
+  const queries = buildGeoQueries(address, fallbackCity, supplierName);
   let response = null;
   let lastError = null;
 
@@ -996,34 +1085,52 @@ async function geocodeAddress(address, fallbackCity = '') {
         address: query,
         componentRestrictions: { country: 'BR' },
         region: 'BR',
-        language: 'pt-BR'
+        language: 'pt-BR',
+        fulfillOnZeroResults: true
       });
       if (response?.results?.length) break;
     } catch (e) {
       lastError = e;
+      console.warn('Geocoding falhou para a consulta:', query, e);
+    }
+    // Pequena pausa evita uma rajada de consultas quando vários fornecedores precisam ser localizados.
+    await new Promise(r => setTimeout(r, 180));
+  }
+
+  if (response?.results?.length) {
+    // Choose the result that looks most like the requested street/number instead of blindly
+    // taking result[0]. This matters for generic or abbreviated street names.
+    const wanted = normalizeText(`${address} ${fallbackCity}`);
+    const best = response.results
+      .map(r => ({ r, score: similarity(wanted, normalizeText(r.formatted_address || '')) }))
+      .sort((a, b) => b.score - a.score)[0]?.r || response.results[0];
+
+    const loc = best.geometry.location;
+    const result = {
+      lat: Number(typeof loc.lat === 'function' ? loc.lat() : loc.lat),
+      lng: Number(typeof loc.lng === 'function' ? loc.lng() : loc.lng),
+      displayName: best.formatted_address || full,
+      placeId: best.place_id || '',
+      locationType: best.geometry.location_type || ''
+    };
+
+    if (Number.isFinite(result.lat) && Number.isFinite(result.lng)) {
+      S.geocodeCache[keyCache] = result;
+      saveGeoCache();
+      return result;
     }
   }
 
-  if (!response?.results?.length) {
-    if (lastError) throw lastError;
-    return null;
+  // Fallback for companies/addresses that Google Geocoding does not resolve precisely.
+  const placeResult = await placesTextFallback(address, fallbackCity, supplierName);
+  if (placeResult) {
+    S.geocodeCache[keyCache] = placeResult;
+    saveGeoCache();
+    return placeResult;
   }
 
-  const best = response.results[0];
-  const loc = best.geometry.location;
-  const result = {
-    lat: Number(typeof loc.lat === 'function' ? loc.lat() : loc.lat),
-    lng: Number(typeof loc.lng === 'function' ? loc.lng() : loc.lng),
-    displayName: best.formatted_address || full,
-    placeId: best.place_id || '',
-    locationType: best.geometry.location_type || ''
-  };
-
-  if (!Number.isFinite(result.lat) || !Number.isFinite(result.lng)) return null;
-
-  S.geocodeCache[keyCache] = result;
-  saveGeoCache();
-  return result;
+  if (lastError) throw lastError;
+  return null;
 }
 
 function formatDuration(seconds) {
@@ -1130,12 +1237,12 @@ function renderRouteIssues(groupedRows) {
         <div class="route-issue-main">
           <b>${escapeHtml(s.supplierName)}</b>
           <small>Código ${escapeHtml(code || 'não informado')} · ${escapeHtml(s.city)}</small>
-          <small>Status: ${escapeHtml(routeIssueLabel(s.resolution.state))}</small>
+          <small>Status: ${escapeHtml(routeIssueLabel(s.resolution.state))}${s.resolution.errorMessage ? ` · ${escapeHtml(s.resolution.errorMessage)}` : ''}</small>
         </div>
         <div class="route-address-editor">
           <input id="${id}" type="text" value="${escapeHtml(current)}" placeholder="Digite o endereço completo...">
           <div class="route-address-actions">
-            <button type="button" class="button secondary mini-button save-route-address" data-code="${escapeHtml(code)}" data-input="${escapeHtml(id)}" data-city="${escapeHtml(s.city)}">Salvar endereço</button>
+            <button type="button" class="button secondary mini-button save-route-address" data-code="${escapeHtml(code)}" data-input="${escapeHtml(id)}" data-city="${escapeHtml(s.city)}" data-supplier="${escapeHtml(s.supplierName)}">Salvar endereço</button>
             <button type="button" class="button secondary mini-button open-address-search" data-input="${escapeHtml(id)}" data-city="${escapeHtml(s.city)}" data-supplier="${escapeHtml(s.supplierName)}">Google Maps</button>
           </div>
         </div>
@@ -1148,7 +1255,8 @@ function renderRouteIssues(groupedRows) {
     btn.addEventListener('click', () => saveRouteAddress(
       btn.dataset.code || '',
       btn.dataset.input || '',
-      btn.dataset.city || ''
+      btn.dataset.city || '',
+      btn.dataset.supplier || ''
     ));
   });
 
@@ -1237,7 +1345,7 @@ async function renderRoute() {
     try {
       const address = s.resolution.entry.endereco;
       const city = s.resolution.entry.cidade || s.city;
-      const geo = await geocodeAddress(address, city);
+      const geo = await geocodeAddress(address, city, s.supplierName);
       if (geo) {
         geoPoints.push({
           ...s,
@@ -1254,6 +1362,7 @@ async function renderRoute() {
     } catch (e) {
       console.warn('Geocode Google falhou', s.supplierName, e);
       s.resolution.state = 'geocode-failed';
+      s.resolution.errorMessage = readableGoogleMapsError(e);
     }
   }
 
@@ -1379,7 +1488,7 @@ function markAddressSaved(inputId, message = 'Endereço salvo. Será usado na pr
   input.style.background = '#f2fbf6';
 }
 
-async function saveRouteAddress(code, inputId, fallbackCity) {
+async function saveRouteAddress(code, inputId, fallbackCity, supplierName = '') {
   const address = $(inputId)?.value.trim();
   if (!address) {
     toast('Digite um endereço antes de salvar.');
@@ -1402,7 +1511,7 @@ async function saveRouteAddress(code, inputId, fallbackCity) {
     origem: 'manual',
     atualizadoEm: new Date().toISOString()
   };
-  const geoKey = cacheKeyForGeo([address, fallbackCity].filter(Boolean).join(', '));
+  const geoKey = cacheKeyForGeo([supplierName, address, fallbackCity].filter(Boolean).join(' | '));
   delete S.geocodeCache[geoKey];
   saveManualAddresses();
   saveGeoCache();
@@ -1416,7 +1525,7 @@ async function saveRouteAddress(code, inputId, fallbackCity) {
 
   // 3) Tenta localizar imediatamente o endereço que acabou de ser informado.
   try {
-    const geo = await geocodeAddress(address, fallbackCity);
+    const geo = await geocodeAddress(address, fallbackCity, supplierName);
     if (geo) {
       S.geocodeCache[geoKey] = geo;
       saveGeoCache();
@@ -1428,8 +1537,9 @@ async function saveRouteAddress(code, inputId, fallbackCity) {
     }
   } catch (e) {
     console.warn('Falha ao localizar endereço manual:', e);
-    markAddressSaved(inputId, 'Endereço salvo. Falha temporária ao localizar no mapa.');
-    toast(`Endereço do fornecedor ${normalizedCode} foi salvo. Falha temporária ao localizar no mapa.`);
+    const reason = readableGoogleMapsError(e);
+    markAddressSaved(inputId, `Endereço salvo. ${reason}`);
+    toast(`Fornecedor ${normalizedCode}: ${reason}`);
   }
 
   // 4) Recalcula a rota usando o endereço salvo.
@@ -1439,9 +1549,9 @@ window.saveRouteAddress = saveRouteAddress;
 
 function openAddressSearch(inputId, city = '', supplierName = '') {
   const address = $(inputId)?.value.trim();
-  // Não usamos o nome do fornecedor na pesquisa, pois isso pode fazer o Google
-  // priorizar uma empresa/local diferente do endereço digitado.
-  const query = [address, city, 'SP', 'Brasil'].filter(Boolean).join(', ');
+  // Para conferência manual, o nome do fornecedor ajuda a encontrar a empresa
+  // quando o endereço não está bem indexado pelo Google.
+  const query = [supplierName, address, city, 'SP', 'Brasil'].filter(Boolean).join(', ');
   if (!address) {
     toast('Digite o endereço para pesquisar no Google Maps.');
     return;
