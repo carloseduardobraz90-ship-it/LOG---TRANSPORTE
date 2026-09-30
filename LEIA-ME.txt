@@ -27,3 +27,10 @@ V3
 - O sistema identifica veículo e tipo pelo conteúdo interno; o nome do arquivo não é usado.
 - Os gráficos de tempo possuem seletor de Mês, Semana ou Ano.
 - Os gráficos exibem rótulos de dados diretamente na tela.
+
+
+ORDEM MANUAL DA ROTA
+- As paradas confirmadas podem ser arrastadas na lista para alterar a sequência.
+- A sequência manual é salva por dia neste navegador.
+- Ao alterar a ordem, a rota OSRM é recalculada exatamente na nova sequência.
+- O botão 'Ordem automática' remove a ordem manual daquele dia e devolve a otimização automática.

@@ -69,3 +69,16 @@ body{margin:0;background:#f4f7fb;color:#172033;font:14px Segoe UI,Arial,sans-ser
 .route-address-actions{display:flex;gap:7px;flex-wrap:wrap}
 .route-address-actions .mini-button{flex:0 0 auto}
 .route-address-actions .mini-button:disabled{opacity:.45;cursor:not-allowed}
+
+
+/* Ordem manual das paradas — arrastar e soltar */
+.route-stops-head{align-items:flex-start!important}
+.route-stops-head>div:first-child{min-width:0}
+.route-drag-help{margin:4px 0 0;color:#7b8799;font-size:10px;line-height:1.4}
+.route-stops-actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.route-stop-draggable{position:relative;grid-template-columns:18px 34px 1fr;cursor:grab;user-select:none;transition:transform .12s ease,box-shadow .12s ease,border-color .12s ease,opacity .12s ease}
+.route-stop-draggable:active{cursor:grabbing}
+.route-stop-draggable.dragging{opacity:.55;box-shadow:0 8px 24px rgba(47,128,237,.16);border-color:#8fb5e8;transform:scale(.995)}
+.stop-drag-handle{display:grid;place-items:center;color:#9aa6b6;font-weight:800;font-size:16px;letter-spacing:-3px;line-height:1;padding-top:2px}
+.route-stop-draggable:hover .stop-drag-handle{color:#2f80ed}
+@media(max-width:700px){.route-stops-head{flex-direction:column!important;align-items:stretch!important}.route-stops-actions{justify-content:flex-start}.route-stop-draggable{grid-template-columns:16px 34px 1fr}}

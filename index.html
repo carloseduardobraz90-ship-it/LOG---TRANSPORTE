@@ -128,9 +128,15 @@
       </article>
 
       <article class="panel route-stops-card">
-        <div class="panel-head">
-          <h2>Paradas</h2>
-          <button id="openGoogleRoute" class="button secondary" disabled>Google Maps</button>
+        <div class="panel-head route-stops-head">
+          <div>
+            <h2>Paradas</h2>
+            <p class="route-drag-help">Arraste uma parada para mudar a sequência. O mapa e a rota serão recalculados.</p>
+          </div>
+          <div class="route-stops-actions">
+            <button id="resetRouteOrder" class="button secondary" type="button">Ordem automática</button>
+            <button id="openGoogleRoute" class="button secondary" disabled>Google Maps</button>
+          </div>
         </div>
         <div id="routeStopsList" class="route-stops-list"></div>
         <div id="routeIssues" class="route-issues"></div>

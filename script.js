@@ -30,6 +30,7 @@ const S = {
   routeRunId: 0,
   geocodeCache: {},
   manualAddresses: {},
+  routeOrderByDate: {},
   journey: [],
   filteredJourney: [],
   vehicleUploads: [],
@@ -765,6 +766,7 @@ function groupRouteStops(dateKey) {
     const groupKey = code || `NOME:${normalizeText(r._supplierName)}`;
     if (!grouped.has(groupKey)) {
       grouped.set(groupKey, {
+        routeKey: groupKey,
         supplierCode: code,
         supplierName: r._supplierName,
         city: r._city,
@@ -855,6 +857,69 @@ function loadSupplierCoords() {
 
 function saveSupplierCoords() {
   try { localStorage.setItem('pharmainox_supplier_coords_v1', JSON.stringify(S.supplierCoords)); } catch {}
+}
+
+// Ordem manual das paradas por dia. Quando o usuário arrasta uma parada,
+// a nova sequência fica salva neste navegador e passa a ter prioridade
+// sobre a otimização automática do OSRM para aquele dia.
+function routeStorageKey(dateKey) {
+  return `pharmainox_route_order_${dateKey}`;
+}
+
+function loadRouteOrder(dateKey) {
+  if (!dateKey) return [];
+  try {
+    const raw = localStorage.getItem(routeStorageKey(dateKey));
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveRouteOrder(dateKey, order) {
+  if (!dateKey) return;
+  const clean = [...new Set((order || []).map(String).filter(Boolean))];
+  S.routeOrderByDate[dateKey] = clean;
+  try { localStorage.setItem(routeStorageKey(dateKey), JSON.stringify(clean)); } catch {}
+}
+
+function clearRouteOrder(dateKey) {
+  if (!dateKey) return;
+  delete S.routeOrderByDate[dateKey];
+  try { localStorage.removeItem(routeStorageKey(dateKey)); } catch {}
+}
+
+function getRouteStopKey(stop) {
+  return String(stop?.routeKey || stop?.supplierCode || `NOME:${normalizeText(stop?.supplierName || '')}`);
+}
+
+function applyManualRouteOrder(stops, savedOrder) {
+  if (!savedOrder?.length) return stops.slice();
+  const rank = new Map(savedOrder.map((key, i) => [String(key), i]));
+  return stops
+    .map((stop, originalIndex) => ({
+      stop,
+      originalIndex,
+      rank: rank.has(getRouteStopKey(stop)) ? rank.get(getRouteStopKey(stop)) : Number.POSITIVE_INFINITY
+    }))
+    .sort((a, b) => {
+      if (a.rank !== b.rank) return a.rank - b.rank;
+      return a.originalIndex - b.originalIndex;
+    })
+    .map(x => x.stop);
+}
+
+function getRouteOrder(dateKey) {
+  if (!dateKey) return [];
+  if (!Object.prototype.hasOwnProperty.call(S.routeOrderByDate, dateKey)) {
+    S.routeOrderByDate[dateKey] = loadRouteOrder(dateKey);
+  }
+  return S.routeOrderByDate[dateKey] || [];
+}
+
+function getManualRouteMode(dateKey) {
+  return getRouteOrder(dateKey).length > 0;
 }
 
 function getSupplierCoords(code) {
@@ -1079,14 +1144,14 @@ async function osrmRoute(points) {
   return data.routes[0];
 }
 
-async function calculateRoute(points) {
+async function calculateRoute(points, allowOptimization = true) {
   if (points.length < 2) return null;
 
   let ordered = points.slice();
   let optimized = false;
 
   // 1) Tenta otimizar a sequência quando o volume é compatível com o serviço público.
-  if (points.length <= 60) {
+  if (allowOptimization && points.length <= 60) {
     try {
       const coords = points.map(p => `${p.lng},${p.lat}`).join(';');
       const url = `https://router.project-osrm.org/trip/v1/driving/${coords}?source=first&destination=first&roundtrip=true&steps=false&geometries=geojson&overview=full`;
@@ -1261,14 +1326,67 @@ function renderRouteIssues(groupedRows) {
   });
 }
 
-function renderStopsList(ordered) {
+function renderStopsList(ordered, dateKey = '') {
   const cards = ordered.map((s, i) => {
     const buyer = s.buyers.length ? s.buyers.join(', ') : '—';
     const orders = s.orders.length ? s.orders.join(', ') : '—';
     const source = s.resolution?.source === 'manual' ? ' · endereço manual' : '';
-    return `<div class="route-stop"><div class="stop-number">${i + 1}</div><div class="stop-content"><strong>${escapeHtml(s.supplierName)}</strong><span>Cód. ${escapeHtml(s.supplierCode || '—')} · ${escapeHtml(s.city)}${escapeHtml(source)}</span><span>Comprador: ${escapeHtml(buyer)}</span><span>Pedido(s): ${escapeHtml(orders)}</span><small>${escapeHtml(s.address)}</small></div></div>`;
+    const routeKey = getRouteStopKey(s);
+    return `
+      <div class="route-stop route-stop-draggable" draggable="true" data-route-key="${escapeHtml(routeKey)}" title="Arraste para alterar a ordem da parada">
+        <div class="stop-drag-handle" aria-hidden="true">⋮⋮</div>
+        <div class="stop-number">${i + 1}</div>
+        <div class="stop-content">
+          <strong>${escapeHtml(s.supplierName)}</strong>
+          <span>Cód. ${escapeHtml(s.supplierCode || '—')} · ${escapeHtml(s.city)}${escapeHtml(source)}</span>
+          <span>Comprador: ${escapeHtml(buyer)}</span>
+          <span>Pedido(s): ${escapeHtml(orders)}</span>
+          <small>${escapeHtml(s.address)}</small>
+        </div>
+      </div>`;
   }).join('');
   $('routeStopsList').innerHTML = cards || '<div class="empty-route">Nenhuma parada com endereço confirmado neste dia.</div>';
+
+  bindRouteStopDrag(dateKey);
+}
+
+function bindRouteStopDrag(dateKey) {
+  const list = $('routeStopsList');
+  if (!list) return;
+
+  let dragged = null;
+
+  list.querySelectorAll('.route-stop[draggable="true"]').forEach(card => {
+    card.addEventListener('dragstart', e => {
+      dragged = card;
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', card.dataset.routeKey || '');
+    });
+
+    card.addEventListener('dragend', async () => {
+      if (!dragged) return;
+      dragged.classList.remove('dragging');
+      dragged = null;
+      const order = [...list.querySelectorAll('.route-stop[draggable="true"]')]
+        .map(el => el.dataset.routeKey)
+        .filter(Boolean);
+      if (order.length) {
+        saveRouteOrder(dateKey, order);
+        toast('Ordem da rota atualizada. Recalculando o mapa...');
+        await renderRoute();
+      }
+    });
+
+    card.addEventListener('dragover', e => {
+      e.preventDefault();
+      if (!dragged || dragged === card) return;
+      const rect = card.getBoundingClientRect();
+      const after = e.clientY > rect.top + rect.height / 2;
+      if (after) card.after(dragged);
+      else card.before(dragged);
+    });
+  });
 }
 
 async function renderRoute() {
@@ -1311,7 +1429,9 @@ async function renderRoute() {
     return;
   }
 
-  $('routeBadge').textContent = 'Usando endereços já confirmados…';
+  $('routeBadge').textContent = getManualRouteMode(dateKey)
+    ? 'Usando ordem manual salva…'
+    : 'Usando endereços já confirmados…';
   const geoPoints = [];
 
   for (const s of baseValid) {
@@ -1344,17 +1464,30 @@ async function renderRoute() {
   let ordered = geoPoints.slice();
   let route = null;
   let optimized = false;
+  const manualOrder = getRouteOrder(dateKey);
+  const manualMode = manualOrder.length > 0;
+
+  // Se o usuário já definiu uma ordem manual para este dia, essa ordem
+  // é respeitada e o OSRM não tenta reorganizar as paradas automaticamente.
+  if (manualMode) {
+    ordered = applyManualRouteOrder(geoPoints, manualOrder);
+    const currentOrder = ordered.map(getRouteStopKey);
+    if (currentOrder.length) saveRouteOrder(dateKey, currentOrder);
+  }
 
   try {
     if (points.length > 2) {
-      const calc = await calculateRoute(points);
+      const routePoints = [{ ...PHARMAINNOX, isOrigin: true }, ...ordered];
+      const calc = await calculateRoute(routePoints, !manualMode);
       if (runId !== S.routeRunId) return;
       route = calc.route;
       optimized = calc.optimized;
       ordered = calc.ordered.filter(p => !p.isOrigin);
       $('routeDistance').textContent = formatDistance(route.distance);
       $('routeDuration').textContent = formatDuration(route.duration);
-      $('routeBadge').textContent = optimized ? 'Rota otimizada pelas ruas' : 'Rota calculada pelas ruas';
+      $('routeBadge').textContent = manualMode
+        ? 'Ordem manual · rota recalculada pelas ruas'
+        : (optimized ? 'Rota otimizada pelas ruas' : 'Rota calculada pelas ruas');
     }
   } catch (e) {
     console.error('Erro no roteamento:', e);
@@ -1365,7 +1498,7 @@ async function renderRoute() {
   }
 
   const orderedForMarkers = ordered.length ? ordered : geoPoints;
-  renderStopsList(orderedForMarkers);
+  renderStopsList(orderedForMarkers, dateKey);
 
   clearMap();
   const bounds = [];
@@ -1399,6 +1532,18 @@ async function renderRoute() {
     $('openGoogleRoute').onclick = () => window.open(googleUrl, '_blank', 'noopener,noreferrer');
   }
 }
+
+function resetRouteOrder() {
+  const dateKey = $('routeDate')?.value || '';
+  if (!dateKey || !getManualRouteMode(dateKey)) {
+    toast('Este dia já está usando a ordem automática.');
+    return;
+  }
+  clearRouteOrder(dateKey);
+  toast('Ordem manual removida. A rota voltará a usar a otimização automática.');
+  renderRoute();
+}
+window.resetRouteOrder = resetRouteOrder;
 
 function populateRouteDate() {
   // O seletor de dia da rota mostra apenas datas de AGENDAMENTO
@@ -1616,5 +1761,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     const seenFuel=new Set();S.fuel=S.fuel.filter(r=>{const sig=[r.date?.getTime()||'',r.vehicle,r.km,Number.isFinite(r.value)?r.value.toFixed(2):''].join('|');if(seenFuel.has(sig))return false;seenFuel.add(sig);return true;});
     const seenJourney=new Set();S.journey=S.journey.filter(r=>{const sig=[r.date?.getTime()||'',r.vehicle,r.statusKey,r.km].join('|');if(seenJourney.has(sig))return false;seenJourney.add(sig);return true;});
     $('vehicleFileList').innerHTML=valid.map(x=>`<div class="detected-file-card ${x.type==='journey'?'source-journey':'source-fuel'}"><div class="detected-file-icon">${x.type==='journey'?'🛣️':'⛽'}</div><div class="detected-file-main"><strong>${escapeHtml(x.vehicle)}</strong><span>${x.type==='journey'?'JORNADA / KM':'ABASTECIMENTO'}</span><em>${escapeHtml(x.file.name)}</em><small>Dados carregados: ${x.rows.toLocaleString('pt-BR')} registros</small></div></div>`).join('');$('logFileList').innerHTML=S.sources.log.map(x=>`<span class="chip source-log">${escapeHtml(x.file)} · ${x.rows.toLocaleString('pt-BR')} registros</span>`).join('');$('vehicle').innerHTML='<option value="todos">Todos</option>'+detectedVehicles.map(v=>`<option>${escapeHtml(v)}</option>`).join('');populateRouteDate();update();await renderRoute();toast(`Atualizado. ${S.sources.journey.length} jornada(s), ${S.sources.fuel.length} abastecimento(s) e ${S.sources.log.length} arquivo(s) de pedidos.`);}catch(e){console.error(e);toast(e?.message||'Não foi possível carregar os arquivos selecionados.');}});
-  ['year','vehicle','start','end','periodicity'].forEach(id=>$(id).addEventListener('change',update));$('routeDate').addEventListener('change',renderRoute);$('routeRefresh').addEventListener('click',renderRoute);$('exportManualAddresses').addEventListener('click',exportManualAddresses);$('importManualAddresses').addEventListener('click',()=>$('manualAddressFile').click());$('manualAddressFile').addEventListener('change',e=>{if(e.target.files[0])importManualAddresses(e.target.files[0]);e.target.value='';});$('clearManualAddresses').addEventListener('click',clearManualAddresses);$('clearGeoCache').addEventListener('click',()=>{S.geocodeCache={};saveGeoCache();toast('Cache automático limpo. As coordenadas confirmadas manualmente foram mantidas.');renderRoute();});$('clear').addEventListener('click',()=>{$('year').value='todos';$('vehicle').value='todos';$('start').value='';$('end').value='';$('periodicity').value='month';update();});$('export').addEventListener('click',()=>{const rows=S.filteredFuel.map(r=>({Data:r.dateText,Veiculo:r.vehicle,Valor:r.value,PrecoPorLitro:Number.isFinite(r.price)?r.price:'',Litros:Number.isFinite(r.liters)?r.liters:'',KM:r.km}));const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Abastecimento');XLSX.writeFile(wb,'abastecimentos_filtrados.xlsx');});loadManualAddresses();loadGeoCache();loadSupplierCoords();await loadBundledManualAddresses();initMap();renderVehicleFiles();update();
+  ['year','vehicle','start','end','periodicity'].forEach(id=>$(id).addEventListener('change',update));$('routeDate').addEventListener('change',renderRoute);$('routeRefresh').addEventListener('click',renderRoute);$('resetRouteOrder').addEventListener('click',resetRouteOrder);$('exportManualAddresses').addEventListener('click',exportManualAddresses);$('importManualAddresses').addEventListener('click',()=>$('manualAddressFile').click());$('manualAddressFile').addEventListener('change',e=>{if(e.target.files[0])importManualAddresses(e.target.files[0]);e.target.value='';});$('clearManualAddresses').addEventListener('click',clearManualAddresses);$('clearGeoCache').addEventListener('click',()=>{S.geocodeCache={};saveGeoCache();toast('Cache automático limpo. As coordenadas confirmadas manualmente foram mantidas.');renderRoute();});$('clear').addEventListener('click',()=>{$('year').value='todos';$('vehicle').value='todos';$('start').value='';$('end').value='';$('periodicity').value='month';update();});$('export').addEventListener('click',()=>{const rows=S.filteredFuel.map(r=>({Data:r.dateText,Veiculo:r.vehicle,Valor:r.value,PrecoPorLitro:Number.isFinite(r.price)?r.price:'',Litros:Number.isFinite(r.liters)?r.liters:'',KM:r.km}));const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Abastecimento');XLSX.writeFile(wb,'abastecimentos_filtrados.xlsx');});loadManualAddresses();loadGeoCache();loadSupplierCoords();await loadBundledManualAddresses();initMap();renderVehicleFiles();update();
 });
