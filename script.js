@@ -783,34 +783,67 @@ let GooglePolylineClass = null;
 let googleMapsReadyPromise = null;
 
 function loadGoogleMapsApi() {
-  if (window.google?.maps) return Promise.resolve();
+  if (window.google?.maps?.importLibrary) return Promise.resolve();
   if (googleMapsReadyPromise) return googleMapsReadyPromise;
 
   googleMapsReadyPromise = new Promise((resolve, reject) => {
-    if (!GOOGLE_MAPS_API_KEY) {
+    if (!GOOGLE_MAPS_API_KEY || GOOGLE_MAPS_API_KEY.trim().length < 20) {
       reject(new Error('Google Maps API Key não configurada.'));
       return;
     }
 
-    const existing = document.querySelector('script[data-pharmainox-google-maps="1"]');
-    if (existing) {
-      existing.addEventListener('load', resolve, { once: true });
-      existing.addEventListener('error', () => reject(new Error('Falha ao carregar o Google Maps.')), { once: true });
+    // Bootstrap oficial do Google Maps Dynamic Library Import.
+    // O erro anterior ocorria porque o script era carregado diretamente,
+    // mas o código tentava usar google.maps.importLibrary() sem o bootstrap
+    // que cria essa função de carregamento.
+    const g = window.google || (window.google = {});
+    const d = g.maps || (g.maps = {});
+    const l = 'importLibrary';
+    const q = '__ib__';
+    const r = new Set();
+    const e = new URLSearchParams();
+    let h;
+    const a = document.createElement('script');
+
+    const u = () => h || (h = new Promise((f, n) => {
+      e.set('libraries', [...r] + '');
+      e.set('key', GOOGLE_MAPS_API_KEY);
+      e.set('v', 'weekly');
+      e.set('callback', 'google.maps.' + q);
+      a.src = 'https://maps.googleapis.com/maps/api/js?' + e.toString();
+      a.async = true;
+      a.defer = true;
+      a.dataset.pharmainoxGoogleMapsBootstrap = '1';
+      a.onerror = () => n(new Error('Não foi possível carregar a Google Maps JavaScript API.'));
+      a.nonce = document.querySelector('script[nonce]')?.nonce || '';
+      document.head.append(a);
+    }));
+
+    if (d[l]) {
+      // O Google Maps já possui o loader. Não carregamos uma segunda instância.
+      resolve();
       return;
     }
 
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}&v=weekly&loading=async`;
-    script.async = true;
-    script.defer = true;
-    script.dataset.pharmainoxGoogleMaps = '1';
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error('Não foi possível carregar a Google Maps JavaScript API.'));
-    document.head.appendChild(script);
+    d[q] = resolve;
+    d[l] = (f, ...n) => r.add(f) && u().then(() => d[l](f, ...n));
+
+    // O script é carregado quando a primeira biblioteca for solicitada pelo initMap().
+    // Não chamamos u() aqui para evitar duas cargas concorrentes.
   });
 
   return googleMapsReadyPromise;
 }
+
+window.gm_authFailure = function () {
+  S.googleReady = false;
+  setMapStatus('Google Maps: chave recusada');
+  const list = $('routeStopsList');
+  if (list) {
+    list.innerHTML = '<div class="empty-route">O Google recusou a autenticação da chave. Verifique a API habilitada, o faturamento e as restrições do domínio no Google Cloud.</div>';
+  }
+  try { toast('Google Maps recusou a chave. Verifique a configuração no Google Cloud.'); } catch {}
+};
 
 async function initMap() {
   if (S.map && S.googleReady) return S.map;
@@ -822,13 +855,26 @@ async function initMap() {
 
   await loadGoogleMapsApi();
 
-  const [mapsLib, markerLib, geocodingLib, routesLib, coreLib] = await Promise.all([
-    google.maps.importLibrary('maps'),
-    google.maps.importLibrary('marker'),
-    google.maps.importLibrary('geocoding'),
-    google.maps.importLibrary('routes'),
-    google.maps.importLibrary('core')
-  ]);
+  if (typeof google?.maps?.importLibrary !== 'function') {
+    throw new Error('O carregador do Google Maps não disponibilizou importLibrary(). Recarregue a página e verifique o console.');
+  }
+
+  let mapsLib, markerLib, geocodingLib, routesLib, coreLib;
+  try {
+    [mapsLib, markerLib, geocodingLib, routesLib, coreLib] = await Promise.all([
+      google.maps.importLibrary('maps'),
+      google.maps.importLibrary('marker'),
+      google.maps.importLibrary('geocoding'),
+      google.maps.importLibrary('routes'),
+      google.maps.importLibrary('core')
+    ]);
+  } catch (error) {
+    const message = String(error?.message || error || '');
+    if (/ApiNotActivatedMapError/i.test(message)) {
+      throw new Error('A Maps JavaScript API não está ativada no projeto associado à sua chave. Ative-a no Google Cloud e recarregue a página.');
+    }
+    throw error;
+  }
 
   GoogleMapClass = mapsLib.Map;
   GoogleAdvancedMarkerElement = markerLib.AdvancedMarkerElement;

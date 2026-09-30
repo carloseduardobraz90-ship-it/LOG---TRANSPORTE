@@ -36,3 +36,10 @@ MAPA / ROTAS
 - As coordenadas encontradas são armazenadas no localStorage do navegador para evitar nova geocodificação a cada abertura.
 - No script.js existe apenas um campo para a chave: GOOGLE_MAPS_API_KEY = 'ADD SUA CHAVE AQUI'.
 - Para funcionar, a chave deve ter permissão para Maps JavaScript API, Geocoding API e Routes API, conforme a configuração do projeto Google Cloud.
+
+
+SOLUÇÃO DE PROBLEMAS — GOOGLE MAPS
+- Se o console mostrar ApiNotActivatedMapError, ative a Maps JavaScript API no projeto Google Cloud associado à chave.
+- A chave também deve ter faturamento habilitado e autorização para as APIs usadas pelo projeto.
+- Para publicação no GitHub Pages, restrinja a chave por HTTP referrer ao domínio do site e deixe somente as APIs necessárias autorizadas.
+- O carregador do script.js usa o Dynamic Library Import oficial do Google, evitando o erro "google.maps.importLibrary is not a function" causado por carregar a API sem o bootstrap adequado.
