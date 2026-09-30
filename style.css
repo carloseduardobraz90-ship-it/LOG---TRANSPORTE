@@ -82,3 +82,5 @@ body{margin:0;background:#f4f7fb;color:#172033;font:14px Segoe UI,Arial,sans-ser
 .stop-drag-handle{display:grid;place-items:center;color:#9aa6b6;font-weight:800;font-size:16px;letter-spacing:-3px;line-height:1;padding-top:2px}
 .route-stop-draggable:hover .stop-drag-handle{color:#2f80ed}
 @media(max-width:700px){.route-stops-head{flex-direction:column!important;align-items:stretch!important}.route-stops-actions{justify-content:flex-start}.route-stop-draggable{grid-template-columns:16px 34px 1fr}}
+
+.route-stop-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:7px}.route-stop-actions .mini-button{padding:7px 9px;font-size:10px;white-space:nowrap}.route-stop-actions .mini-button:disabled{opacity:.55;cursor:not-allowed}
