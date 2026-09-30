@@ -692,6 +692,38 @@ function saveManualAddresses() {
   }
 }
 
+// Carrega o arquivo JSON que acompanha o projeto.
+// Ele funciona como uma base inicial de endereços manuais, especialmente útil
+// para novos dispositivos/GitHub Pages que ainda não possuem localStorage.
+async function loadBundledManualAddresses() {
+  try {
+    const res = await fetch('./enderecos_manuais_pharmainox.json?v=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const bundled = await res.json();
+    if (!bundled || typeof bundled !== 'object' || Array.isArray(bundled)) return;
+
+    const current = S.manualAddresses || {};
+    const merged = { ...bundled };
+
+    // O que já foi alterado/salvo no navegador continua tendo prioridade
+    // quando possuir uma data de atualização igual ou mais recente.
+    for (const [code, localItem] of Object.entries(current)) {
+      if (!localItem || typeof localItem !== 'object') continue;
+      const bundleItem = merged[code];
+      const localTime = Date.parse(localItem.atualizadoEm || '') || 0;
+      const bundleTime = Date.parse(bundleItem?.atualizadoEm || '') || 0;
+      if (!bundleItem || localTime >= bundleTime) merged[code] = localItem;
+    }
+
+    S.manualAddresses = merged;
+    saveManualAddresses();
+  } catch (e) {
+    // Abrindo diretamente por arquivo (file://), o navegador pode bloquear fetch.
+    // Nesse caso, usamos normalmente o localStorage já existente.
+    console.warn('Não foi possível carregar a base JSON de endereços:', e);
+  }
+}
+
 function getManualAddress(code) {
   const item = S.manualAddresses[manualKey(code)];
   return item && isGoodManualAddress(item.endereco) ? item : null;
@@ -869,14 +901,16 @@ function cleanStreetAbbreviations(address) {
     .trim();
 }
 
-function buildGeoQueries(address, fallbackCity = '') {
+function buildGeoQueries(address, fallbackCity = '', supplierName = '') {
   const a = String(address || '').trim();
   const cleaned = cleanStreetAbbreviations(a);
   const c = String(fallbackCity || '').trim();
+  const n = String(supplierName || '').trim();
   const queries = [
-    [cleaned, c, 'São Paulo', 'Brasil'].filter(Boolean).join(', '),
+    [n, cleaned, c, 'SP', 'Brasil'].filter(Boolean).join(', '),
     [cleaned, c, 'SP', 'Brasil'].filter(Boolean).join(', '),
     [a, c, 'SP', 'Brasil'].filter(Boolean).join(', '),
+    [n, cleaned, 'Brasil'].filter(Boolean).join(', '),
     [cleaned, 'Brasil'].filter(Boolean).join(', '),
     [a, 'Brasil'].filter(Boolean).join(', ')
   ];
@@ -948,15 +982,20 @@ function scoreGeoResult(result, city = '') {
   return score;
 }
 
-async function geocodeAddress(address, fallbackCity = '', supplierCode = '') {
+async function geocodeAddress(address, fallbackCity = '', supplierCode = '', supplierName = '') {
   const saved = getSupplierCoords(supplierCode);
   if (saved) return { ...saved, displayName: [address, fallbackCity].filter(Boolean).join(', ') };
 
+  const name = supplierName || (() => {
+    const entries = window.FORNECEDORES?.[normalizeCode(supplierCode)] || [];
+    return entries[0]?.nome || '';
+  })();
+
   const full = [address, fallbackCity].filter(Boolean).join(', ');
-  const keyCache = cacheKeyForGeo(full);
+  const keyCache = cacheKeyForGeo(`${name}|${full}`);
   if (S.geocodeCache[keyCache]) return S.geocodeCache[keyCache];
 
-  const queries = buildGeoQueries(address, fallbackCity);
+  const queries = buildGeoQueries(address, fallbackCity, name);
   let candidates = [];
 
   // Primeiro tenta Nominatim com mais de uma forma de consulta.
@@ -1111,7 +1150,7 @@ async function calculateRoute(points) {
 function routeIssueLabel(state) {
   if (state === 'missing-address') return 'Endereço não cadastrado';
   if (state === 'ambiguous') return 'Mais de um endereço';
-  if (state === 'geocode-pending') return 'Localização pendente — clique em Localizar';
+  if (state === 'geocode-pending') return 'Localização pendente — clique em Localizar ou Marcar no mapa';
   if (state === 'geocode-failed') return 'Endereço não localizado no mapa';
   return 'Fornecedor não localizado';
 }
@@ -1146,8 +1185,8 @@ function renderRouteIssues(groupedRows) {
         <div class="route-address-editor">
           <input id="${id}" type="text" value="${escapeHtml(current)}" placeholder="Digite o endereço completo...">
           <div class="route-address-actions">
-            <button type="button" class="button secondary mini-button save-route-address" data-code="${escapeHtml(code)}" data-input="${escapeHtml(id)}" data-city="${escapeHtml(s.city)}">Salvar endereço</button>
-            <button type="button" class="button secondary mini-button locate-route-address" data-code="${escapeHtml(code)}" data-input="${escapeHtml(id)}" data-city="${escapeHtml(s.city)}" ${mapButtonDisabled}>Localizar</button>
+            <button type="button" class="button secondary mini-button save-route-address" data-code="${escapeHtml(code)}" data-input="${escapeHtml(id)}" data-city="${escapeHtml(s.city)}" data-supplier="${escapeHtml(s.supplierName)}">Salvar endereço</button>
+            <button type="button" class="button secondary mini-button locate-route-address" data-code="${escapeHtml(code)}" data-input="${escapeHtml(id)}" data-city="${escapeHtml(s.city)}" data-supplier="${escapeHtml(s.supplierName)}" ${mapButtonDisabled}>Localizar</button>
             <button type="button" class="button secondary mini-button mark-map-address" data-code="${escapeHtml(code)}" data-input="${escapeHtml(id)}" data-city="${escapeHtml(s.city)}" data-supplier="${escapeHtml(s.supplierName)}" ${mapButtonDisabled}>Marcar no mapa</button>
             <button type="button" class="button secondary mini-button open-address-search" data-input="${escapeHtml(id)}" data-city="${escapeHtml(s.city)}" data-supplier="${escapeHtml(s.supplierName)}">Google Maps</button>
           </div>
@@ -1161,7 +1200,8 @@ function renderRouteIssues(groupedRows) {
     btn.addEventListener('click', () => saveRouteAddress(
       btn.dataset.code || '',
       btn.dataset.input || '',
-      btn.dataset.city || ''
+      btn.dataset.city || '',
+      btn.dataset.supplier || ''
     ));
   });
 
@@ -1176,7 +1216,7 @@ function renderRouteIssues(groupedRows) {
       }
       btn.disabled = true;
       try {
-        const geo = await geocodeAddress(address, btn.dataset.city || '', code);
+        const geo = await geocodeAddress(address, btn.dataset.city || '', code, btn.dataset.supplier || '');
         if (geo) {
           setSupplierCoords(code, geo.lat, geo.lng, 'geocode');
           const manual = getManualAddress(code);
@@ -1279,7 +1319,7 @@ async function renderRoute() {
     const address = s.resolution.entry.endereco;
     const city = s.resolution.entry.cidade || s.city;
     const saved = getSupplierCoords(s.supplierCode);
-    const cached = S.geocodeCache[cacheKeyForGeo([address, city].filter(Boolean).join(', '))];
+    const cached = S.geocodeCache[cacheKeyForGeo(`${s.supplierName}|${[address, city].filter(Boolean).join(', ')}`)] || S.geocodeCache[cacheKeyForGeo([address, city].filter(Boolean).join(', '))];
     const geo = saved || cached;
 
     if (geo && Number.isFinite(Number(geo.lat)) && Number.isFinite(Number(geo.lng))) {
@@ -1388,7 +1428,7 @@ function markAddressSaved(inputId, message = 'Endereço salvo. Será usado na pr
   input.style.background = '#f2fbf6';
 }
 
-async function saveRouteAddress(code, inputId, fallbackCity) {
+async function saveRouteAddress(code, inputId, fallbackCity, supplierName = '') {
   const address = $(inputId)?.value.trim();
   if (!address) {
     toast('Digite um endereço antes de salvar.');
@@ -1411,7 +1451,7 @@ async function saveRouteAddress(code, inputId, fallbackCity) {
     origem: 'manual',
     atualizadoEm: new Date().toISOString()
   };
-  const geoKey = cacheKeyForGeo([address, fallbackCity].filter(Boolean).join(', '));
+  const geoKey = cacheKeyForGeo(`${supplierName}|${[address, fallbackCity].filter(Boolean).join(', ')}`);
   delete S.geocodeCache[geoKey];
   saveManualAddresses();
   saveGeoCache();
@@ -1425,7 +1465,7 @@ async function saveRouteAddress(code, inputId, fallbackCity) {
 
   // 3) Tenta localizar imediatamente o endereço que acabou de ser informado.
   try {
-    const geo = await geocodeAddress(address, fallbackCity, normalizedCode);
+    const geo = await geocodeAddress(address, fallbackCity, normalizedCode, supplierName);
     if (geo) {
       S.geocodeCache[geoKey] = geo;
       saveGeoCache();
@@ -1567,7 +1607,7 @@ function clearManualAddresses() {
   renderRoute();
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   const renderVehicleFiles=()=>{const list=$('vehicleFileList');if(!list)return;if(!S.vehicleUploads.length){list.innerHTML='<div class="upload-empty-state">Nenhum arquivo selecionado.</div>';return;}list.innerHTML=S.vehicleUploads.map((item,idx)=>{const kind=item.type==='journey'?'JORNADA / KM':item.type==='fuel'?'ABASTECIMENTO':'NÃO IDENTIFICADO';const cls=item.type==='journey'?'source-journey':item.type==='fuel'?'source-fuel':'source-unknown';return `<div class="detected-file-card ${cls}"><div class="detected-file-icon">${item.type==='journey'?'🛣️':item.type==='fuel'?'⛽':'📄'}</div><div class="detected-file-main"><strong>${escapeHtml(item.vehicle||'Veículo não identificado')}</strong><span>${kind}</span><em>${escapeHtml(item.file.name)}</em>${item.error?`<small class="detected-error">${escapeHtml(item.error)}</small>`:`<small>${item.rows.toLocaleString('pt-BR')} registros detectados</small>`}</div><button type="button" class="remove-file-button" data-remove-vehicle-file="${idx}" title="Remover">×</button></div>`;}).join('');list.querySelectorAll('[data-remove-vehicle-file]').forEach(btn=>btn.addEventListener('click',()=>{S.vehicleUploads.splice(Number(btn.dataset.removeVehicleFile),1);renderVehicleFiles();updateSourceStatus();}));};
   const updateSourceStatus=()=>{const valid=S.vehicleUploads.filter(x=>!x.error&&(x.type==='journey'||x.type==='fuel'));$('status').textContent=`${valid.length}/4 arquivos de veículos identificados e ${S.logFiles?.length||0} arquivo(s) de pedidos selecionados.`;};
   $('vehicleFiles').addEventListener('change',async e=>{const files=[...(e.target.files||[])];e.target.value='';for(const file of files){try{const rows=await read(file),type=sourceType(rows);if(type!=='journey'&&type!=='fuel'){S.vehicleUploads.push({file,rows:0,type:'unknown',vehicle:'',error:'Formato não reconhecido como Jornada ou Abastecimento.'});continue;}const vehicleValues=rows.map(r=>String(get(r,type==='journey'?['placa']:['veiculo','placa'])||'').toUpperCase().trim()).filter(Boolean);const allVehicles=[...new Set(vehicleValues)];const vehicle=allVehicles.length===1?allVehicles[0]:'';S.vehicleUploads.push({file,rows:rows.length,type,vehicle,error:allVehicles.length>1?`Mais de um veículo encontrado: ${allVehicles.join(', ')}`:'',parsedRows:rows});}catch(err){S.vehicleUploads.push({file,rows:0,type:'unknown',vehicle:'',error:err?.message||'Não foi possível ler o arquivo.'});}}renderVehicleFiles();updateSourceStatus();});
@@ -1576,5 +1616,5 @@ document.addEventListener('DOMContentLoaded', () => {
     const seenFuel=new Set();S.fuel=S.fuel.filter(r=>{const sig=[r.date?.getTime()||'',r.vehicle,r.km,Number.isFinite(r.value)?r.value.toFixed(2):''].join('|');if(seenFuel.has(sig))return false;seenFuel.add(sig);return true;});
     const seenJourney=new Set();S.journey=S.journey.filter(r=>{const sig=[r.date?.getTime()||'',r.vehicle,r.statusKey,r.km].join('|');if(seenJourney.has(sig))return false;seenJourney.add(sig);return true;});
     $('vehicleFileList').innerHTML=valid.map(x=>`<div class="detected-file-card ${x.type==='journey'?'source-journey':'source-fuel'}"><div class="detected-file-icon">${x.type==='journey'?'🛣️':'⛽'}</div><div class="detected-file-main"><strong>${escapeHtml(x.vehicle)}</strong><span>${x.type==='journey'?'JORNADA / KM':'ABASTECIMENTO'}</span><em>${escapeHtml(x.file.name)}</em><small>Dados carregados: ${x.rows.toLocaleString('pt-BR')} registros</small></div></div>`).join('');$('logFileList').innerHTML=S.sources.log.map(x=>`<span class="chip source-log">${escapeHtml(x.file)} · ${x.rows.toLocaleString('pt-BR')} registros</span>`).join('');$('vehicle').innerHTML='<option value="todos">Todos</option>'+detectedVehicles.map(v=>`<option>${escapeHtml(v)}</option>`).join('');populateRouteDate();update();await renderRoute();toast(`Atualizado. ${S.sources.journey.length} jornada(s), ${S.sources.fuel.length} abastecimento(s) e ${S.sources.log.length} arquivo(s) de pedidos.`);}catch(e){console.error(e);toast(e?.message||'Não foi possível carregar os arquivos selecionados.');}});
-  ['year','vehicle','start','end','periodicity'].forEach(id=>$(id).addEventListener('change',update));$('routeDate').addEventListener('change',renderRoute);$('routeRefresh').addEventListener('click',renderRoute);$('exportManualAddresses').addEventListener('click',exportManualAddresses);$('importManualAddresses').addEventListener('click',()=>$('manualAddressFile').click());$('manualAddressFile').addEventListener('change',e=>{if(e.target.files[0])importManualAddresses(e.target.files[0]);e.target.value='';});$('clearManualAddresses').addEventListener('click',clearManualAddresses);$('clearGeoCache').addEventListener('click',()=>{S.geocodeCache={};saveGeoCache();toast('Cache automático limpo. As coordenadas confirmadas manualmente foram mantidas.');renderRoute();});$('clear').addEventListener('click',()=>{$('year').value='todos';$('vehicle').value='todos';$('start').value='';$('end').value='';$('periodicity').value='month';update();});$('export').addEventListener('click',()=>{const rows=S.filteredFuel.map(r=>({Data:r.dateText,Veiculo:r.vehicle,Valor:r.value,PrecoPorLitro:Number.isFinite(r.price)?r.price:'',Litros:Number.isFinite(r.liters)?r.liters:'',KM:r.km}));const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Abastecimento');XLSX.writeFile(wb,'abastecimentos_filtrados.xlsx');});loadManualAddresses();loadGeoCache();loadSupplierCoords();initMap();renderVehicleFiles();update();
+  ['year','vehicle','start','end','periodicity'].forEach(id=>$(id).addEventListener('change',update));$('routeDate').addEventListener('change',renderRoute);$('routeRefresh').addEventListener('click',renderRoute);$('exportManualAddresses').addEventListener('click',exportManualAddresses);$('importManualAddresses').addEventListener('click',()=>$('manualAddressFile').click());$('manualAddressFile').addEventListener('change',e=>{if(e.target.files[0])importManualAddresses(e.target.files[0]);e.target.value='';});$('clearManualAddresses').addEventListener('click',clearManualAddresses);$('clearGeoCache').addEventListener('click',()=>{S.geocodeCache={};saveGeoCache();toast('Cache automático limpo. As coordenadas confirmadas manualmente foram mantidas.');renderRoute();});$('clear').addEventListener('click',()=>{$('year').value='todos';$('vehicle').value='todos';$('start').value='';$('end').value='';$('periodicity').value='month';update();});$('export').addEventListener('click',()=>{const rows=S.filteredFuel.map(r=>({Data:r.dateText,Veiculo:r.vehicle,Valor:r.value,PrecoPorLitro:Number.isFinite(r.price)?r.price:'',Litros:Number.isFinite(r.liters)?r.liters:'',KM:r.km}));const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Abastecimento');XLSX.writeFile(wb,'abastecimentos_filtrados.xlsx');});loadManualAddresses();loadGeoCache();loadSupplierCoords();await loadBundledManualAddresses();initMap();renderVehicleFiles();update();
 });

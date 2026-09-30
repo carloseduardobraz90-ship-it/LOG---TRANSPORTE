@@ -1,0 +1,115 @@
+{
+  "16": {
+    "endereco": "R. Santo Bassan, 111 - Bosque das Palmeiras, Campinas - SP, 13086-745",
+    "cidade": "CAMPINAS",
+    "origem": "manual",
+    "atualizadoEm": "2026-09-29T20:21:20.957Z"
+  },
+  "27": {
+    "endereco": "Valforte Acessórios Industriais, R. Maria Soares, 286 - Vila Industrial (Campinas), Campinas - SP, 13035-390",
+    "cidade": "CAMPINAS",
+    "origem": "manual",
+    "atualizadoEm": "2026-09-29T18:07:06.672Z"
+  },
+  "475": {
+    "endereco": "Av. Jaguarão, 431 - Cidade Industrial Satélite de São Paulo, Guarulhos - SP, 07223-000",
+    "cidade": "SAO PAULO",
+    "origem": "manual",
+    "atualizadoEm": "2026-09-29T18:07:08.224Z"
+  },
+  "713": {
+    "endereco": "Av. Condessa Elizabeth de Robiano, 930 - Tatuapé, São Paulo - SP, 03074-000",
+    "cidade": "SAO PAULO",
+    "origem": "manual",
+    "atualizadoEm": "2026-09-29T18:07:05.560Z"
+  },
+  "806": {
+    "endereco": "Rua Carlópolis, 110, Cidade Parque São Luiz, Guarulhos, SP, 07170-540, Brasil",
+    "cidade": "GUARULHOS",
+    "origem": "manual",
+    "atualizadoEm": "2026-09-30T12:14:26.845Z"
+  },
+  "1076": {
+    "endereco": "R. Cadiriri, 1013 - Parque da Mooca, São Paulo - SP, 03109-040",
+    "cidade": "SAO PAULO",
+    "origem": "manual",
+    "atualizadoEm": "2026-09-29T18:01:25.696Z"
+  },
+  "1375": {
+    "endereco": "Av. Horst Frederico João Heer, 700 - Europark Comercial, Indaiatuba - SP, 13348-758",
+    "cidade": "INDAIATUBA",
+    "origem": "manual",
+    "atualizadoEm": "2026-09-30T12:04:02.147Z"
+  },
+  "2147": {
+    "endereco": "Estrada Mun., 642 - Galpão 08 - Água Chata, Guarulhos - SP, 07251-300",
+    "cidade": "GUARULHOS",
+    "origem": "manual",
+    "atualizadoEm": "2026-09-29T18:07:05.032Z"
+  },
+  "2245": {
+    "endereco": "R. Sebastião Lopes, 98 - Vila Nova Bonsucesso, Guarulhos - SP, 07176-520",
+    "cidade": "GUARULHOS",
+    "origem": "manual",
+    "atualizadoEm": "2026-09-29T18:07:03.305Z"
+  },
+  "2833": {
+    "endereco": "Av. Lindomar Gomes de Oliveira - Cumbica, Guarulhos - SP, 07232-150",
+    "cidade": "GUARULHOS",
+    "origem": "manual",
+    "atualizadoEm": "2026-09-30T12:18:06.324Z"
+  },
+  "3145": {
+    "endereco": "R. Vermeulen, 173 - Parque Res. Imigrantes, Holambra - SP, 13825-000",
+    "cidade": "HOLAMBRA",
+    "origem": "manual",
+    "atualizadoEm": "2026-09-30T12:04:08.483Z"
+  },
+  "3183": {
+    "endereco": "R. Semyon Kirlian, 92 - Parque Edu Chaves, São Paulo - SP, 02230-090",
+    "cidade": "SAO PAULO",
+    "origem": "manual",
+    "atualizadoEm": "2026-09-30T12:35:25.538Z"
+  },
+  "4340": {
+    "endereco": "Avenida Coronel Theodomiro Porto da Fonseca, 356 - Bairro Walderez, Sapucaia do Sul - RS, CEP 93226-518",
+    "cidade": "SAPUCAIA DO SUL",
+    "origem": "manual",
+    "atualizadoEm": "2026-09-28T20:26:15.075Z"
+  },
+  "4387": {
+    "endereco": "Hiperion Serras, Rua Eli Paulo Colombo, 1.470 - Jardim Sakaida, Mogi Guaçu - SP, 13849-702",
+    "cidade": "MOGI GUACU",
+    "origem": "manual",
+    "atualizadoEm": "2026-09-28T20:32:43.578Z"
+  },
+  "f4d7df14": {
+    "endereco": "Fluid Division, Maximino Do Carmo, 31 - Jardim Sao Dimas, Amparo - SP, 13905-673",
+    "cidade": "AMPARO",
+    "origem": "manual"
+  },
+  "14b4a36a": {
+    "endereco": "Fluid Division, Maximino Do Carmo, 31 - Jardim Sao Dimas, Amparo - SP, 13905-673",
+    "cidade": "SAO JOSE DOS CAMPOS",
+    "origem": "manual",
+    "atualizadoEm": "2026-09-28T20:29:08.208Z"
+  },
+  "167a30dc": {
+    "endereco": "Condomínio Dom Pedro, R. Barão Cintra, 188 - São Judas, Amparo - SP, 13901-280",
+    "cidade": "AMPARO",
+    "origem": "manual",
+    "atualizadoEm": "2026-09-28T18:42:06.769Z"
+  },
+  "ff537ad5": {
+    "endereco": "Alameda Tocantins, 593 - Alphaville Industrial, Barueri - SP",
+    "cidade": "BARUERI",
+    "origem": "manual",
+    "atualizadoEm": "2026-09-30T12:05:20.683Z"
+  },
+  "4ab1b9c1": {
+    "endereco": "Av. Manoel Monteiro de Araújo, 1350 - Parque Anhanguera, São Paulo - SP, 05113-900",
+    "cidade": "SAO PAULO",
+    "origem": "manual",
+    "atualizadoEm": "2026-09-30T12:15:22.660Z"
+  }
+}
