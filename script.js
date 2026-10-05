@@ -1044,16 +1044,23 @@ function cleanStreetAbbreviations(address) {
 
 function buildGeoQueries(address, fallbackCity = '', supplierName = '') {
   const a = String(address || '').trim();
-  const cleaned = cleanStreetAbbreviations(a);
+  const withoutCountry = a.replace(/(?:,\s*|\s+)(?:Brasil|Brazil)\s*$/i, '').trim();
+  const cleaned = cleanStreetAbbreviations(withoutCountry);
   const c = String(fallbackCity || '').trim();
   const n = String(supplierName || '').trim();
+  const fold = value => String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase();
+  const cityAlreadyInAddress = c && fold(cleaned).includes(fold(c));
+  const cityPart = cityAlreadyInAddress ? '' : c;
   const queries = [
-    [n, cleaned, c, 'Brasil'].filter(Boolean).join(', '),
-    [cleaned, c, 'Brasil'].filter(Boolean).join(', '),
-    [a, c, 'Brasil'].filter(Boolean).join(', '),
-    [n, cleaned, 'Brasil'].filter(Boolean).join(', '),
+    [cleaned, cityPart, 'Brasil'].filter(Boolean).join(', '),
+    [withoutCountry, cityPart, 'Brasil'].filter(Boolean).join(', '),
+    [n, cleaned, cityPart, 'Brasil'].filter(Boolean).join(', '),
     [cleaned, 'Brasil'].filter(Boolean).join(', '),
-    [a, 'Brasil'].filter(Boolean).join(', ')
+    [withoutCountry, 'Brasil'].filter(Boolean).join(', '),
+    [n, cleaned, 'Brasil'].filter(Boolean).join(', ')
   ];
   return [...new Set(queries.map(q => q.trim()).filter(Boolean))];
 }
@@ -1088,8 +1095,7 @@ async function geocodeNominatim(query) {
 async function geocodePhoton(query) {
   const url = 'https://photon.komoot.io/api/?' + new URLSearchParams({
     q: query,
-    limit: '5',
-    lang: 'pt'
+    limit: '5'
   });
   const res = await fetchWithTimeout(url, { headers: { 'Accept-Language': 'pt-BR' } }, 8000);
   if (!res.ok) return [];
@@ -1127,7 +1133,11 @@ async function geocodeAddress(address, fallbackCity = '', supplierCode = '', sup
   const cached = S.geocodeCache[keyCache];
   if (cached?.notFound) {
     const attemptedAt = Date.parse(cached.attemptedAt || '');
-    if (Number.isFinite(attemptedAt) && Date.now() - attemptedAt < 15 * 60 * 1000) {
+    if (
+      cached.version === 2 &&
+      Number.isFinite(attemptedAt) &&
+      Date.now() - attemptedAt < 15 * 60 * 1000
+    ) {
       return null;
     }
     delete S.geocodeCache[keyCache];
@@ -1166,7 +1176,11 @@ async function geocodeAddress(address, fallbackCity = '', supplierCode = '', sup
   }
 
   if (!candidates.length) {
-    S.geocodeCache[keyCache] = { notFound: true, attemptedAt: new Date().toISOString() };
+    S.geocodeCache[keyCache] = {
+      notFound: true,
+      version: 2,
+      attemptedAt: new Date().toISOString()
+    };
     saveGeoCache();
     return null;
   }
