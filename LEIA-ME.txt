@@ -28,6 +28,13 @@ V3
 - Os gráficos de tempo possuem seletor de Mês, Semana ou Ano.
 - Os gráficos exibem rótulos de dados diretamente na tela.
 
+LOCALIZAÇÃO DOS ENDEREÇOS
+- Ao montar a rota, endereços sem coordenadas são localizados automaticamente, em sequência e respeitando o limite do geocodificador.
+- As consultas usam a cidade/UF que constam no endereço; não acrescentam SP a endereços de outros estados.
+- CEPs mantêm o hífen durante a busca.
+- As coordenadas ficam vinculadas ao endereço. Ao salvar um endereço diferente, o ponto antigo é descartado e o novo é localizado.
+- “Revalidar mapa” apaga os resultados automáticos e os recalcula; pontos marcados manualmente são preservados.
+
 
 ORDEM MANUAL DA ROTA
 - As paradas confirmadas podem ser arrastadas na lista para alterar a sequência.

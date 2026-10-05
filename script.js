@@ -968,19 +968,48 @@ function getManualRouteMode(dateKey) {
   return getRouteOrder(dateKey).length > 0;
 }
 
-function getSupplierCoords(code) {
-  const item = S.supplierCoords?.[normalizeCode(code)];
-  if (!item) return null;
-  const lat = Number(item.lat), lng = Number(item.lng);
-  return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+function geoAddressKey(address, city = '') {
+  return cacheKeyForGeo([address, city].filter(Boolean).join('|'));
 }
 
-function setSupplierCoords(code, lat, lng, origem = 'manual-mapa') {
+function getSupplierCoords(code, address = '', city = '') {
+  const item = S.supplierCoords?.[normalizeCode(code)];
+  if (!item) return null;
+
+  const expectedAddressKey = geoAddressKey(address, city);
+  if (expectedAddressKey && item.addressKey && item.addressKey !== expectedAddressKey) {
+    return null;
+  }
+
+  // Coordinates from older versions did not retain their address. Re-geocode
+  // old automatic results, but keep manually pinned locations unless the user
+  // changes that supplier's address in the editor.
+  if (expectedAddressKey && !item.addressKey && item.origem !== 'manual-mapa') {
+    return null;
+  }
+  if (expectedAddressKey && !item.addressKey && item.origem === 'manual-mapa') {
+    item.addressKey = expectedAddressKey;
+    saveSupplierCoords();
+  }
+
+  const lat = Number(item.lat), lng = Number(item.lng);
+  return Number.isFinite(lat) && Number.isFinite(lng)
+    ? { lat, lng, displayName: item.displayName || '' }
+    : null;
+}
+
+function setSupplierCoords(code, lat, lng, origem = 'manual-mapa', address = '', city = '') {
   const keyCode = normalizeCode(code);
   if (!keyCode) return false;
   const nlat = Number(lat), nlng = Number(lng);
   if (!Number.isFinite(nlat) || !Number.isFinite(nlng)) return false;
-  S.supplierCoords[keyCode] = { lat: nlat, lng: nlng, origem, atualizadoEm: new Date().toISOString() };
+  S.supplierCoords[keyCode] = {
+    lat: nlat,
+    lng: nlng,
+    origem,
+    addressKey: geoAddressKey(address, city),
+    atualizadoEm: new Date().toISOString()
+  };
   saveSupplierCoords();
   return true;
 }
@@ -1006,7 +1035,8 @@ function cleanStreetAbbreviations(address) {
     .replace(/^\s*Al\.\s*/i, 'Alameda ')
     .replace(/^\s*Tv\.\s*/i, 'Travessa ')
     .replace(/\bSao\b/gi, 'São')
-    .replace(/\s*-\s*/g, ', ')
+    // Only replace a dash used as a separator; preserve CEPs such as 13000-000.
+    .replace(/\s+-\s+/g, ', ')
     .replace(/,\s*,/g, ', ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -1018,24 +1048,14 @@ function buildGeoQueries(address, fallbackCity = '', supplierName = '') {
   const c = String(fallbackCity || '').trim();
   const n = String(supplierName || '').trim();
   const queries = [
-    [n, cleaned, c, 'SP', 'Brasil'].filter(Boolean).join(', '),
-    [cleaned, c, 'SP', 'Brasil'].filter(Boolean).join(', '),
-    [a, c, 'SP', 'Brasil'].filter(Boolean).join(', '),
+    [n, cleaned, c, 'Brasil'].filter(Boolean).join(', '),
+    [cleaned, c, 'Brasil'].filter(Boolean).join(', '),
+    [a, c, 'Brasil'].filter(Boolean).join(', '),
     [n, cleaned, 'Brasil'].filter(Boolean).join(', '),
     [cleaned, 'Brasil'].filter(Boolean).join(', '),
     [a, 'Brasil'].filter(Boolean).join(', ')
   ];
   return [...new Set(queries.map(q => q.trim()).filter(Boolean))];
-}
-
-async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 async function geocodeNominatim(query) {
@@ -1094,7 +1114,7 @@ function scoreGeoResult(result, city = '') {
 }
 
 async function geocodeAddress(address, fallbackCity = '', supplierCode = '', supplierName = '') {
-  const saved = getSupplierCoords(supplierCode);
+  const saved = getSupplierCoords(supplierCode, address, fallbackCity);
   if (saved) return { ...saved, displayName: [address, fallbackCity].filter(Boolean).join(', ') };
 
   const name = supplierName || (() => {
@@ -1104,7 +1124,20 @@ async function geocodeAddress(address, fallbackCity = '', supplierCode = '', sup
 
   const full = [address, fallbackCity].filter(Boolean).join(', ');
   const keyCache = cacheKeyForGeo(`${name}|${full}`);
-  if (S.geocodeCache[keyCache]) return S.geocodeCache[keyCache];
+  const cached = S.geocodeCache[keyCache];
+  if (cached?.notFound) {
+    const attemptedAt = Date.parse(cached.attemptedAt || '');
+    if (Number.isFinite(attemptedAt) && Date.now() - attemptedAt < 15 * 60 * 1000) {
+      return null;
+    }
+    delete S.geocodeCache[keyCache];
+  } else if (
+    cached &&
+    Number.isFinite(Number(cached.lat)) &&
+    Number.isFinite(Number(cached.lng))
+  ) {
+    return cached;
+  }
 
   const queries = buildGeoQueries(address, fallbackCity, name);
   let candidates = [];
@@ -1132,7 +1165,11 @@ async function geocodeAddress(address, fallbackCity = '', supplierCode = '', sup
     }
   }
 
-  if (!candidates.length) return null;
+  if (!candidates.length) {
+    S.geocodeCache[keyCache] = { notFound: true, attemptedAt: new Date().toISOString() };
+    saveGeoCache();
+    return null;
+  }
 
   const best = candidates
     .sort((a, b) => scoreGeoResult(b, fallbackCity) - scoreGeoResult(a, fallbackCity))[0];
@@ -1261,7 +1298,7 @@ async function calculateRoute(points, allowOptimization = true) {
 function routeIssueLabel(state) {
   if (state === 'missing-address') return 'Endereço não cadastrado';
   if (state === 'ambiguous') return 'Mais de um endereço';
-  if (state === 'geocode-pending') return 'Localização pendente — clique em Localizar ou Marcar no mapa';
+  if (state === 'geocode-pending') return 'Localizando endereço automaticamente…';
   if (state === 'geocode-failed') return 'Endereço não localizado no mapa';
   return 'Fornecedor não localizado';
 }
@@ -1279,7 +1316,7 @@ function renderRouteIssues(groupedRows) {
     const manual = getManualAddress(code);
     const current = manual?.endereco || s.resolution?.entry?.endereco || '';
     const hasAddress = isGoodManualAddress(current);
-    const savedCoords = getSupplierCoords(code);
+    const savedCoords = getSupplierCoords(code, current, s.resolution?.entry?.cidade || s.city);
     const mapButtonDisabled = !code || !hasAddress ? 'disabled' : '';
     const coordinateText = savedCoords
       ? `<small class="route-coord-saved">📍 Coordenadas salvas: ${savedCoords.lat.toFixed(6)}, ${savedCoords.lng.toFixed(6)}</small>`
@@ -1328,14 +1365,23 @@ function renderRouteIssues(groupedRows) {
       }
       btn.disabled = true;
       try {
-        const geo = await geocodeAddress(address, btn.dataset.city || '', code, btn.dataset.supplier || '');
+        const city = btn.dataset.city || '';
+        const supplierName = btn.dataset.supplier || '';
+        const cacheKey = cacheKeyForGeo(
+          `${supplierName}|${[address, city].filter(Boolean).join(', ')}`
+        );
+        if (S.geocodeCache[cacheKey]?.notFound) {
+          delete S.geocodeCache[cacheKey];
+          saveGeoCache();
+        }
+        const geo = await geocodeAddress(address, city, code, supplierName);
         if (geo) {
-          setSupplierCoords(code, geo.lat, geo.lng, 'geocode');
+          setSupplierCoords(code, geo.lat, geo.lng, 'geocode', address, city);
           const manual = getManualAddress(code);
           if (!manual) {
             S.manualAddresses[manualKey(code)] = {
               endereco: address,
-              cidade: btn.dataset.city || '',
+              cidade: city,
               origem: 'geocode',
               atualizadoEm: new Date().toISOString()
             };
@@ -1514,13 +1560,50 @@ async function renderRoute() {
     : 'Usando endereços já confirmados…';
   const geoPoints = [];
 
-  for (const s of baseValid) {
+  for (let i = 0; i < baseValid.length; i++) {
+    const s = baseValid[i];
     if (runId !== S.routeRunId) return;
     const address = s.resolution.entry.endereco;
     const city = s.resolution.entry.cidade || s.city;
-    const saved = getSupplierCoords(s.supplierCode);
-    const cached = S.geocodeCache[cacheKeyForGeo(`${s.supplierName}|${[address, city].filter(Boolean).join(', ')}`)] || S.geocodeCache[cacheKeyForGeo([address, city].filter(Boolean).join(', '))];
-    const geo = saved || cached;
+    const saved = getSupplierCoords(s.supplierCode, address, city);
+    const cachedCandidates = [
+      S.geocodeCache[cacheKeyForGeo(`${s.supplierName}|${[address, city].filter(Boolean).join(', ')}`)],
+      S.geocodeCache[cacheKeyForGeo([address, city].filter(Boolean).join(', '))]
+    ];
+    let geo = saved || cachedCandidates.find(candidate =>
+      candidate &&
+      Number.isFinite(Number(candidate.lat)) &&
+      Number.isFinite(Number(candidate.lng))
+    );
+
+    // Build the route from addresses on first use instead of requiring the
+    // operator to locate every supplier manually. Nominatim calls are
+    // rate-limited in geocodeNominatim; unresolved addresses stay editable.
+    if (!geo) {
+      s.resolution.state = 'geocode-pending';
+      $('routeBadge').textContent =
+        `Localizando endereços ${i + 1}/${baseValid.length}...`;
+      try {
+        geo = await geocodeAddress(address, city, s.supplierCode, s.supplierName);
+      } catch (e) {
+        console.warn(`Falha ao localizar ${s.supplierName}:`, e);
+      }
+      if (runId !== S.routeRunId) return;
+      if (
+        geo &&
+        Number.isFinite(Number(geo.lat)) &&
+        Number.isFinite(Number(geo.lng))
+      ) {
+        setSupplierCoords(
+          s.supplierCode,
+          geo.lat,
+          geo.lng,
+          'geocode',
+          address,
+          city
+        );
+      }
+    }
 
     if (geo && Number.isFinite(Number(geo.lat)) && Number.isFinite(Number(geo.lng))) {
       geoPoints.push({
@@ -1531,7 +1614,7 @@ async function renderRoute() {
         geocodeName: geo.displayName || address
       });
     } else {
-      s.resolution.state = 'geocode-pending';
+      s.resolution.state = 'geocode-failed';
     }
   }
 
@@ -1556,7 +1639,7 @@ async function renderRoute() {
   }
 
   try {
-    if (points.length > 2) {
+    if (points.length > 1) {
       const routePoints = [{ ...PHARMAINNOX, isOrigin: true }, ...ordered];
       const calc = await calculateRoute(routePoints, !manualMode);
       if (runId !== S.routeRunId) return;
@@ -1669,6 +1752,20 @@ async function saveRouteAddress(code, inputId, fallbackCity, supplierName = '') 
     return;
   }
 
+  // A coordenada confirmada pertence ao endereço, não apenas ao código do
+  // fornecedor. Descartamos o pino anterior se o endereço foi alterado.
+  const previousManual = getManualAddress(normalizedCode);
+  const previousEntry = resolveSupplier(normalizedCode, supplierName)?.entry;
+  const previousAddress = previousManual?.endereco || previousEntry?.endereco || '';
+  const previousCity = previousManual?.cidade || previousEntry?.cidade || fallbackCity || '';
+  if (
+    previousAddress &&
+    geoAddressKey(previousAddress, previousCity) !== geoAddressKey(address, fallbackCity)
+  ) {
+    delete S.supplierCoords[normalizedCode];
+    saveSupplierCoords();
+  }
+
   // 1) Salva primeiro, sem depender da internet.
   S.manualAddresses[manualKey(normalizedCode)] = {
     endereco: address,
@@ -1694,7 +1791,14 @@ async function saveRouteAddress(code, inputId, fallbackCity, supplierName = '') 
     if (geo) {
       S.geocodeCache[geoKey] = geo;
       saveGeoCache();
-      setSupplierCoords(normalizedCode, geo.lat, geo.lng, 'geocode');
+      setSupplierCoords(
+        normalizedCode,
+        geo.lat,
+        geo.lng,
+        'geocode',
+        address,
+        fallbackCity
+      );
       markAddressSaved(inputId, 'Endereço localizado. Atualizando a rota...');
       toast(`Endereço do fornecedor ${normalizedCode} localizado. Atualizando a rota...`);
     } else {
@@ -1757,7 +1861,7 @@ function handleMapPick(e) {
     .bindPopup(`<b>${escapeHtml(supplierName || code)}</b><br>${escapeHtml(address)}<br>Lat: ${lat.toFixed(6)}<br>Lng: ${lng.toFixed(6)}`)
     .openPopup();
 
-  const ok = setSupplierCoords(code, lat, lng, 'manual-mapa');
+  const ok = setSupplierCoords(code, lat, lng, 'manual-mapa', address, city);
   if (!ok) {
     clearMapPickMode('Não foi possível salvar a coordenada.');
     return;
@@ -1781,8 +1885,8 @@ function handleMapPick(e) {
 function openAddressSearch(inputId, city = '', supplierName = '') {
   const address = $(inputId)?.value.trim();
   const query = address
-    ? [address, city, 'SP', 'Brasil'].filter(Boolean).join(', ')
-    : [supplierName, city, 'SP', 'Brasil'].filter(Boolean).join(', ');
+    ? [address, city, 'Brasil'].filter(Boolean).join(', ')
+    : [supplierName, city, 'Brasil'].filter(Boolean).join(', ');
   if (!query) {
     toast('Informe o fornecedor ou endereço para pesquisar no Google Maps.');
     return;
@@ -1841,5 +1945,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     const seenFuel=new Set();S.fuel=S.fuel.filter(r=>{const sig=[r.date?.getTime()||'',r.vehicle,r.km,Number.isFinite(r.value)?r.value.toFixed(2):''].join('|');if(seenFuel.has(sig))return false;seenFuel.add(sig);return true;});
     const seenJourney=new Set();S.journey=S.journey.filter(r=>{const sig=[r.date?.getTime()||'',r.vehicle,r.statusKey,r.km].join('|');if(seenJourney.has(sig))return false;seenJourney.add(sig);return true;});
     $('vehicleFileList').innerHTML=valid.map(x=>`<div class="detected-file-card ${x.type==='journey'?'source-journey':'source-fuel'}"><div class="detected-file-icon">${x.type==='journey'?'🛣️':'⛽'}</div><div class="detected-file-main"><strong>${escapeHtml(x.vehicle)}</strong><span>${x.type==='journey'?'JORNADA / KM':'ABASTECIMENTO'}</span><em>${escapeHtml(x.file.name)}</em><small>Dados carregados: ${x.rows.toLocaleString('pt-BR')} registros</small></div></div>`).join('');$('logFileList').innerHTML=S.sources.log.map(x=>`<span class="chip source-log">${escapeHtml(x.file)} · ${x.rows.toLocaleString('pt-BR')} registros</span>`).join('');$('vehicle').innerHTML='<option value="todos">Todos</option>'+detectedVehicles.map(v=>`<option>${escapeHtml(v)}</option>`).join('');populateRouteDate();update();await renderRoute();toast(`Atualizado. ${S.sources.journey.length} jornada(s), ${S.sources.fuel.length} abastecimento(s) e ${S.sources.log.length} arquivo(s) de pedidos.`);}catch(e){console.error(e);toast(e?.message||'Não foi possível carregar os arquivos selecionados.');}});
-  ['year','vehicle','start','end','periodicity'].forEach(id=>$(id).addEventListener('change',update));$('routeDate').addEventListener('change',renderRoute);$('routeRefresh').addEventListener('click',renderRoute);$('resetRouteOrder').addEventListener('click',resetRouteOrder);$('restoreRouteStops').addEventListener('click',()=>{const dateKey=$('routeDate')?.value||'';if(!dateKey){toast('Selecione o dia da rota.');return;}const count=loadRouteExcluded(dateKey).length;if(!count){toast('Não há fornecedores retirados neste dia.');return;}restoreAllRouteStops(dateKey);toast(`${count} fornecedor(es) restaurado(s) na rota.`);renderRoute();});$('exportManualAddresses').addEventListener('click',exportManualAddresses);$('importManualAddresses').addEventListener('click',()=>$('manualAddressFile').click());$('manualAddressFile').addEventListener('change',e=>{if(e.target.files[0])importManualAddresses(e.target.files[0]);e.target.value='';});$('clearManualAddresses').addEventListener('click',clearManualAddresses);$('clearGeoCache').addEventListener('click',()=>{S.geocodeCache={};saveGeoCache();toast('Cache automático limpo. As coordenadas confirmadas manualmente foram mantidas.');renderRoute();});$('clear').addEventListener('click',()=>{$('year').value='todos';$('vehicle').value='todos';$('start').value='';$('end').value='';$('periodicity').value='month';update();});$('export').addEventListener('click',()=>{const rows=S.filteredFuel.map(r=>({Data:r.dateText,Veiculo:r.vehicle,Valor:r.value,PrecoPorLitro:Number.isFinite(r.price)?r.price:'',Litros:Number.isFinite(r.liters)?r.liters:'',KM:r.km}));const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Abastecimento');XLSX.writeFile(wb,'abastecimentos_filtrados.xlsx');});loadManualAddresses();loadGeoCache();loadSupplierCoords();await loadBundledManualAddresses();initMap();renderVehicleFiles();update();
+  ['year','vehicle','start','end','periodicity'].forEach(id=>$(id).addEventListener('change',update));$('routeDate').addEventListener('change',renderRoute);$('routeRefresh').addEventListener('click',renderRoute);$('resetRouteOrder').addEventListener('click',resetRouteOrder);$('restoreRouteStops').addEventListener('click',()=>{const dateKey=$('routeDate')?.value||'';if(!dateKey){toast('Selecione o dia da rota.');return;}const count=loadRouteExcluded(dateKey).length;if(!count){toast('Não há fornecedores retirados neste dia.');return;}restoreAllRouteStops(dateKey);toast(`${count} fornecedor(es) restaurado(s) na rota.`);renderRoute();});$('exportManualAddresses').addEventListener('click',exportManualAddresses);$('importManualAddresses').addEventListener('click',()=>$('manualAddressFile').click());$('manualAddressFile').addEventListener('change',e=>{if(e.target.files[0])importManualAddresses(e.target.files[0]);e.target.value='';});$('clearManualAddresses').addEventListener('click',clearManualAddresses);$('clearGeoCache').addEventListener('click',()=>{S.geocodeCache={};for(const [code,coords] of Object.entries(S.supplierCoords||{})){if(coords?.origem!=='manual-mapa')delete S.supplierCoords[code];}saveGeoCache();saveSupplierCoords();toast('Localizações automáticas serão refeitas. Os pontos marcados manualmente foram mantidos.');renderRoute();});$('clear').addEventListener('click',()=>{$('year').value='todos';$('vehicle').value='todos';$('start').value='';$('end').value='';$('periodicity').value='month';update();});$('export').addEventListener('click',()=>{const rows=S.filteredFuel.map(r=>({Data:r.dateText,Veiculo:r.vehicle,Valor:r.value,PrecoPorLitro:Number.isFinite(r.price)?r.price:'',Litros:Number.isFinite(r.liters)?r.liters:'',KM:r.km}));const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Abastecimento');XLSX.writeFile(wb,'abastecimentos_filtrados.xlsx');});loadManualAddresses();loadGeoCache();loadSupplierCoords();await loadBundledManualAddresses();initMap();renderVehicleFiles();update();
 });
