@@ -188,7 +188,7 @@
       <div class="panel-head">
         <div>
           <h2>Resumo diário de consumo</h2>
-          <span class="data-source-note">Litros = abastecidos no dia. KM/L do dia divide os km pelos litros comprados no mesmo dia e pode não ser o consumo real. Consumo estimado = KM ÷ média dos ciclos anteriores (no primeiro ciclo, usa o KM/L do dia); saldo estimado soma os abastecimentos e subtrai o consumo. O saldo começa em 0 L no primeiro abastecimento carregado; combustível que já havia no tanque não é conhecido.</span>
+          <span class="data-source-note">Saldo estimado: no dia com abastecimento, litros do dia menos KM ÷ KM/L do dia; nos dias sem abastecimento, desconta KM ÷ último KM/L registrado do saldo anterior. Cada abastecimento reinicia a estimativa usando os litros comprados, sem somar o saldo anterior. O combustível que já havia no tanque não é conhecido; se o consumo exceder o saldo, o painel mostra 0 L e sinaliza a divergência.</span>
         </div>
       </div>
       <div class="table-wrap">

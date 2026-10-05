@@ -21,6 +21,11 @@ ABASTECIMENTO
 - Usa exclusivamente os arquivos de abastecimento para valor, litros, preço/L e KM do abastecimento.
 - Preço: 2025 = R$ 6,49/L; 2026 = R$ 7,49/L.
 
+SALDO ESTIMADO DE COMBUSTÍVEL
+- No dia com abastecimento, a estimativa recomeça com os litros comprados e desconta KM ÷ KM/L daquele dia.
+- Nos dias sem abastecimento, desconta o consumo estimado do saldo anterior usando o último KM/L registrado.
+- Se o consumo calculado passar do saldo, exibe 0 L e um aviso, sem saldo negativo.
+- É uma estimativa: não inclui o combustível que já havia no tanque antes do abastecimento.
 
 V3
 - Os 4 arquivos dos veículos podem ser adicionados juntos em um único seletor.

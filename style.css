@@ -29,6 +29,7 @@ body{margin:0;background:#f4f7fb;color:#172033;font:14px Segoe UI,Arial,sans-ser
 .daily-table td{white-space:nowrap}
 .data-source-note{display:block;line-height:1.45}
 .estimate-source{display:block;color:#8290a4;font-size:10px;font-weight:500;margin-top:2px}
+.estimate-warning{display:block;color:#a5452a;font-size:10px;font-weight:600;margin-top:3px;white-space:normal;max-width:180px}
 .fuel-balance-estimate{color:#24558f}
 .fuel-balance-negative{color:#a5452a}
 @media(max-width:900px){.daily-table{font-size:11px}.daily-table th,.daily-table td{padding:8px}}
