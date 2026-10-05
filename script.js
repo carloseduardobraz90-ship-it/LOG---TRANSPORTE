@@ -29,7 +29,6 @@ const S = {
   markersLayer: null,
   routeRunId: 0,
   geocodeCache: {},
-  cepCache: {},
   manualAddresses: {},
   routeOrderByDate: {},
   journey: [],
@@ -707,14 +706,6 @@ async function loadBundledManualAddresses() {
     const current = S.manualAddresses || {};
     const merged = { ...bundled };
 
-    // Coordenadas presentes no JSON acompanham o cadastro e são carregadas
-    // para o cache permanente do fornecedor.
-    for (const [code, item] of Object.entries(bundled)) {
-      if (item && Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lng))) {
-        setSupplierCoords(code, Number(item.lat), Number(item.lng), item.origemCoordenada || 'json');
-      }
-    }
-
     // O que já foi alterado/salvo no navegador continua tendo prioridade
     // quando possuir uma data de atualização igual ou mais recente.
     for (const [code, localItem] of Object.entries(current)) {
@@ -857,15 +848,6 @@ function saveGeoCache() {
   try { localStorage.setItem('pharmainox_geo_cache_v1', JSON.stringify(S.geocodeCache)); } catch {}
 }
 
-function loadCepCache() {
-  try { S.cepCache = JSON.parse(localStorage.getItem('pharmainox_cep_cache_v1') || '{}') || {}; }
-  catch { S.cepCache = {}; }
-}
-
-function saveCepCache() {
-  try { localStorage.setItem('pharmainox_cep_cache_v1', JSON.stringify(S.cepCache)); } catch {}
-}
-
 // Coordenadas confirmadas manualmente por fornecedor.
 // Isso evita depender de um geocodificador toda vez que a rota é aberta.
 function loadSupplierCoords() {
@@ -960,7 +942,7 @@ function setSupplierCoords(code, lat, lng, origem = 'manual-mapa') {
 let lastNominatimRequest = 0;
 async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-async function fetchWithTimeout(url, options = {}, timeoutMs = 10000) {
+async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -970,111 +952,44 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 10000) {
   }
 }
 
-function normalizeCep(v) {
-  const digits = String(v || '').replace(/\D/g, '');
-  return digits.length === 8 ? digits : '';
+function cleanStreetAbbreviations(address) {
+  return String(address || '')
+    .replace(/^\s*R\.\s*/i, 'Rua ')
+    .replace(/^\s*Av\.\s*/i, 'Avenida ')
+    .replace(/^\s*Rod\.\s*/i, 'Rodovia ')
+    .replace(/^\s*Al\.\s*/i, 'Alameda ')
+    .replace(/^\s*Tv\.\s*/i, 'Travessa ')
+    .replace(/\bSao\b/gi, 'São')
+    .replace(/\s*-\s*/g, ', ')
+    .replace(/,\s*,/g, ', ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
-function extractCep(address) {
-  const m = String(address || '').match(/\b(\d{5})[-. ]?(\d{3})\b/);
-  return m ? `${m[1]}${m[2]}` : '';
+function buildGeoQueries(address, fallbackCity = '', supplierName = '') {
+  const a = String(address || '').trim();
+  const cleaned = cleanStreetAbbreviations(a);
+  const c = String(fallbackCity || '').trim();
+  const n = String(supplierName || '').trim();
+  const queries = [
+    [n, cleaned, c, 'SP', 'Brasil'].filter(Boolean).join(', '),
+    [cleaned, c, 'SP', 'Brasil'].filter(Boolean).join(', '),
+    [a, c, 'SP', 'Brasil'].filter(Boolean).join(', '),
+    [n, cleaned, 'Brasil'].filter(Boolean).join(', '),
+    [cleaned, 'Brasil'].filter(Boolean).join(', '),
+    [a, 'Brasil'].filter(Boolean).join(', ')
+  ];
+  return [...new Set(queries.map(q => q.trim()).filter(Boolean))];
 }
 
-function extractHouseNumber(address) {
-  const s = String(address || '').replace(/\b(\d{5})[-. ]?\d{3}\b/g, '');
-  const m = s.match(/(?:^|[,\-])\s*(?:n[ºo°]?\s*)?(\d{1,6})(?:\s*[-/]\s*\d+)?(?:\s|,|$)/i);
-  return m ? m[1] : '';
-}
-
-function parseBrazilianAddress(address, fallbackCity = '') {
-  const raw = String(address || '').trim();
-  const cep = extractCep(raw);
-  const pieces = raw.replace(/\b\d{5}[-. ]?\d{3}\b/g, '').split(/\s+-\s+|\s*,\s*/).map(x => x.trim()).filter(Boolean);
-  const number = extractHouseNumber(raw);
-
-  let uf = '';
-  let city = String(fallbackCity || '').trim();
-  const ufMatch = raw.match(/(?:^|[\s,\-])([A-Z]{2})(?:\s*,|\s|$)/i);
-  if (ufMatch) uf = ufMatch[1].toUpperCase();
-
-  const cityMatch = raw.match(/,\s*([^,\-]+?)\s*-\s*([A-Z]{2})\b/i);
-  if (cityMatch) city = cityMatch[1].trim();
-  else {
-    const alt = raw.match(/-\s*([^,\-]+?)\s*,\s*([A-Z]{2})\b/i);
-    if (alt) city = alt[1].trim();
+async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
   }
-
-  let street = '';
-  let neighborhood = '';
-  if (pieces.length) {
-    street = cleanStreetAbbreviations(pieces[0]);
-    // Remove o número do começo da linha da rua, se houver.
-    street = street.replace(/^[^,\d]*,?\s*\d{1,6}\s*(?:\/\d+)?\s*/,'').trim();
-    if (pieces.length >= 2) neighborhood = pieces[1];
-  }
-
-  return { raw, cep, number, street, neighborhood, city, uf: uf || 'SP' };
-}
-
-function buildStructuredNominatimQueries(parts) {
-  const out = [];
-  const base = {
-    format: 'jsonv2',
-    countrycodes: 'br',
-    limit: '5',
-    addressdetails: '1'
-  };
-
-  if (parts.street && parts.city) {
-    const params = new URLSearchParams({
-      ...base,
-      street: parts.number ? `${parts.street}, ${parts.number}` : parts.street,
-      city: parts.city,
-      state: parts.uf || 'SP'
-    });
-    if (parts.cep) params.set('postalcode', parts.cep);
-    out.push('https://nominatim.openstreetmap.org/search?' + params.toString());
-  }
-
-  if (parts.cep) {
-    const params = new URLSearchParams({
-      ...base,
-      postalcode: parts.cep,
-      country: 'Brazil'
-    });
-    out.push('https://nominatim.openstreetmap.org/search?' + params.toString());
-  }
-
-  return [...new Set(out)];
-}
-
-async function geocodeNominatimStructured(parts) {
-  const urls = buildStructuredNominatimQueries(parts);
-  for (const url of urls) {
-    const wait = Math.max(0, 1100 - (Date.now() - lastNominatimRequest));
-    if (wait) await sleep(wait);
-    lastNominatimRequest = Date.now();
-
-    const res = await fetchWithTimeout(url, {
-      headers: {
-        'Accept-Language': 'pt-BR',
-        'X-Requested-With': 'Pharmainox-Logistica'
-      }
-    }, 10000);
-    if (!res.ok) throw new Error(`Geocodificação HTTP ${res.status}`);
-    const data = await res.json();
-    if (!Array.isArray(data) || !data.length) continue;
-
-    return data.map(item => ({
-      lat: Number(item.lat),
-      lng: Number(item.lon),
-      displayName: item.display_name || '',
-      type: item.type || '',
-      importance: Number(item.importance) || 0,
-      address: item.address || {}
-    })).filter(x => Number.isFinite(x.lat) && Number.isFinite(x.lng));
-  }
-  return [];
 }
 
 async function geocodeNominatim(query) {
@@ -1086,11 +1001,11 @@ async function geocodeNominatim(query) {
     format: 'jsonv2',
     q: query,
     countrycodes: 'br',
-    limit: '5',
+    limit: '3',
     addressdetails: '1'
   });
 
-  const res = await fetchWithTimeout(url, { headers: { 'Accept-Language': 'pt-BR' } }, 10000);
+  const res = await fetchWithTimeout(url, { headers: { 'Accept-Language': 'pt-BR' } }, 8000);
   if (!res.ok) throw new Error(`Geocodificação HTTP ${res.status}`);
   const data = await res.json();
   if (!Array.isArray(data)) return [];
@@ -1100,8 +1015,7 @@ async function geocodeNominatim(query) {
     lng: Number(item.lon),
     displayName: item.display_name || query,
     type: item.type || '',
-    importance: Number(item.importance) || 0,
-    address: item.address || {}
+    importance: Number(item.importance) || 0
   })).filter(x => Number.isFinite(x.lat) && Number.isFinite(x.lng));
 }
 
@@ -1111,220 +1025,76 @@ async function geocodePhoton(query) {
     limit: '5',
     lang: 'pt'
   });
-  const res = await fetchWithTimeout(url, { headers: { 'Accept-Language': 'pt-BR' } }, 10000);
+  const res = await fetchWithTimeout(url, { headers: { 'Accept-Language': 'pt-BR' } }, 8000);
   if (!res.ok) return [];
   const data = await res.json();
   if (!Array.isArray(data?.features)) return [];
   return data.features.map(f => ({
     lat: Number(f.geometry?.coordinates?.[1]),
     lng: Number(f.geometry?.coordinates?.[0]),
-    displayName: [f.properties?.name, f.properties?.street, f.properties?.city, f.properties?.state].filter(Boolean).join(', ') || query,
+    displayName: f.properties?.name || query,
     type: f.properties?.type || '',
-    importance: Number(f.properties?.importance) || 0,
-    address: f.properties || {}
+    importance: Number(f.properties?.importance) || 0
   })).filter(x => Number.isFinite(x.lat) && Number.isFinite(x.lng));
 }
 
-async function lookupCep(cep) {
-  const keyCep = normalizeCep(cep);
-  if (!keyCep) return null;
-  if (S.cepCache[keyCep]) return S.cepCache[keyCep];
-  try {
-    const res = await fetchWithTimeout(`https://viacep.com.br/ws/${keyCep}/json/`, { headers: { 'Accept-Language': 'pt-BR' } }, 8000);
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (!data || data.erro) return null;
-    const result = {
-      cep: data.cep || keyCep,
-      logradouro: data.logradouro || '',
-      bairro: data.bairro || '',
-      localidade: data.localidade || '',
-      uf: data.uf || '',
-      complemento: data.complemento || ''
-    };
-    S.cepCache[keyCep] = result;
-    saveCepCache();
-    return result;
-  } catch (e) {
-    console.warn('ViaCEP falhou:', e);
-    return null;
-  }
-}
-
-async function lookupCepByAddress(uf, city, street) {
-  const cleanUf = String(uf || 'SP').trim().toUpperCase();
-  const cleanCity = String(city || '').trim();
-  const cleanStreet = String(street || '').replace(/\s+/g, ' ').trim();
-  if (!cleanCity || cleanStreet.length < 5) return null;
-
-  const cacheKey = `addr:${cleanUf}:${normalizeText(cleanCity)}:${normalizeText(cleanStreet)}`;
-  if (S.cepCache[cacheKey]) return S.cepCache[cacheKey];
-
-  try {
-    const url = `https://viacep.com.br/ws/${encodeURIComponent(cleanUf)}/${encodeURIComponent(cleanCity)}/${encodeURIComponent(cleanStreet)}/json/`;
-    const res = await fetchWithTimeout(url, { headers: { 'Accept-Language': 'pt-BR' } }, 8000);
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (!Array.isArray(data) || !data.length) return null;
-
-    const target = normalizeText(cleanStreet);
-    const ranked = data.map(item => {
-      const streetText = normalizeText(item.logradouro || '');
-      const overlap = target.split(' ').filter(t => t.length > 2 && streetText.includes(t)).length;
-      return { item, score: overlap };
-    }).sort((a,b) => b.score - a.score);
-
-    const best = ranked[0]?.item;
-    if (!best) return null;
-
-    const result = {
-      cep: best.cep || '',
-      logradouro: best.logradouro || '',
-      bairro: best.bairro || '',
-      localidade: best.localidade || cleanCity,
-      uf: best.uf || cleanUf,
-      complemento: best.complemento || ''
-    };
-    S.cepCache[cacheKey] = result;
-    saveCepCache();
-    return result;
-  } catch (e) {
-    console.warn('ViaCEP por endereço falhou:', e);
-    return null;
-  }
-}
-
-function candidateScore(result, parts, supplierName = '') {
-  const display = normalizeText(result.displayName || '');
-  const street = normalizeText(parts.street || '');
-  const city = normalizeText(parts.city || '');
-  const cep = normalizeCep(parts.cep || '');
-  let score = Number(result.importance || 0) * 2;
-
-  if (street) {
-    const tokens = street.split(' ').filter(t => t.length > 2);
-    const matched = tokens.filter(t => display.includes(t)).length;
-    score += matched * 3;
-    if (tokens.length && matched / tokens.length >= 0.7) score += 6;
-  }
-  if (city && display.includes(city)) score += 7;
-  if (cep && display.replace(/\D/g, '').includes(cep)) score += 9;
-
-  const expectedNumber = String(parts.number || '').replace(/\D/g, '');
-  const candidateNumber = String(result.address?.house_number || '').replace(/\D/g, '');
-  const candidateText = String(result.displayName || '');
-  if (expectedNumber) {
-    if (candidateNumber === expectedNumber) score += 12;
-    else if (new RegExp(`\\b${expectedNumber}\\b`).test(candidateText)) score += 8;
-    else if (candidateNumber) score -= 6;
-  }
-
-  if (supplierName) {
-    const name = normalizeText(supplierName);
-    const nameTokens = name.split(' ').filter(t => t.length > 3 && !['LTDA','COMERCIO','INDUSTRIA','BRASIL'].includes(t));
-    const matchedName = nameTokens.filter(t => display.includes(t)).length;
-    score += Math.min(8, matchedName * 1.5);
-  }
-
-  if (['house','building','industrial','commercial'].includes(result.type)) score += 2;
+function scoreGeoResult(result, city = '') {
+  const text = normalizeText(`${result.displayName || ''} ${result.type || ''}`);
+  const cityText = normalizeText(city);
+  let score = Number(result.importance || 0);
+  if (cityText && text.includes(cityText)) score += 3;
+  if (['house', 'building', 'residential', 'commercial'].includes(result.type)) score += 1.5;
   return score;
 }
 
-async function geocodeAddress(address, fallbackCity = '', supplierCode = '', supplierName = '', options = {}) {
-  const force = Boolean(options.force);
-  if (!force) {
-    const saved = getSupplierCoords(supplierCode);
-    if (saved) return { ...saved, displayName: [address, fallbackCity].filter(Boolean).join(', '), source: 'saved' };
-  }
+async function geocodeAddress(address, fallbackCity = '', supplierCode = '', supplierName = '') {
+  const saved = getSupplierCoords(supplierCode);
+  if (saved) return { ...saved, displayName: [address, fallbackCity].filter(Boolean).join(', ') };
 
-  const parts = parseBrazilianAddress(address, fallbackCity);
-  let cepData = await lookupCep(parts.cep);
-  if (!cepData && parts.city && parts.street) {
-    cepData = await lookupCepByAddress(parts.uf || 'SP', parts.city, parts.street);
-  }
-  if (cepData) {
-    if (!parts.street && cepData.logradouro) parts.street = cepData.logradouro;
-    if (!parts.neighborhood && cepData.bairro) parts.neighborhood = cepData.bairro;
-    if (!parts.city && cepData.localidade) parts.city = cepData.localidade;
-    if (!parts.uf && cepData.uf) parts.uf = cepData.uf;
-    if (!parts.cep && cepData.cep) parts.cep = normalizeCep(cepData.cep);
-  }
+  const name = supplierName || (() => {
+    const entries = window.FORNECEDORES?.[normalizeCode(supplierCode)] || [];
+    return entries[0]?.nome || '';
+  })();
 
-  const full = [parts.street && `${parts.street}${parts.number ? ', ' + parts.number : ''}`, parts.neighborhood, parts.city, parts.uf || 'SP', parts.cep, 'Brasil'].filter(Boolean).join(', ');
-  const rawFull = [address, fallbackCity, 'Brasil'].filter(Boolean).join(', ');
-  const keyCache = cacheKeyForGeo(`${supplierName}|${full || rawFull}`);
-  if (!force && S.geocodeCache[keyCache]) return S.geocodeCache[keyCache];
+  const full = [address, fallbackCity].filter(Boolean).join(', ');
+  const keyCache = cacheKeyForGeo(`${name}|${full}`);
+  if (S.geocodeCache[keyCache]) return S.geocodeCache[keyCache];
 
+  const queries = buildGeoQueries(address, fallbackCity, name);
   let candidates = [];
 
-  // 1) Nominatim estruturado: rua + número + cidade + UF + CEP.
-  try {
-    candidates = await geocodeNominatimStructured(parts);
-  } catch (e) {
-    console.warn('Nominatim estruturado falhou:', e);
-  }
-
-  // 2) Nominatim livre com o endereço já normalizado.
-  if (!candidates.length) {
-    for (const q of [full, rawFull, [supplierName, full].filter(Boolean).join(', ')]) {
-      if (!q) continue;
-      try {
-        const r = await geocodeNominatim(q);
-        candidates.push(...r);
-        if (r.length) break;
-      } catch (e) {
-        console.warn('Nominatim livre falhou:', e);
-      }
+  // Primeiro tenta Nominatim com mais de uma forma de consulta.
+  for (const query of queries) {
+    try {
+      const results = await geocodeNominatim(query);
+      candidates.push(...results);
+      if (results.length) break;
+    } catch (e) {
+      console.warn('Nominatim falhou:', e);
     }
   }
 
-  // 3) Photon como segundo geocodificador gratuito, útil quando o OSM/Nominatim não acha.
+  // Fallback para Photon quando Nominatim não localizar o endereço.
   if (!candidates.length) {
-    for (const q of [full, rawFull, [supplierName, full].filter(Boolean).join(', ')]) {
-      if (!q) continue;
-      try {
-        const r = await geocodePhoton(q);
-        candidates.push(...r);
-        if (r.length) break;
-      } catch (e) {
-        console.warn('Photon falhou:', e);
+    try {
+      for (const query of queries.slice(0, 2)) {
+        candidates.push(...await geocodePhoton(query));
+        if (candidates.length) break;
       }
+    } catch (e) {
+      console.warn('Photon falhou:', e);
     }
   }
 
   if (!candidates.length) return null;
 
-  const ranked = candidates
-    .map(r => ({ r, score: candidateScore(r, parts, supplierName) }))
-    .sort((a, b) => b.score - a.score);
-
-  const best = ranked[0];
-  if (!best) return null;
-
-  // Evita salvar um ponto obviamente genérico. Exige um mínimo de correspondência.
-  const normalizedDisplay = normalizeText(best.r.displayName || '');
-  const streetTokens = normalizeText(parts.street || '').split(' ').filter(t => t.length > 2);
-  const streetHits = streetTokens.filter(t => normalizedDisplay.includes(t)).length;
-  const cityHit = parts.city ? normalizedDisplay.includes(normalizeText(parts.city)) : true;
-  const expectedNumber = String(parts.number || '').replace(/\D/g, '');
-  const candidateNumber = String(best.r.address?.house_number || '').replace(/\D/g, '');
-  const candidateDigits = String(best.r.displayName || '').replace(/\D/g, '');
-  const exactNumber = expectedNumber && (candidateNumber === expectedNumber || new RegExp(`\\b${expectedNumber}\\b`).test(String(best.r.displayName || '')));
-  const exactCep = normalizeCep(parts.cep) && candidateDigits.includes(normalizeCep(parts.cep));
-  // Segurança: não aceita automaticamente um simples centro de rua quando
-  // o endereço tem número/CEP. Exige correspondência forte de rua/cidade e
-  // pelo menos número exato ou CEP. Isso evita marcar um ponto errado só
-  // porque a rua existe.
-  const addressIdentityOk = !expectedNumber || exactNumber || exactCep;
-  const strongEnough = best.score >= 8 && streetHits >= Math.max(1, Math.ceil(streetTokens.length * 0.5)) && cityHit && addressIdentityOk;
-  if (!strongEnough) return null;
+  const best = candidates
+    .sort((a, b) => scoreGeoResult(b, fallbackCity) - scoreGeoResult(a, fallbackCity))[0];
 
   const result = {
-    lat: best.r.lat,
-    lng: best.r.lng,
-    displayName: best.r.displayName || full,
-    score: best.score,
-    source: 'geocode'
+    lat: best.lat,
+    lng: best.lng,
+    displayName: best.displayName || full
   };
 
   S.geocodeCache[keyCache] = result;
@@ -1511,7 +1281,7 @@ function renderRouteIssues(groupedRows) {
       }
       btn.disabled = true;
       try {
-        const geo = await geocodeAddress(address, btn.dataset.city || '', code, btn.dataset.supplier || '', { force: true });
+        const geo = await geocodeAddress(address, btn.dataset.city || '', code, btn.dataset.supplier || '');
         if (geo) {
           setSupplierCoords(code, geo.lat, geo.lng, 'geocode');
           const manual = getManualAddress(code);
@@ -1562,12 +1332,6 @@ function renderStopsList(ordered, dateKey = '') {
     const orders = s.orders.length ? s.orders.join(', ') : '—';
     const source = s.resolution?.source === 'manual' ? ' · endereço manual' : '';
     const routeKey = getRouteStopKey(s);
-    const code = normalizeCode(s.supplierCode);
-    const buttons = code ? `
-      <div class="route-stop-actions">
-        <button type="button" class="button secondary mini-button relocate-stop" data-code="${escapeHtml(code)}" data-city="${escapeHtml(s.city || '')}" data-supplier="${escapeHtml(s.supplierName || '')}" data-address="${escapeHtml(s.address || '')}">Localizar endereço</button>
-        <button type="button" class="button secondary mini-button correct-stop-map" data-code="${escapeHtml(code)}" data-city="${escapeHtml(s.city || '')}" data-supplier="${escapeHtml(s.supplierName || '')}" data-address="${escapeHtml(s.address || '')}">Corrigir ponto</button>
-      </div>` : '';
     return `
       <div class="route-stop route-stop-draggable" draggable="true" data-route-key="${escapeHtml(routeKey)}" title="Arraste para alterar a ordem da parada">
         <div class="stop-drag-handle" aria-hidden="true">⋮⋮</div>
@@ -1578,36 +1342,10 @@ function renderStopsList(ordered, dateKey = '') {
           <span>Comprador: ${escapeHtml(buyer)}</span>
           <span>Pedido(s): ${escapeHtml(orders)}</span>
           <small>${escapeHtml(s.address)}</small>
-          ${buttons}
         </div>
       </div>`;
   }).join('');
   $('routeStopsList').innerHTML = cards || '<div class="empty-route">Nenhuma parada com endereço confirmado neste dia.</div>';
-
-  $('routeStopsList').querySelectorAll('.relocate-stop').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      btn.disabled = true;
-      try {
-        const geo = await geocodeAddress(btn.dataset.address || '', btn.dataset.city || '', btn.dataset.code || '', btn.dataset.supplier || '', { force: true });
-        if (!geo) {
-          toast('Não encontrei uma localização suficientemente confiável para esse endereço. Use “Corrigir ponto”.');
-          return;
-        }
-        setSupplierCoords(btn.dataset.code || '', geo.lat, geo.lng, 'geocode-confirmado');
-        toast(`Localização do fornecedor ${btn.dataset.code} atualizada pelo endereço.`);
-        await renderRoute();
-      } catch (e) {
-        console.warn('Relocalização falhou:', e);
-        toast('Não foi possível localizar automaticamente. Use “Corrigir ponto”.');
-      } finally {
-        btn.disabled = false;
-      }
-    });
-  });
-
-  $('routeStopsList').querySelectorAll('.correct-stop-map').forEach(btn => {
-    btn.addEventListener('click', () => startMapPick(btn.dataset.code || '', '', btn.dataset.city || '', btn.dataset.supplier || '', btn.dataset.address || '', { overwrite: true }));
-  });
 
   bindRouteStopDrag(dateKey);
 }
@@ -1852,8 +1590,6 @@ async function saveRouteAddress(code, inputId, fallbackCity, supplierName = '') 
   }
 
   // 1) Salva primeiro, sem depender da internet.
-  const previous = getManualAddress(normalizedCode);
-  const addressChanged = !previous || normalizeText(previous.endereco) !== normalizeText(address);
   S.manualAddresses[manualKey(normalizedCode)] = {
     endereco: address,
     cidade: fallbackCity || '',
@@ -1862,10 +1598,6 @@ async function saveRouteAddress(code, inputId, fallbackCity, supplierName = '') 
   };
   const geoKey = cacheKeyForGeo(`${supplierName}|${[address, fallbackCity].filter(Boolean).join(', ')}`);
   delete S.geocodeCache[geoKey];
-  if (addressChanged) {
-    delete S.supplierCoords[normalizedCode];
-    saveSupplierCoords();
-  }
   saveManualAddresses();
   saveGeoCache();
   markAddressSaved(inputId, 'Endereço salvo. Localizando no mapa...');
@@ -1878,7 +1610,7 @@ async function saveRouteAddress(code, inputId, fallbackCity, supplierName = '') 
 
   // 3) Tenta localizar imediatamente o endereço que acabou de ser informado.
   try {
-    const geo = await geocodeAddress(address, fallbackCity, normalizedCode, supplierName, { force: true });
+    const geo = await geocodeAddress(address, fallbackCity, normalizedCode, supplierName);
     if (geo) {
       S.geocodeCache[geoKey] = geo;
       saveGeoCache();
@@ -1913,7 +1645,7 @@ function clearMapPickMode(message = '') {
   if (message) toast(message);
 }
 
-function startMapPick(code, inputId = '', city = '', supplierName = '', addressOverride = '', options = {}) {
+function startMapPick(code, inputId, city = '', supplierName = '') {
   if (!S.map) {
     toast('O mapa ainda está carregando. Aguarde um instante.');
     return;
@@ -1922,17 +1654,16 @@ function startMapPick(code, inputId = '', city = '', supplierName = '', addressO
     toast('Este fornecedor está sem código e não pode ter coordenada salva.');
     return;
   }
-
-  const address = String(addressOverride || $(inputId)?.value || '').trim();
+  const address = $(inputId)?.value.trim();
   if (!isGoodManualAddress(address)) {
-    toast('Não há endereço válido para esta parada.');
+    toast('Preencha e salve um endereço antes de marcar a localização no mapa.');
     return;
   }
 
-  activeMapPick = { code: normalizeCode(code), inputId, city, supplierName, address, overwrite: Boolean(options.overwrite) };
+  activeMapPick = { code: normalizeCode(code), inputId, city, supplierName, address };
   S.map.getContainer().style.cursor = 'crosshair';
-  $('routeBadge').textContent = `Clique no mapa para ${activeMapPick.overwrite ? 'corrigir' : 'marcar'}: ${supplierName || code}`;
-  toast(`Modo de marcação ativo para ${supplierName || code}. Clique no ponto correto no mapa.`);
+  $('routeBadge').textContent = `Clique no mapa para marcar: ${supplierName || code}`;
+  toast(`Modo de marcação ativo para ${supplierName || code}. Clique no ponto exato no mapa.`);
 }
 window.startMapPick = startMapPick;
 
@@ -1942,12 +1673,8 @@ function handleMapPick(e) {
   const lat = e.latlng.lat;
   const lng = e.latlng.lng;
 
-  if (activeMapPickMarker) {
-    try { S.map.removeLayer(activeMapPickMarker); } catch {}
-  }
-
   activeMapPickMarker = L.marker([lat, lng], { icon: markerIcon('?', false) }).addTo(S.map)
-    .bindPopup(`<b>${escapeHtml(supplierName || code)}</b><br>${escapeHtml(address)}<br>Lat: ${lat.toFixed(6)}<br>Lng: ${lng.toFixed(6)}<br><br>Localização provisória. Clique novamente em outro ponto para substituir.`)
+    .bindPopup(`<b>${escapeHtml(supplierName || code)}</b><br>${escapeHtml(address)}<br>Lat: ${lat.toFixed(6)}<br>Lng: ${lng.toFixed(6)}`)
     .openPopup();
 
   const ok = setSupplierCoords(code, lat, lng, 'manual-mapa');
@@ -1957,14 +1684,15 @@ function handleMapPick(e) {
   }
 
   const keyCode = manualKey(code);
-  const existing = getManualAddress(code);
-  S.manualAddresses[keyCode] = {
-    endereco: address,
-    cidade: city || existing?.cidade || '',
-    origem: 'manual-mapa',
-    atualizadoEm: new Date().toISOString()
-  };
-  saveManualAddresses();
+  if (!S.manualAddresses[keyCode]) {
+    S.manualAddresses[keyCode] = {
+      endereco: address,
+      cidade: city || '',
+      origem: 'manual-mapa',
+      atualizadoEm: new Date().toISOString()
+    };
+    saveManualAddresses();
+  }
 
   clearMapPickMode(`Localização salva para ${supplierName || code}.`);
   renderRoute();
@@ -1985,15 +1713,7 @@ function openAddressSearch(inputId, city = '', supplierName = '') {
 window.openAddressSearch = openAddressSearch;
 
 function exportManualAddresses() {
-  const exportData = {};
-  for (const [code, item] of Object.entries(S.manualAddresses || {})) {
-    const coords = getSupplierCoords(code);
-    exportData[code] = {
-      ...(item || {}),
-      ...(coords ? { lat: coords.lat, lng: coords.lng, origemCoordenada: coords.origem || 'manual-mapa' } : {})
-    };
-  }
-  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json;charset=utf-8' });
+  const blob = new Blob([JSON.stringify(S.manualAddresses, null, 2)], { type: 'application/json;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -2009,11 +1729,6 @@ function importManualAddresses(file) {
       const obj = JSON.parse(reader.result);
       if (!obj || typeof obj !== 'object') throw new Error('Formato inválido');
       S.manualAddresses = { ...S.manualAddresses, ...obj };
-      for (const [code, item] of Object.entries(obj)) {
-        if (item && Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lng))) {
-          setSupplierCoords(code, Number(item.lat), Number(item.lng), item.origemCoordenada || 'importado-json');
-        }
-      }
       saveManualAddresses();
       toast('Endereços manuais importados.');
       renderRoute();
@@ -2046,5 +1761,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     const seenFuel=new Set();S.fuel=S.fuel.filter(r=>{const sig=[r.date?.getTime()||'',r.vehicle,r.km,Number.isFinite(r.value)?r.value.toFixed(2):''].join('|');if(seenFuel.has(sig))return false;seenFuel.add(sig);return true;});
     const seenJourney=new Set();S.journey=S.journey.filter(r=>{const sig=[r.date?.getTime()||'',r.vehicle,r.statusKey,r.km].join('|');if(seenJourney.has(sig))return false;seenJourney.add(sig);return true;});
     $('vehicleFileList').innerHTML=valid.map(x=>`<div class="detected-file-card ${x.type==='journey'?'source-journey':'source-fuel'}"><div class="detected-file-icon">${x.type==='journey'?'🛣️':'⛽'}</div><div class="detected-file-main"><strong>${escapeHtml(x.vehicle)}</strong><span>${x.type==='journey'?'JORNADA / KM':'ABASTECIMENTO'}</span><em>${escapeHtml(x.file.name)}</em><small>Dados carregados: ${x.rows.toLocaleString('pt-BR')} registros</small></div></div>`).join('');$('logFileList').innerHTML=S.sources.log.map(x=>`<span class="chip source-log">${escapeHtml(x.file)} · ${x.rows.toLocaleString('pt-BR')} registros</span>`).join('');$('vehicle').innerHTML='<option value="todos">Todos</option>'+detectedVehicles.map(v=>`<option>${escapeHtml(v)}</option>`).join('');populateRouteDate();update();await renderRoute();toast(`Atualizado. ${S.sources.journey.length} jornada(s), ${S.sources.fuel.length} abastecimento(s) e ${S.sources.log.length} arquivo(s) de pedidos.`);}catch(e){console.error(e);toast(e?.message||'Não foi possível carregar os arquivos selecionados.');}});
-  ['year','vehicle','start','end','periodicity'].forEach(id=>$(id).addEventListener('change',update));$('routeDate').addEventListener('change',renderRoute);$('routeRefresh').addEventListener('click',renderRoute);$('resetRouteOrder').addEventListener('click',resetRouteOrder);$('exportManualAddresses').addEventListener('click',exportManualAddresses);$('importManualAddresses').addEventListener('click',()=>$('manualAddressFile').click());$('manualAddressFile').addEventListener('change',e=>{if(e.target.files[0])importManualAddresses(e.target.files[0]);e.target.value='';});$('clearManualAddresses').addEventListener('click',clearManualAddresses);$('clearGeoCache').addEventListener('click',()=>{S.geocodeCache={};saveGeoCache();toast('Cache automático limpo. As coordenadas confirmadas manualmente foram mantidas.');renderRoute();});$('clear').addEventListener('click',()=>{$('year').value='todos';$('vehicle').value='todos';$('start').value='';$('end').value='';$('periodicity').value='month';update();});$('export').addEventListener('click',()=>{const rows=S.filteredFuel.map(r=>({Data:r.dateText,Veiculo:r.vehicle,Valor:r.value,PrecoPorLitro:Number.isFinite(r.price)?r.price:'',Litros:Number.isFinite(r.liters)?r.liters:'',KM:r.km}));const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Abastecimento');XLSX.writeFile(wb,'abastecimentos_filtrados.xlsx');});loadManualAddresses();loadGeoCache();loadCepCache();loadSupplierCoords();await loadBundledManualAddresses();initMap();renderVehicleFiles();update();
+  ['year','vehicle','start','end','periodicity'].forEach(id=>$(id).addEventListener('change',update));$('routeDate').addEventListener('change',renderRoute);$('routeRefresh').addEventListener('click',renderRoute);$('resetRouteOrder').addEventListener('click',resetRouteOrder);$('exportManualAddresses').addEventListener('click',exportManualAddresses);$('importManualAddresses').addEventListener('click',()=>$('manualAddressFile').click());$('manualAddressFile').addEventListener('change',e=>{if(e.target.files[0])importManualAddresses(e.target.files[0]);e.target.value='';});$('clearManualAddresses').addEventListener('click',clearManualAddresses);$('clearGeoCache').addEventListener('click',()=>{S.geocodeCache={};saveGeoCache();toast('Cache automático limpo. As coordenadas confirmadas manualmente foram mantidas.');renderRoute();});$('clear').addEventListener('click',()=>{$('year').value='todos';$('vehicle').value='todos';$('start').value='';$('end').value='';$('periodicity').value='month';update();});$('export').addEventListener('click',()=>{const rows=S.filteredFuel.map(r=>({Data:r.dateText,Veiculo:r.vehicle,Valor:r.value,PrecoPorLitro:Number.isFinite(r.price)?r.price:'',Litros:Number.isFinite(r.liters)?r.liters:'',KM:r.km}));const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Abastecimento');XLSX.writeFile(wb,'abastecimentos_filtrados.xlsx');});loadManualAddresses();loadGeoCache();loadSupplierCoords();await loadBundledManualAddresses();initMap();renderVehicleFiles();update();
 });
