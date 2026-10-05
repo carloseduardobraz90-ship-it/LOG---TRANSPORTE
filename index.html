@@ -188,7 +188,7 @@
       <div class="panel-head">
         <div>
           <h2>Resumo diário de consumo</h2>
-          <span class="data-source-note">KM = SAINDO → CHEGANDO · Litros = VALOR_ABASTECIDO ÷ preço do ano · KM/L = KM rodados ÷ litros</span>
+          <span class="data-source-note">Litros = abastecidos no dia. KM/L do dia divide os km pelos litros comprados no mesmo dia e pode não ser o consumo real. Consumo estimado = KM ÷ média dos ciclos anteriores (no primeiro ciclo, usa o KM/L do dia); saldo estimado soma os abastecimentos e subtrai o consumo. O saldo começa em 0 L no primeiro abastecimento carregado; combustível que já havia no tanque não é conhecido.</span>
         </div>
       </div>
       <div class="table-wrap">
@@ -197,7 +197,8 @@
             <tr>
               <th>Data</th><th>Veículo</th><th>Saída</th><th>KM inicial</th>
               <th>Chegada</th><th>KM final</th><th>KM rodados</th>
-              <th>Valor abastecido</th><th>Litros</th><th>KM/L</th><th>L/100 km</th><th>Status</th>
+              <th>Valor abastecido</th><th>Litros abastecidos</th><th>KM/L do dia</th>
+              <th>Consumo estimado</th><th>Saldo estimado</th><th>L/100 km</th><th>Status</th>
             </tr>
           </thead>
           <tbody id="dailyTable"></tbody>

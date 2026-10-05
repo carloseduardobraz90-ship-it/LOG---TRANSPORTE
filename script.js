@@ -401,7 +401,11 @@ function apply() {
       (!end || k <= end);
   });
 
-  S.filteredDaily = buildDailyMetrics(S.filteredJourney, S.filteredFuel);
+  // Compute running fuel estimates from the full history so date filters do not
+  // reset the balance or change the estimated KM/L baseline.
+  S.filteredDaily = addEstimatedFuelBalances(
+    buildDailyMetrics(S.journey, S.fuel)
+  ).filter(r => inFilter(r.date, r.vehicle));
 }
 
 function buildDailyMetrics(journeyRows, fuelRows) {
@@ -502,6 +506,74 @@ function buildDailyMetrics(journeyRows, fuelRows) {
       };
     })
     .sort((a, b) => a.date - b.date || a.vehicle.localeCompare(b.vehicle));
+}
+
+function addEstimatedFuelBalances(dailyRows) {
+  const stateByVehicle = new Map();
+  const sorted = dailyRows
+    .slice()
+    .sort((a, b) => a.date - b.date || a.vehicle.localeCompare(b.vehicle));
+
+  return sorted.map(row => {
+    let state = stateByVehicle.get(row.vehicle);
+    if (!state) {
+      state = {
+        balance: null,
+        kmPerLiter: NaN,
+        historyKm: 0,
+        historyLiters: 0,
+        cycleKm: 0,
+        cycleLiters: 0
+      };
+      stateByVehicle.set(row.vehicle, state);
+    }
+
+    const litersAdded = Number.isFinite(row.liters) && row.liters > 0
+      ? row.liters
+      : 0;
+
+    if (litersAdded > 0) {
+      // Close the previous refueling cycle and update the historical average.
+      if (state.cycleKm > 0 && state.cycleLiters > 0) {
+        state.historyKm += state.cycleKm;
+        state.historyLiters += state.cycleLiters;
+      }
+      state.cycleKm = 0;
+      state.cycleLiters = 0;
+
+      state.kmPerLiter = state.historyLiters > 0
+        ? state.historyKm / state.historyLiters
+        : (Number.isFinite(row.kmPerLiter) && row.kmPerLiter > 0
+          ? row.kmPerLiter
+          : NaN);
+
+      // Without an earlier tank-level reading, the estimate starts at the
+      // first recorded refuel and treats its purchased liters as available.
+      if (state.balance === null) state.balance = 0;
+      state.balance += litersAdded;
+    }
+
+    const estimatedLitersUsed =
+      Number.isFinite(row.kmDriven) &&
+      row.kmDriven > 0 &&
+      Number.isFinite(state.kmPerLiter) &&
+      state.kmPerLiter > 0
+        ? row.kmDriven / state.kmPerLiter
+        : NaN;
+
+    if (state.balance !== null && Number.isFinite(estimatedLitersUsed)) {
+      state.balance -= estimatedLitersUsed;
+      state.cycleKm += row.kmDriven;
+      state.cycleLiters += estimatedLitersUsed;
+    }
+
+    return {
+      ...row,
+      estimateKmPerLiter: state.kmPerLiter,
+      estimatedLitersUsed,
+      estimatedFuelBalance: state.balance === null ? NaN : state.balance
+    };
+  });
 }
 
 function summarizeConsumption(dailyRows) {
@@ -631,7 +703,7 @@ function update() {
   const distAgg={},litAgg={}; daily.forEach(r=>{if(!r.date||!Number.isFinite(r.kmDriven)||r.kmDriven<=0||!Number.isFinite(r.liters)||r.liters<=0)return;const k=keyFor(r.date);distAgg[k]=(distAgg[k]||0)+r.kmDriven;litAgg[k]=(litAgg[k]||0)+r.liters;}); Object.keys(distAgg).forEach(k=>{timeKml[k]=litAgg[k]>0?distAgg[k]/litAgg[k]:NaN;});
   const kmlKeys=Object.keys(timeKml).filter(k=>Number.isFinite(timeKml[k])).sort(); make('dailyConsumption','dailyConsumption','line',kmlKeys.map(k=>periodLabel(k,mode)),kmlKeys.map(k=>timeKml[k]),'KM/L'); const distKeys=Object.keys(timeDistance).sort(); make('dailyDistance','dailyDistance','bar',distKeys.map(k=>periodLabel(k,mode)),distKeys.map(k=>timeDistance[k]),'KM rodados');
   const statuses={},cities={}; l.forEach(r=>{statuses[r._status]=(statuses[r._status]||0)+1;cities[r._city]=(cities[r._city]||0)+1;}); const topCities=Object.entries(cities).sort((a,b)=>b[1]-a[1]).slice(0,15); make('chartStatus','chartStatus','bar',Object.keys(statuses).slice(0,20),Object.values(statuses).slice(0,20),'Registros','y'); make('city','city','bar',topCities.map(x=>x[0]),topCities.map(x=>x[1]),'Registros','y'); const weekday={}; f.forEach(r=>{const w=r.date?['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][r.date.getDay()]:'Sem data';weekday[w]=(weekday[w]||0)+1;}); const days=['Seg','Ter','Qua','Qui','Sex','Sáb','Dom']; make('weekday','weekday','bar',days,days.map(d=>weekday[d]||0),'Abastecimentos');
-  const dailyRowsForTable=daily.slice().sort((a,b)=>b.date-a.date||a.vehicle.localeCompare(b.vehicle)); $('dailyTable').innerHTML=dailyRowsForTable.map(r=>{const statusClass=r.status==='Calculado'?'daily-ok':'daily-warn';return `<tr><td>${new Date(`${r.dateKey}T12:00:00`).toLocaleDateString('pt-BR')}</td><td>${escapeHtml(r.vehicle)}</td><td>${r.start?escapeHtml(dateTime(r.start)):'—'}</td><td>${Number.isFinite(r.kmInitial)?r.kmInitial.toLocaleString('pt-BR'):'—'}</td><td>${r.end?escapeHtml(dateTime(r.end)):'—'}</td><td>${Number.isFinite(r.kmFinal)?r.kmFinal.toLocaleString('pt-BR'):'—'}</td><td><strong>${Number.isFinite(r.kmDriven)?fmt(r.kmDriven)+' km':'—'}</strong></td><td>${money(r.totalValue)}</td><td>${Number.isFinite(r.liters)?fmt(r.liters)+' L':'—'}</td><td><strong>${Number.isFinite(r.kmPerLiter)?fmt(r.kmPerLiter)+' km/L':'—'}</strong></td><td>${Number.isFinite(r.litersPer100)?fmt(r.litersPer100)+' L/100 km':'—'}</td><td><span class="${statusClass}">${escapeHtml(r.status)}</span></td></tr>`;}).join('')||'<tr><td colspan="12">Nenhum dia encontrado.</td></tr>';
+  const dailyRowsForTable=daily.slice().sort((a,b)=>b.date-a.date||a.vehicle.localeCompare(b.vehicle)); $('dailyTable').innerHTML=dailyRowsForTable.map(r=>{const statusClass=r.status==='Calculado'?'daily-ok':'daily-warn';const balanceClass=Number.isFinite(r.estimatedFuelBalance)&&r.estimatedFuelBalance<0?'fuel-balance-negative':'fuel-balance-estimate';return `<tr><td>${new Date(`${r.dateKey}T12:00:00`).toLocaleDateString('pt-BR')}</td><td>${escapeHtml(r.vehicle)}</td><td>${r.start?escapeHtml(dateTime(r.start)):'—'}</td><td>${Number.isFinite(r.kmInitial)?r.kmInitial.toLocaleString('pt-BR'):'—'}</td><td>${r.end?escapeHtml(dateTime(r.end)):'—'}</td><td>${Number.isFinite(r.kmFinal)?r.kmFinal.toLocaleString('pt-BR'):'—'}</td><td><strong>${Number.isFinite(r.kmDriven)?fmt(r.kmDriven)+' km':'—'}</strong></td><td>${money(r.totalValue)}</td><td>${Number.isFinite(r.liters)?fmt(r.liters)+' L':'—'}</td><td><strong>${Number.isFinite(r.kmPerLiter)?fmt(r.kmPerLiter)+' km/L':'—'}</strong></td><td>${Number.isFinite(r.estimatedLitersUsed)?`${fmt(r.estimatedLitersUsed)} L <small class="estimate-source">(${fmt(r.estimateKmPerLiter)} km/L)</small>`:'—'}</td><td><strong class="${balanceClass}">${Number.isFinite(r.estimatedFuelBalance)?`${fmt(r.estimatedFuelBalance)} L`:'—'}</strong></td><td>${Number.isFinite(r.litersPer100)?fmt(r.litersPer100)+' L/100 km':'—'}</td><td><span class="${statusClass}">${escapeHtml(r.status)}</span></td></tr>`;}).join('')||'<tr><td colspan="14">Nenhum dia encontrado.</td></tr>';
   $('fuelTable').innerHTML=f.slice().sort((a,b)=>(b.date||0)-(a.date||0)).slice(0,300).map(r=>`<tr><td>${r.dateText}</td><td>${escapeHtml(r.vehicle)}</td><td>${money(r.value)}</td><td>${money(r.price)}</td><td>${Number.isFinite(r.liters)?fmt(r.liters)+' L':'—'}</td><td>${Number.isFinite(r.km)?r.km.toLocaleString('pt-BR'):'—'}</td></tr>`).join('')||'<tr><td colspan="6">Nenhum registro.</td></tr>';
   const first=l[0]||{};const keys=Object.keys(first).filter(k=>!k.startsWith('_')).slice(0,8);$('logHead').innerHTML=keys.map(k=>`<th>${escapeHtml(k)}</th>`).join('');$('logTable').innerHTML=l.slice(0,100).map(r=>`<tr>${keys.map(k=>`<td>${escapeHtml(String(r[k]??''))}</td>`).join('')}</tr>`).join('');
   const incompleteNote=summary.incompleteDays?`${summary.validDays} dia(s) calculado(s) · ${summary.incompleteDays} dia(s) sem par inicial/final`:`${summary.validDays} dia(s) calculado(s)`;$('distance').title=incompleteNote;$('kml').title=`Consumo médio calculado apenas com dias completos. ${incompleteNote}`;
