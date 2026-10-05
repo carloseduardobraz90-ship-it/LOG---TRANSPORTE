@@ -890,6 +890,52 @@ function clearRouteOrder(dateKey) {
   try { localStorage.removeItem(routeStorageKey(dateKey)); } catch {}
 }
 
+// Fornecedores removidos da rota ficam excluídos apenas para aquele dia.
+// O cadastro/base do fornecedor continua intacto.
+function routeExcludedStorageKey(dateKey) {
+  return `pharmainox_route_excluded_${dateKey}`;
+}
+
+function loadRouteExcluded(dateKey) {
+  if (!dateKey) return [];
+  try {
+    const raw = localStorage.getItem(routeExcludedStorageKey(dateKey));
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveRouteExcluded(dateKey, excluded) {
+  if (!dateKey) return;
+  const clean = [...new Set((excluded || []).map(String).filter(Boolean))];
+  try {
+    if (clean.length) localStorage.setItem(routeExcludedStorageKey(dateKey), JSON.stringify(clean));
+    else localStorage.removeItem(routeExcludedStorageKey(dateKey));
+  } catch {}
+}
+
+function isRouteStopExcluded(dateKey, stopOrKey) {
+  if (!dateKey) return false;
+  const routeKey = typeof stopOrKey === 'string' ? stopOrKey : getRouteStopKey(stopOrKey);
+  return loadRouteExcluded(dateKey).includes(String(routeKey));
+}
+
+function excludeRouteStop(dateKey, stopOrKey) {
+  if (!dateKey) return;
+  const routeKey = typeof stopOrKey === 'string' ? stopOrKey : getRouteStopKey(stopOrKey);
+  if (!routeKey) return;
+  const excluded = loadRouteExcluded(dateKey);
+  if (!excluded.includes(String(routeKey))) excluded.push(String(routeKey));
+  saveRouteExcluded(dateKey, excluded);
+}
+
+function restoreAllRouteStops(dateKey) {
+  if (!dateKey) return;
+  saveRouteExcluded(dateKey, []);
+}
+
 function getRouteStopKey(stop) {
   return String(stop?.routeKey || stop?.supplierCode || `NOME:${normalizeText(stop?.supplierName || '')}`);
 }
@@ -1254,6 +1300,7 @@ function renderRouteIssues(groupedRows) {
             <button type="button" class="button secondary mini-button locate-route-address" data-code="${escapeHtml(code)}" data-input="${escapeHtml(id)}" data-city="${escapeHtml(s.city)}" data-supplier="${escapeHtml(s.supplierName)}" ${mapButtonDisabled}>Localizar</button>
             <button type="button" class="button secondary mini-button mark-map-address" data-code="${escapeHtml(code)}" data-input="${escapeHtml(id)}" data-city="${escapeHtml(s.city)}" data-supplier="${escapeHtml(s.supplierName)}" ${mapButtonDisabled}>Marcar no mapa</button>
             <button type="button" class="button secondary mini-button open-address-search" data-input="${escapeHtml(id)}" data-city="${escapeHtml(s.city)}" data-supplier="${escapeHtml(s.supplierName)}">Google Maps</button>
+            <button type="button" class="button danger-button mini-button remove-route-issue" data-route-key="${escapeHtml(getRouteStopKey(s))}">Retirar da rota</button>
           </div>
         </div>
       </div>`;
@@ -1324,9 +1371,22 @@ function renderRouteIssues(groupedRows) {
       btn.dataset.supplier || ''
     ));
   });
+
+  $('routeIssues').querySelectorAll('.remove-route-issue').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      e.preventDefault();
+      e.stopPropagation();
+      const routeKey = btn.dataset.routeKey || '';
+      if (!routeKey) return;
+      excludeRouteStop($('routeDate')?.value || '', routeKey);
+      toast('Fornecedor retirado da rota deste dia.');
+      await renderRoute();
+    });
+  });
 }
 
 function renderStopsList(ordered, dateKey = '') {
+  const excludedCount = loadRouteExcluded(dateKey).length;
   const cards = ordered.map((s, i) => {
     const buyer = s.buyers.length ? s.buyers.join(', ') : '—';
     const orders = s.orders.length ? s.orders.join(', ') : '—';
@@ -1343,9 +1403,26 @@ function renderStopsList(ordered, dateKey = '') {
           <span>Pedido(s): ${escapeHtml(orders)}</span>
           <small>${escapeHtml(s.address)}</small>
         </div>
+        <button type="button" class="remove-route-stop" data-route-key="${escapeHtml(routeKey)}" title="Retirar fornecedor desta rota do dia" aria-label="Retirar ${escapeHtml(s.supplierName)} da rota">×</button>
       </div>`;
   }).join('');
-  $('routeStopsList').innerHTML = cards || '<div class="empty-route">Nenhuma parada com endereço confirmado neste dia.</div>';
+
+  const empty = excludedCount
+    ? '<div class="empty-route">Nenhuma parada ativa com endereço confirmado neste dia.</div>'
+    : '<div class="empty-route">Nenhuma parada com endereço confirmado neste dia.</div>';
+  $('routeStopsList').innerHTML = cards || empty;
+
+  $('routeStopsList').querySelectorAll('.remove-route-stop').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      e.preventDefault();
+      e.stopPropagation();
+      const routeKey = btn.dataset.routeKey || '';
+      if (!routeKey) return;
+      excludeRouteStop(dateKey, routeKey);
+      toast('Fornecedor retirado da rota deste dia.');
+      await renderRoute();
+    });
+  });
 
   bindRouteStopDrag(dateKey);
 }
@@ -1411,21 +1488,24 @@ async function renderRoute() {
   }
 
   const grouped = groupRouteStops(dateKey);
-  const baseValid = grouped.filter(s => s.resolution.state === 'ok');
+  const excluded = new Set(loadRouteExcluded(dateKey));
+  const activeGrouped = grouped.filter(s => !excluded.has(getRouteStopKey(s)));
+  const baseValid = activeGrouped.filter(s => s.resolution.state === 'ok');
   const scheduledRows = S.log.filter(r => key(r._scheduleDate) === dateKey && isRouteType(r._type));
   const uniqueOrders = new Set(scheduledRows.map(r => r._order).filter(Boolean));
   const ordersCount = uniqueOrders.size || scheduledRows.length;
 
+  const excludedCount = grouped.length - activeGrouped.length;
   $('routeTitle').textContent = `Mapa da rota · ${new Date(`${dateKey}T12:00:00`).toLocaleDateString('pt-BR')}`;
-  $('routeBadge').textContent = `${grouped.length} fornecedor(es) na rota`;
+  $('routeBadge').textContent = `${activeGrouped.length} fornecedor(es) ativos${excludedCount ? ` · ${excludedCount} retirado(s)` : ''}`;
   $('routeOrders').textContent = ordersCount.toLocaleString('pt-BR');
-  $('routeStops').textContent = grouped.length.toLocaleString('pt-BR');
+  $('routeStops').textContent = activeGrouped.length.toLocaleString('pt-BR');
   $('routeFound').textContent = baseValid.length.toLocaleString('pt-BR');
-  $('routeMissing').textContent = (grouped.length - baseValid.length).toLocaleString('pt-BR');
-  renderRouteIssues(grouped);
+  $('routeMissing').textContent = (activeGrouped.length - baseValid.length).toLocaleString('pt-BR');
+  renderRouteIssues(activeGrouped);
 
   if (!baseValid.length) {
-    renderStopsList([]);
+    renderStopsList([], dateKey);
     return;
   }
 
@@ -1457,8 +1537,8 @@ async function renderRoute() {
 
   if (runId !== S.routeRunId) return;
   $('routeFound').textContent = geoPoints.length.toLocaleString('pt-BR');
-  $('routeMissing').textContent = (grouped.length - geoPoints.length).toLocaleString('pt-BR');
-  renderRouteIssues(grouped);
+  $('routeMissing').textContent = (activeGrouped.length - geoPoints.length).toLocaleString('pt-BR');
+  renderRouteIssues(activeGrouped);
 
   const points = [{ ...PHARMAINNOX, isOrigin: true }, ...geoPoints];
   let ordered = geoPoints.slice();
@@ -1761,5 +1841,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     const seenFuel=new Set();S.fuel=S.fuel.filter(r=>{const sig=[r.date?.getTime()||'',r.vehicle,r.km,Number.isFinite(r.value)?r.value.toFixed(2):''].join('|');if(seenFuel.has(sig))return false;seenFuel.add(sig);return true;});
     const seenJourney=new Set();S.journey=S.journey.filter(r=>{const sig=[r.date?.getTime()||'',r.vehicle,r.statusKey,r.km].join('|');if(seenJourney.has(sig))return false;seenJourney.add(sig);return true;});
     $('vehicleFileList').innerHTML=valid.map(x=>`<div class="detected-file-card ${x.type==='journey'?'source-journey':'source-fuel'}"><div class="detected-file-icon">${x.type==='journey'?'🛣️':'⛽'}</div><div class="detected-file-main"><strong>${escapeHtml(x.vehicle)}</strong><span>${x.type==='journey'?'JORNADA / KM':'ABASTECIMENTO'}</span><em>${escapeHtml(x.file.name)}</em><small>Dados carregados: ${x.rows.toLocaleString('pt-BR')} registros</small></div></div>`).join('');$('logFileList').innerHTML=S.sources.log.map(x=>`<span class="chip source-log">${escapeHtml(x.file)} · ${x.rows.toLocaleString('pt-BR')} registros</span>`).join('');$('vehicle').innerHTML='<option value="todos">Todos</option>'+detectedVehicles.map(v=>`<option>${escapeHtml(v)}</option>`).join('');populateRouteDate();update();await renderRoute();toast(`Atualizado. ${S.sources.journey.length} jornada(s), ${S.sources.fuel.length} abastecimento(s) e ${S.sources.log.length} arquivo(s) de pedidos.`);}catch(e){console.error(e);toast(e?.message||'Não foi possível carregar os arquivos selecionados.');}});
-  ['year','vehicle','start','end','periodicity'].forEach(id=>$(id).addEventListener('change',update));$('routeDate').addEventListener('change',renderRoute);$('routeRefresh').addEventListener('click',renderRoute);$('resetRouteOrder').addEventListener('click',resetRouteOrder);$('exportManualAddresses').addEventListener('click',exportManualAddresses);$('importManualAddresses').addEventListener('click',()=>$('manualAddressFile').click());$('manualAddressFile').addEventListener('change',e=>{if(e.target.files[0])importManualAddresses(e.target.files[0]);e.target.value='';});$('clearManualAddresses').addEventListener('click',clearManualAddresses);$('clearGeoCache').addEventListener('click',()=>{S.geocodeCache={};saveGeoCache();toast('Cache automático limpo. As coordenadas confirmadas manualmente foram mantidas.');renderRoute();});$('clear').addEventListener('click',()=>{$('year').value='todos';$('vehicle').value='todos';$('start').value='';$('end').value='';$('periodicity').value='month';update();});$('export').addEventListener('click',()=>{const rows=S.filteredFuel.map(r=>({Data:r.dateText,Veiculo:r.vehicle,Valor:r.value,PrecoPorLitro:Number.isFinite(r.price)?r.price:'',Litros:Number.isFinite(r.liters)?r.liters:'',KM:r.km}));const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Abastecimento');XLSX.writeFile(wb,'abastecimentos_filtrados.xlsx');});loadManualAddresses();loadGeoCache();loadSupplierCoords();await loadBundledManualAddresses();initMap();renderVehicleFiles();update();
+  ['year','vehicle','start','end','periodicity'].forEach(id=>$(id).addEventListener('change',update));$('routeDate').addEventListener('change',renderRoute);$('routeRefresh').addEventListener('click',renderRoute);$('resetRouteOrder').addEventListener('click',resetRouteOrder);$('restoreRouteStops').addEventListener('click',()=>{const dateKey=$('routeDate')?.value||'';if(!dateKey){toast('Selecione o dia da rota.');return;}const count=loadRouteExcluded(dateKey).length;if(!count){toast('Não há fornecedores retirados neste dia.');return;}restoreAllRouteStops(dateKey);toast(`${count} fornecedor(es) restaurado(s) na rota.`);renderRoute();});$('exportManualAddresses').addEventListener('click',exportManualAddresses);$('importManualAddresses').addEventListener('click',()=>$('manualAddressFile').click());$('manualAddressFile').addEventListener('change',e=>{if(e.target.files[0])importManualAddresses(e.target.files[0]);e.target.value='';});$('clearManualAddresses').addEventListener('click',clearManualAddresses);$('clearGeoCache').addEventListener('click',()=>{S.geocodeCache={};saveGeoCache();toast('Cache automático limpo. As coordenadas confirmadas manualmente foram mantidas.');renderRoute();});$('clear').addEventListener('click',()=>{$('year').value='todos';$('vehicle').value='todos';$('start').value='';$('end').value='';$('periodicity').value='month';update();});$('export').addEventListener('click',()=>{const rows=S.filteredFuel.map(r=>({Data:r.dateText,Veiculo:r.vehicle,Valor:r.value,PrecoPorLitro:Number.isFinite(r.price)?r.price:'',Litros:Number.isFinite(r.liters)?r.liters:'',KM:r.km}));const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Abastecimento');XLSX.writeFile(wb,'abastecimentos_filtrados.xlsx');});loadManualAddresses();loadGeoCache();loadSupplierCoords();await loadBundledManualAddresses();initMap();renderVehicleFiles();update();
 });

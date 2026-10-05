@@ -82,3 +82,11 @@ body{margin:0;background:#f4f7fb;color:#172033;font:14px Segoe UI,Arial,sans-ser
 .stop-drag-handle{display:grid;place-items:center;color:#9aa6b6;font-weight:800;font-size:16px;letter-spacing:-3px;line-height:1;padding-top:2px}
 .route-stop-draggable:hover .stop-drag-handle{color:#2f80ed}
 @media(max-width:700px){.route-stops-head{flex-direction:column!important;align-items:stretch!important}.route-stops-actions{justify-content:flex-start}.route-stop-draggable{grid-template-columns:16px 34px 1fr}}
+
+/* Edição da rota por dia */
+.route-stop-draggable{padding-right:46px}
+.remove-route-stop{position:absolute;right:10px;top:10px;width:30px;height:30px;border:1px solid #f0d5d0;border-radius:8px;background:#fff7f5;color:#b34a3c;font-size:20px;line-height:26px;font-weight:700;cursor:pointer;z-index:3}
+.remove-route-stop:hover{background:#fff0ed;border-color:#e5b8b0;color:#923629}
+.route-issue-editable .route-address-actions{align-items:center}
+.route-issue-editable .remove-route-issue{margin-left:auto}
+@media(max-width:700px){.route-issue-editable .remove-route-issue{margin-left:0;width:100%}}
