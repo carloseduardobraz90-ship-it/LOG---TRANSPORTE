@@ -905,11 +905,11 @@ function initMap() {
     zoomSnap: 0.5
   }).setView([PHARMAINNOX.lat, PHARMAINNOX.lng], 10);
 
-  // Light basemap improves legibility of the route and numbered stops.
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    subdomains: 'abcd',
-    maxZoom: 20,
-    attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+  // OpenStreetMap standard tiles: no API key required.
+  // Follow the OSM tile usage policy; this public service is best for modest traffic.
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>'
   }).addTo(S.map);
 
   L.control.zoom({ position: 'bottomright' }).addTo(S.map);
@@ -2207,30 +2207,35 @@ function isRouteViewActive() {
 
 function switchAppView(view, navKey = '') {
   const showRoutes = view === 'routes';
+  const page = ['dashboard','abastecimento','logistica'].includes(navKey) ? navKey : 'dashboard';
   $('dashboardView')?.classList.toggle('active', !showRoutes);
   $('routesView')?.classList.toggle('active', showRoutes);
-
+  const pageIds = { dashboard: 'workspaceDashboard', abastecimento: 'workspaceFuel', logistica: 'workspaceLogistics' };
+  Object.entries(pageIds).forEach(([key, id]) => {
+    const el = $(id);
+    el?.classList.toggle('active', !showRoutes && page === key);
+    if (el) el.setAttribute('aria-hidden', String(showRoutes || page !== key));
+  });
   document.querySelectorAll('.sidebar nav a').forEach(link => {
-    const active = navKey
-      ? link.dataset.navKey === navKey
-      : (showRoutes ? link.dataset.appView === 'routes' : link.dataset.navKey === 'dashboard');
+    const active = link.dataset.navKey === (showRoutes ? 'roteirizador' : page);
     link.classList.toggle('active', active);
     if (active) link.setAttribute('aria-current', 'page');
     else link.removeAttribute('aria-current');
   });
-
   if (showRoutes) {
-    // Wait for display/layout before creating or resizing Leaflet.
     requestAnimationFrame(() => {
       initMap();
       if (S.map) S.map.invalidateSize({ pan: false });
       renderRoute();
     });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   } else {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    setTimeout(() => Object.values(S.charts || {}).forEach(chart => chart?.resize?.()), 80);
+    requestAnimationFrame(() => {
+      Object.values(S.charts || {}).forEach(chart => chart?.resize?.());
+      setTimeout(() => Object.values(S.charts || {}).forEach(chart => chart?.resize?.()), 130);
+    });
   }
+  window.scrollTo({ top: 0, behavior: 'instant' });
+  if (location.hash !== `#${showRoutes ? 'roteirizador' : page}`) history.replaceState(null, '', `#${showRoutes ? 'roteirizador' : page}`);
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -2249,8 +2254,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       el.addEventListener('click', e => {
         e.preventDefault();
         activate();
-        const targetId = el.dataset.scrollTo;
-        if (targetId) setTimeout(() => $(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 90);
+
       });
     } else if (el.classList.contains('brand')) {
       el.addEventListener('click', activate);
@@ -2258,6 +2262,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
   $('routeBackDashboard')?.addEventListener('click', () => switchAppView('dashboard', 'dashboard'));
+  const initialPage = location.hash.slice(1);
+  if (['dashboard', 'abastecimento', 'logistica', 'roteirizador'].includes(initialPage)) {
+    switchAppView(initialPage === 'roteirizador' ? 'routes' : 'dashboard', initialPage);
+  }
   $('fitRouteMap')?.addEventListener('click', () => {
     if (!S.map) return;
     if (S.routeBounds?.length) S.map.fitBounds(S.routeBounds, { padding: [42, 42], maxZoom: 13 });

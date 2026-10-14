@@ -1,87 +1,129 @@
 <!DOCTYPE html>
+
 <html lang="pt-BR">
- <head>
-  <meta charset="utf-8"/>
-  <meta content="width=device-width, initial-scale=1" name="viewport"/>
-  <title>
-   Pharmainox | Log&iacute;stica &amp; Roteirizador
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<title>
+   Pharmainox | Logística &amp; Roteirizador
   </title>
-  <!-- CSS (Carregados primeiro para evitar quebras de layout) -->
-  <link href="style.css" rel="stylesheet"/>
-  <link crossorigin="" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" rel="stylesheet"/>
-  <!-- JS externos com defer para não bloquear a renderização -->
-  <script defer="" src="https://cdn.jsdelivr.net/npm/chart.js">
-  </script>
-  <script defer="" src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js">
-  </script>
-  <script crossorigin="" defer="" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
-  </script>
-  <!-- Scripts locais -->
-  <script defer="" src="fornecedores.js">
-  </script>
-  <script defer="" src="script.js">
-  </script>
- </head>
- <body>
-  <aside class="sidebar">
-   <div class="brand" data-app-view="dashboard" role="button" tabindex="0">
-    <b>
+<!-- CSS (Carregados primeiro para evitar quebras de layout) -->
+<link href="style.css" rel="stylesheet"/>
+<link crossorigin="" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" rel="stylesheet"/>
+<!-- JS externos com defer para não bloquear a renderização -->
+<script defer="" src="https://cdn.jsdelivr.net/npm/chart.js">
+</script>
+<script defer="" src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js">
+</script>
+<script crossorigin="" defer="" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+</script>
+<!-- Scripts locais -->
+<script defer="" src="fornecedores.js">
+</script>
+<script defer="" src="script.js">
+</script>
+</head>
+<body>
+<aside class="sidebar">
+<div class="brand" data-app-view="dashboard" role="button" tabindex="0">
+<b>
      PH
     </b>
-    <div>
-     <strong>
+<div>
+<strong>
       PHARMAINox
      </strong>
-     <small>
-      Log&iacute;stica &amp; Performance
+<small>
+      Logística &amp; Performance
      </small>
-    </div>
-   </div>
-   <nav>
-    <a class="active" data-app-view="dashboard" data-nav-key="dashboard" href="#dashboard">
+</div>
+</div>
+<nav>
+<a class="active" data-app-view="dashboard" data-nav-key="dashboard" href="#dashboard">
      Dashboard
     </a>
-    <a data-app-view="dashboard" data-nav-key="abastecimento" data-scroll-to="abastecimento" href="#abastecimento">
+<a data-app-view="dashboard" data-nav-key="abastecimento" data-scroll-to="abastecimento" href="#abastecimento">
      Abastecimento
     </a>
-    <a data-app-view="dashboard" data-nav-key="logistica" data-scroll-to="logistica" href="#logistica">
-     Log&iacute;stica
+<a data-app-view="dashboard" data-nav-key="logistica" data-scroll-to="logistica" href="#logistica">
+     Logística
     </a>
-    <a data-app-view="routes" data-nav-key="roteirizador" href="#roteirizador">
+<a data-app-view="routes" data-nav-key="roteirizador" href="#roteirizador">
      Roteirizador
     </a>
-   </nav>
-  </aside>
-  <main class="main" id="dashboard">
-   <div class="app-view active" id="dashboardView">
-    <header class="topbar">
-     <div>
-      <p class="eyebrow">
-       CONTROLE OPERACIONAL
-      </p>
-      <h1>
-       Dashboard de Log&iacute;stica
-      </h1>
-      <p class="subtitle">
-       Indicadores de abastecimento, quilometragem e desempenho log&iacute;stico. O planejamento de rotas fica em uma &aacute;rea separada.
-      </p>
-     </div>
-     <div class="actions">
-      <button class="button" id="update">
-       Atualizar dashboard
+</nav>
+</aside>
+<main class="main" id="dashboard">
+<div class="app-view active" id="dashboardView"><section class="filters panel logistics-filters shared-filters">
+<div>
+<label for="year">
+        Ano
+       </label>
+<select id="year">
+<option value="todos">
+         Todos
+        </option>
+<option>
+         2025
+        </option>
+<option>
+         2026
+        </option>
+</select>
+</div>
+<div>
+<label for="vehicle">
+        Veículo
+       </label>
+<select id="vehicle">
+<option value="todos">
+         Todos
+        </option>
+</select>
+</div>
+<div>
+<label for="start">
+        Data inicial
+       </label>
+<input id="start" type="date"/>
+</div>
+<div>
+<label for="end">
+        Data final
+       </label>
+<input id="end" type="date"/>
+</div>
+<div class="chart-period-control">
+<label for="periodicity">
+        Período dos gráficos
+       </label>
+<select id="periodicity">
+<option value="month">
+         Mês
+        </option>
+<option value="week">
+         Semana
+        </option>
+<option value="year">
+         Ano
+        </option>
+</select>
+</div>
+<button class="button secondary" id="clear">
+       Limpar
       </button>
-     </div>
-    </header>
-    <section class="upload panel upload-sources upload-sources-vehicles">
-     <div class="upload-section-title">
-      <div>
-       <p class="eyebrow">
-        ARQUIVOS DOS VE&Iacute;CULOS
+</section><div class="workspace-page active" id="workspaceDashboard"><header class="workspace-heading"><div class="workspace-title-icon">▦</div><div><p class="eyebrow">VISÃO GERAL</p><h1>Dashboard</h1><p class="subtitle">Visão consolidada dos indicadores e carregamento dos arquivos.</p></div><div class="workspace-heading-actions"><button class="button" id="update">
+       Atualizar dashboard
+      </button></div></header><div class="workspace-hint workspace-hint-primary"><span class="workspace-hint-icon">↗</span><div><strong>Central de indicadores</strong><span>Carregue os arquivos abaixo e clique em Atualizar dashboard. Depois navegue pelas abas sem perder os dados.</span></div></div><section class="upload panel upload-sources upload-sources-vehicles">
+<div class="upload-section-title">
+<div>
+<p class="eyebrow">
+        ARQUIVOS DOS VEÍCULOS
        </p>
-       <h2>
-        Adicione os 4 arquivos dos ve&iacute;culos
+<h2>
+        Adicione os 4 arquivos dos veículos
        </h2>
-       <p>
+<p>
         Selecione juntos os arquivos de
         <b>
          Jornada / KM
@@ -90,490 +132,405 @@
         <b>
          Abastecimento
         </b>
-        . O sistema identifica automaticamente o tipo e o ve&iacute;culo pelos dados internos, sem usar o nome do arquivo.
+        . O sistema identifica automaticamente o tipo e o veículo pelos dados internos, sem usar o nome do arquivo.
        </p>
-      </div>
-      <span class="source-rule">
-       IDENTIFICA&Ccedil;&Atilde;O PELO CONTE&Uacute;DO
+</div>
+<span class="source-rule">
+       IDENTIFICAÇÃO PELO CONTEÚDO
       </span>
-     </div>
-     <div class="upload-source-card vehicle-upload-all">
-      <div class="upload-all-head">
-       <div>
-        <p class="eyebrow">
-         VE&Iacute;CULOS
+</div>
+<div class="upload-source-card vehicle-upload-all">
+<div class="upload-all-head">
+<div>
+<p class="eyebrow">
+         VEÍCULOS
         </p>
-        <b>
-         Base dos ve&iacute;culos
+<b>
+         Base dos veículos
         </b>
-        <p>
-         O sistema espera 4 arquivos: 2 de Jornada/KM e 2 de Abastecimentos, formando um par por ve&iacute;culo.
+<p>
+         O sistema espera 4 arquivos: 2 de Jornada/KM e 2 de Abastecimentos, formando um par por veículo.
         </p>
-       </div>
-       <label class="button secondary" for="vehicleFiles">
-        Adicionar arquivos dos ve&iacute;culos
+</div>
+<label class="button secondary" for="vehicleFiles">
+        Adicionar arquivos dos veículos
        </label>
-       <input accept=".csv,.xlsx,.xls" hidden="" id="vehicleFiles" multiple="" type="file"/>
-      </div>
-      <div class="detected-file-list" id="vehicleFileList">
-      </div>
-     </div>
-     <div class="upload-source-card logistics-upload-card">
-      <div>
-       <p class="eyebrow">
-        LOG&Iacute;STICA
+<input accept=".csv,.xlsx,.xls" hidden="" id="vehicleFiles" multiple="" type="file"/>
+</div>
+<div class="detected-file-list" id="vehicleFileList">
+</div>
+</div>
+<div class="upload-source-card logistics-upload-card">
+<div>
+<p class="eyebrow">
+        LOGÍSTICA
        </p>
-       <b>
+<b>
         Arquivo dos pedidos
        </b>
-       <p>
-        Base usada nos indicadores log&iacute;sticos, fornecedores e mapa da rota.
+<p>
+        Base usada nos indicadores logísticos, fornecedores e mapa da rota.
        </p>
-      </div>
-      <label class="button secondary" for="logFiles">
+</div>
+<label class="button secondary" for="logFiles">
        Adicionar pedidos
       </label>
-      <input accept=".csv,.xlsx,.xls" hidden="" id="logFiles" multiple="" type="file"/>
-      <div class="source-file-list" id="logFileList">
-      </div>
-     </div>
-     <p class="upload-status" id="status">
-      Selecione os 4 arquivos dos ve&iacute;culos e pelo menos 1 arquivo de pedidos.
+<input accept=".csv,.xlsx,.xls" hidden="" id="logFiles" multiple="" type="file"/>
+<div class="source-file-list" id="logFileList">
+</div>
+</div>
+<p class="upload-status" id="status">
+      Selecione os 4 arquivos dos veículos e pelo menos 1 arquivo de pedidos.
      </p>
-    </section>
-    <section class="logistics-section" id="logistica">
-     <div class="section-heading">
-      <div>
-       <p class="eyebrow">
-        LOG&Iacute;STICA &amp; PERFORMANCE
-       </p>
-       <h2>
-        An&aacute;lise da opera&ccedil;&atilde;o
-       </h2>
-       <p>
-        Filtros e indicadores dos ve&iacute;culos, abastecimentos, quilometragem e consumo.
-       </p>
-      </div>
-     </div>
-     <section class="filters panel logistics-filters">
-      <div>
-       <label for="year">
-        Ano
-       </label>
-       <select id="year">
-        <option value="todos">
-         Todos
-        </option>
-        <option>
-         2025
-        </option>
-        <option>
-         2026
-        </option>
-       </select>
-      </div>
-      <div>
-       <label for="vehicle">
-        Ve&iacute;culo
-       </label>
-       <select id="vehicle">
-        <option value="todos">
-         Todos
-        </option>
-       </select>
-      </div>
-      <div>
-       <label for="start">
-        Data inicial
-       </label>
-       <input id="start" type="date"/>
-      </div>
-      <div>
-       <label for="end">
-        Data final
-       </label>
-       <input id="end" type="date"/>
-      </div>
-      <div class="chart-period-control">
-       <label for="periodicity">
-        Per&iacute;odo dos gr&aacute;ficos
-       </label>
-       <select id="periodicity">
-        <option value="month">
-         M&ecirc;s
-        </option>
-        <option value="week">
-         Semana
-        </option>
-        <option value="year">
-         Ano
-        </option>
-       </select>
-      </div>
-      <button class="button secondary" id="clear">
-       Limpar
-      </button>
-     </section>
-     <section class="kpis">
-      <article class="kpi">
-       <span>
+</section><section class="kpis">
+<article class="kpi">
+<span>
         Valor abastecido
        </span>
-       <strong id="value">
+<strong id="value">
         R$ 0,00
        </strong>
-       <small>
+<small>
         Soma dos registros filtrados
        </small>
-      </article>
-      <article class="kpi">
-       <span>
+</article>
+<article class="kpi">
+<span>
         Litros calculados
        </span>
-       <strong id="liters">
-        &mdash;
+<strong id="liters">
+        —
        </strong>
-       <small>
-        Valor &divide; pre&ccedil;o do litro do ano
+<small>
+        Valor ÷ preço do litro do ano
        </small>
-      </article>
-      <article class="kpi">
-       <span>
+</article>
+<article class="kpi">
+<span>
         Abastecimentos
        </span>
-       <strong id="refuels">
+<strong id="refuels">
         0
        </strong>
-       <small>
+<small>
         Arquivos de abastecimento
        </small>
-      </article>
-      <article class="kpi">
-       <span>
-        Registros log&iacute;sticos
+</article>
+<article class="kpi">
+<span>
+        Registros logísticos
        </span>
-       <strong id="logCount">
+<strong id="logCount">
         0
        </strong>
-       <small>
+<small>
         Base geral filtrada
        </small>
-      </article>
-      <article class="kpi">
-       <span>
+</article>
+<article class="kpi">
+<span>
         KM percorridos
        </span>
-       <strong id="distance">
+<strong id="distance">
         0 km
        </strong>
-       <small>
-        CHEGANDO &minus; SAINDO
+<small>
+        CHEGANDO − SAINDO
        </small>
-      </article>
-      <article class="kpi">
-       <span>
+</article>
+<article class="kpi">
+<span>
         KM/L
        </span>
-       <strong id="kml">
-        &mdash;
+<strong id="kml">
+        —
        </strong>
-       <small>
-        KM rodados &divide; litros
+<small>
+        KM rodados ÷ litros
        </small>
-      </article>
-      <article class="kpi">
-       <span>
-        In&iacute;cio / t&eacute;rmino
+</article>
+<article class="kpi">
+<span>
+        Início / término
        </span>
-       <strong class="period-value" id="period">
-        &mdash;
+<strong class="period-value" id="period">
+        —
        </strong>
-       <small>
-        Primeiro e &uacute;ltimo apontamento
+<small>
+        Primeiro e último apontamento
        </small>
-      </article>
-     </section>
-     <section class="charts">
-      <article class="panel chart-card">
-       <div class="chart-title-row">
-        <h2 id="titleMonthValue">
-         Valor por m&ecirc;s
+</article>
+</section></div><div class="workspace-page" id="workspaceFuel"><header class="workspace-heading"><div class="workspace-title-icon">⛽</div><div><p class="eyebrow">CONTROLE DE COMBUSTÍVEL</p><h1>Abastecimento</h1><p class="subtitle">Custos, litros, consumo e histórico de abastecimentos.</p></div></header><div class="workspace-hint"><span class="workspace-hint-icon">✦</span><div><strong>Filtros compartilhados</strong><span>Altere ano, veículo, período ou datas acima. Os indicadores de todas as abas serão atualizados juntos.</span></div></div><section class="charts workspace-charts"><article class="panel chart-card">
+<div class="chart-title-row">
+<h2 id="titleMonthValue">
+         Valor por mês
         </h2>
-        <span class="chart-badge">
+<span class="chart-badge">
          Tempo
         </span>
-       </div>
-       <div class="chart-box">
-        <canvas id="monthValue">
-        </canvas>
-       </div>
-      </article>
-      <article class="panel chart-card">
-       <div class="chart-title-row">
-        <h2 id="titleMonthLiters">
-         Litros calculados por m&ecirc;s
+</div>
+<div class="chart-box">
+<canvas id="monthValue">
+</canvas>
+</div>
+</article><article class="panel chart-card">
+<div class="chart-title-row">
+<h2 id="titleMonthLiters">
+         Litros calculados por mês
         </h2>
-        <span class="chart-badge">
+<span class="chart-badge">
          Tempo
         </span>
-       </div>
-       <div class="chart-box">
-        <canvas id="monthLiters">
-        </canvas>
-       </div>
-      </article>
-      <article class="panel chart-card">
-       <h2>
-        Valor por ve&iacute;culo
+</div>
+<div class="chart-box">
+<canvas id="monthLiters">
+</canvas>
+</div>
+</article><article class="panel chart-card">
+<h2>
+        Valor por veículo
        </h2>
-       <div class="chart-box">
-        <canvas id="vehicleValue">
-        </canvas>
-       </div>
-      </article>
-      <article class="panel chart-card">
-       <h2>
-        Litros calculados por ve&iacute;culo
+<div class="chart-box">
+<canvas id="vehicleValue">
+</canvas>
+</div>
+</article><article class="panel chart-card">
+<h2>
+        Litros calculados por veículo
        </h2>
-       <div class="chart-box">
-        <canvas id="vehicleLiters">
-        </canvas>
-       </div>
-      </article>
-      <article class="panel chart-card">
-       <h2>
-        KM percorridos por ve&iacute;culo
-       </h2>
-       <div class="chart-box">
-        <canvas id="distanceVehicle">
-        </canvas>
-       </div>
-      </article>
-      <article class="panel chart-card">
-       <h2>
-        KM/L por ve&iacute;culo
-       </h2>
-       <div class="chart-box">
-        <canvas id="kmlVehicle">
-        </canvas>
-       </div>
-      </article>
-      <article class="panel chart-card">
-       <div class="chart-title-row">
-        <h2 id="titleDailyConsumption">
-         Consumo por m&ecirc;s
+<div class="chart-box">
+<canvas id="vehicleLiters">
+</canvas>
+</div>
+</article><article class="panel chart-card">
+<div class="chart-title-row">
+<h2 id="titleDailyConsumption">
+         Consumo por mês
         </h2>
-        <span class="chart-badge">
+<span class="chart-badge">
          Tempo
         </span>
-       </div>
-       <div class="chart-box">
-        <canvas id="dailyConsumption">
-        </canvas>
-       </div>
-      </article>
-      <article class="panel chart-card">
-       <div class="chart-title-row">
-        <h2 id="titleDailyDistance">
-         KM rodados por m&ecirc;s
-        </h2>
-        <span class="chart-badge">
-         Tempo
-        </span>
-       </div>
-       <div class="chart-box">
-        <canvas id="dailyDistance">
-        </canvas>
-       </div>
-      </article>
-      <article class="panel chart-card">
-       <h2>
-        Log&iacute;stica por status
-       </h2>
-       <div class="chart-box">
-        <canvas id="chartStatus">
-        </canvas>
-       </div>
-      </article>
-      <article class="panel chart-card">
-       <h2>
-        Log&iacute;stica por cidade
-       </h2>
-       <div class="chart-box">
-        <canvas id="city">
-        </canvas>
-       </div>
-      </article>
-      <article class="panel chart-card">
-       <h2>
+</div>
+<div class="chart-box">
+<canvas id="dailyConsumption">
+</canvas>
+</div>
+</article><article class="panel chart-card">
+<h2>
         Abastecimentos por dia da semana
        </h2>
-       <div class="chart-box">
-        <canvas id="weekday">
-        </canvas>
-       </div>
-      </article>
-     </section>
-    </section>
-    <section class="panel table-panel" id="consumoDiario">
-     <div class="panel-head">
-      <div>
-       <h2>
-        Resumo di&aacute;rio de consumo
-       </h2>
-       <span class="data-source-note">
-        Saldo estimado: no dia com abastecimento, litros do dia menos KM &divide; KM/L do dia; nos dias sem abastecimento, desconta KM &divide; &uacute;ltimo KM/L registrado do saldo anterior. Cada abastecimento reinicia a estimativa usando os litros comprados, sem somar o saldo anterior. O combust&iacute;vel que j&aacute; havia no tanque n&atilde;o &eacute; conhecido; se o consumo exceder o saldo, o painel mostra 0 L e sinaliza a diverg&ecirc;ncia.
-       </span>
-      </div>
-     </div>
-     <div class="table-wrap">
-      <table class="daily-table">
-       <thead>
-        <tr>
-         <th>
-          Data
-         </th>
-         <th>
-          Ve&iacute;culo
-         </th>
-         <th>
-          Sa&iacute;da
-         </th>
-         <th>
-          KM inicial
-         </th>
-         <th>
-          Chegada
-         </th>
-         <th>
-          KM final
-         </th>
-         <th>
-          KM rodados
-         </th>
-         <th>
-          Valor abastecido
-         </th>
-         <th>
-          Litros abastecidos
-         </th>
-         <th>
-          KM/L do dia
-         </th>
-         <th>
-          Consumo estimado
-         </th>
-         <th>
-          Saldo estimado
-         </th>
-         <th>
-          L/100 km
-         </th>
-         <th>
-          Status
-         </th>
-        </tr>
-       </thead>
-       <tbody id="dailyTable">
-       </tbody>
-      </table>
-     </div>
-    </section>
-    <section class="panel table-panel" id="abastecimento">
-     <div class="panel-head">
-      <h2>
+<div class="chart-box">
+<canvas id="weekday">
+</canvas>
+</div>
+</article></section><section class="panel table-panel" id="abastecimento">
+<div class="panel-head">
+<h2>
        Abastecimentos
       </h2>
-      <button class="button secondary" id="export">
+<button class="button secondary" id="export">
        Exportar CSV
       </button>
-     </div>
-     <div class="table-wrap">
-      <table>
-       <thead>
-        <tr>
-         <th>
+</div>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>
           Data/Hora
          </th>
-         <th>
-          Ve&iacute;culo
+<th>
+          Veículo
          </th>
-         <th>
+<th>
           Valor
          </th>
-         <th>
-          Pre&ccedil;o/L
+<th>
+          Preço/L
          </th>
-         <th>
+<th>
           Litros
          </th>
-         <th>
+<th>
           KM
          </th>
-        </tr>
-       </thead>
-       <tbody id="fuelTable">
-       </tbody>
-      </table>
-     </div>
-    </section>
-    <section class="panel table-panel" id="logisticaPreview">
-     <div class="panel-head">
-      <h2>
-       Pr&eacute;via da base log&iacute;stica
+</tr>
+</thead>
+<tbody id="fuelTable">
+</tbody>
+</table>
+</div>
+</section></div><div class="workspace-page" id="workspaceLogistics"><header class="workspace-heading"><div class="workspace-title-icon">▤</div><div><p class="eyebrow">ANÁLISE OPERACIONAL</p><h1>Logística</h1><p class="subtitle">Quilometragem, desempenho, pedidos e distribuição logística.</p></div></header><div class="workspace-hint"><span class="workspace-hint-icon">✦</span><div><strong>Filtros compartilhados</strong><span>Altere ano, veículo, período ou datas acima. Os indicadores de todas as abas serão atualizados juntos.</span></div></div><section class="charts workspace-charts"><article class="panel chart-card">
+<h2>
+        KM percorridos por veículo
+       </h2>
+<div class="chart-box">
+<canvas id="distanceVehicle">
+</canvas>
+</div>
+</article><article class="panel chart-card">
+<h2>
+        KM/L por veículo
+       </h2>
+<div class="chart-box">
+<canvas id="kmlVehicle">
+</canvas>
+</div>
+</article><article class="panel chart-card">
+<div class="chart-title-row">
+<h2 id="titleDailyDistance">
+         KM rodados por mês
+        </h2>
+<span class="chart-badge">
+         Tempo
+        </span>
+</div>
+<div class="chart-box">
+<canvas id="dailyDistance">
+</canvas>
+</div>
+</article><article class="panel chart-card">
+<h2>
+        Logística por status
+       </h2>
+<div class="chart-box">
+<canvas id="chartStatus">
+</canvas>
+</div>
+</article><article class="panel chart-card">
+<h2>
+        Logística por cidade
+       </h2>
+<div class="chart-box">
+<canvas id="city">
+</canvas>
+</div>
+</article></section><section class="panel table-panel" id="consumoDiario">
+<div class="panel-head">
+<div>
+<h2>
+        Resumo diário de consumo
+       </h2>
+<span class="data-source-note">
+        Saldo estimado: no dia com abastecimento, litros do dia menos KM ÷ KM/L do dia; nos dias sem abastecimento, desconta KM ÷ último KM/L registrado do saldo anterior. Cada abastecimento reinicia a estimativa usando os litros comprados, sem somar o saldo anterior. O combustível que já havia no tanque não é conhecido; se o consumo exceder o saldo, o painel mostra 0 L e sinaliza a divergência.
+       </span>
+</div>
+</div>
+<div class="table-wrap">
+<table class="daily-table">
+<thead>
+<tr>
+<th>
+          Data
+         </th>
+<th>
+          Veículo
+         </th>
+<th>
+          Saída
+         </th>
+<th>
+          KM inicial
+         </th>
+<th>
+          Chegada
+         </th>
+<th>
+          KM final
+         </th>
+<th>
+          KM rodados
+         </th>
+<th>
+          Valor abastecido
+         </th>
+<th>
+          Litros abastecidos
+         </th>
+<th>
+          KM/L do dia
+         </th>
+<th>
+          Consumo estimado
+         </th>
+<th>
+          Saldo estimado
+         </th>
+<th>
+          L/100 km
+         </th>
+<th>
+          Status
+         </th>
+</tr>
+</thead>
+<tbody id="dailyTable">
+</tbody>
+</table>
+</div>
+</section><section class="panel table-panel" id="logisticaPreview">
+<div class="panel-head">
+<h2>
+       Prévia da base logística
       </h2>
-      <span class="data-source-note">
-       Rota = AGENDAMENTO (V) &middot; TIPO = COLETA/ENTREGA &middot; Fornecedor = c&oacute;digo (J)
+<span class="data-source-note">
+       Rota = AGENDAMENTO (V) · TIPO = COLETA/ENTREGA · Fornecedor = código (J)
       </span>
-     </div>
-     <div class="table-wrap">
-      <table>
-       <thead>
-        <tr id="logHead">
-        </tr>
-       </thead>
-       <tbody id="logTable">
-       </tbody>
-      </table>
-     </div>
-    </section>
-   </div>
-   <div class="app-view" id="routesView">
-    <header class="topbar route-page-header">
-     <div>
-      <p class="eyebrow">
+</div>
+<div class="table-wrap">
+<table>
+<thead>
+<tr id="logHead">
+</tr>
+</thead>
+<tbody id="logTable">
+</tbody>
+</table>
+</div>
+</section></div>
+
+
+
+
+
+
+</div>
+<div class="app-view" id="routesView">
+<header class="topbar route-page-header">
+<div>
+<p class="eyebrow">
        PLANEJAMENTO OPERACIONAL
       </p>
-      <h1>
+<h1>
        Roteirizador
       </h1>
-      <p class="subtitle">
-       Monte, revise e organize as coletas e entregas em uma &aacute;rea exclusiva, sem misturar o mapa aos indicadores.
+<p class="subtitle">
+       Monte, revise e organize as coletas e entregas em uma área exclusiva, sem misturar o mapa aos indicadores.
       </p>
-     </div>
-     <div class="actions">
-      <span class="route-page-pill">
-       <span class="route-page-dot">
-       </span>
+</div>
+<div class="actions">
+<span class="route-page-pill">
+<span class="route-page-dot">
+</span>
        Mapa operacional
       </span>
-      <button class="button secondary" id="routeBackDashboard" type="button">
+<button class="button secondary" id="routeBackDashboard" type="button">
        Voltar ao dashboard
       </button>
-     </div>
-    </header>
-    <section class="route-filter panel" id="rota">
-     <div>
-      <p class="eyebrow">
+</div>
+</header>
+<section class="route-filter panel" id="rota">
+<div>
+<p class="eyebrow">
        PLANEJAMENTO
       </p>
-      <h2>
+<h2>
        Rota do dia
       </h2>
-      <p class="route-help">
+<p class="route-help">
        A rota usa
        <b>
-        exclusivamente a coluna V &mdash; AGENDAMENTO
+        exclusivamente a coluna V — AGENDAMENTO
        </b>
        como data e considera
        <b>
@@ -583,173 +540,173 @@
        <b>
         RECEBIMENTO
        </b>
-       fica fora. O fornecedor &eacute; relacionado pela
+       fica fora. O fornecedor é relacionado pela
        <b>
-        coluna J &mdash; FORNECEDOR
+        coluna J — FORNECEDOR
        </b>
-       . O sistema valida o endere&ccedil;o, corrige o ponto quando necess&aacute;rio e calcula a sequ&ecirc;ncia vi&aacute;ria a partir da Pharmainox.
+       . O sistema valida o endereço, corrige o ponto quando necessário e calcula a sequência viária a partir da Pharmainox.
       </p>
-     </div>
-     <div class="route-controls">
-      <label for="routeDate">
+</div>
+<div class="route-controls">
+<label for="routeDate">
        Dia da rota
       </label>
-      <input id="routeDate" type="date"/>
-      <button class="button" id="routeRefresh">
+<input id="routeDate" type="date"/>
+<button class="button" id="routeRefresh">
        Atualizar rota
       </button>
-     </div>
-    </section>
-    <section class="address-tools panel">
-     <div>
-      <b>
-       Cadastro / corre&ccedil;&atilde;o de endere&ccedil;os
+</div>
+</section>
+<section class="address-tools panel">
+<div>
+<b>
+       Cadastro / correção de endereços
       </b>
-      <p>
-       Endere&ccedil;os e coordenadas confirmadas ficam salvos neste navegador. Exporte o cadastro completo para levar tamb&eacute;m os pontos do mapa a outro computador.
+<p>
+       Endereços e coordenadas confirmadas ficam salvos neste navegador. Exporte o cadastro completo para levar também os pontos do mapa a outro computador.
       </p>
-     </div>
-     <div class="address-tools-actions">
-      <button class="button secondary" id="exportManualAddresses">
+</div>
+<div class="address-tools-actions">
+<button class="button secondary" id="exportManualAddresses">
        Exportar cadastro completo
       </button>
-      <button class="button secondary" id="importManualAddresses">
-       Importar endere&ccedil;os
+<button class="button secondary" id="importManualAddresses">
+       Importar endereços
       </button>
-      <button class="button secondary" id="clearGeoCache">
+<button class="button secondary" id="clearGeoCache">
        Revalidar mapa
       </button>
-      <button class="button danger-button" id="clearManualAddresses">
+<button class="button danger-button" id="clearManualAddresses">
        Limpar manuais
       </button>
-      <input accept=".json" hidden="" id="manualAddressFile" type="file"/>
-     </div>
-    </section>
-    <section class="route-summary" id="routeSummary">
-     <article class="kpi">
-      <span>
+<input accept=".json" hidden="" id="manualAddressFile" type="file"/>
+</div>
+</section>
+<section class="route-summary" id="routeSummary">
+<article class="kpi">
+<span>
        Pedidos do dia
       </span>
-      <strong id="routeOrders">
+<strong id="routeOrders">
        0
       </strong>
-      <small>
+<small>
        Linhas com AGENDAMENTO + COLETA/ENTREGA
       </small>
-     </article>
-     <article class="kpi">
-      <span>
+</article>
+<article class="kpi">
+<span>
        Paradas
       </span>
-      <strong id="routeStops">
+<strong id="routeStops">
        0
       </strong>
-      <small>
-       Fornecedores &uacute;nicos
+<small>
+       Fornecedores únicos
       </small>
-     </article>
-     <article class="kpi">
-      <span>
-       Com endere&ccedil;o
+</article>
+<article class="kpi">
+<span>
+       Com endereço
       </span>
-      <strong id="routeFound">
+<strong id="routeFound">
        0
       </strong>
-      <small>
+<small>
        Prontos para o mapa
       </small>
-     </article>
-     <article class="kpi">
-      <span>
-       Sem endere&ccedil;o
+</article>
+<article class="kpi">
+<span>
+       Sem endereço
       </span>
-      <strong id="routeMissing">
+<strong id="routeMissing">
        0
       </strong>
-      <small>
-       Precisam de valida&ccedil;&atilde;o
+<small>
+       Precisam de validação
       </small>
-     </article>
-     <article class="kpi">
-      <span>
-       Dist&acirc;ncia estimada
+</article>
+<article class="kpi">
+<span>
+       Distância estimada
       </span>
-      <strong id="routeDistance">
-       &mdash;
+<strong id="routeDistance">
+       —
       </strong>
-      <small>
+<small>
        Rota calculada
       </small>
-     </article>
-     <article class="kpi">
-      <span>
+</article>
+<article class="kpi">
+<span>
        Tempo estimado
       </span>
-      <strong id="routeDuration">
-       &mdash;
+<strong id="routeDuration">
+       —
       </strong>
-      <small>
-       Sem tr&acirc;nsito em tempo real
+<small>
+       Sem trânsito em tempo real
       </small>
-     </article>
-    </section>
-    <section class="route-layout">
-     <article class="panel route-map-card">
-      <div class="panel-head">
-       <h2 id="routeTitle">
+</article>
+</section>
+<section class="route-layout">
+<article class="panel route-map-card">
+<div class="panel-head">
+<h2 id="routeTitle">
         Mapa da rota
        </h2>
-       <div class="map-header-actions">
-        <button class="button secondary mini-button" id="fitRouteMap" type="button">
+<div class="map-header-actions">
+<button class="button secondary mini-button" id="fitRouteMap" type="button">
          Enquadrar rota
         </button>
-        <button class="button secondary mini-button" id="centerPharmainox" type="button">
+<button class="button secondary mini-button" id="centerPharmainox" type="button">
          Pharmainox
         </button>
-        <span class="route-badge" id="routeBadge">
+<span class="route-badge" id="routeBadge">
          Aguardando data
         </span>
-       </div>
+</div>
+</div>
+<div class="route-map" id="routeMap">
+</div>
+<div class="map-attribution-note">
+       Mapa © OpenStreetMap contributors · rota calculada com OSRM · geocodificação automática, com opção de revisão manual
       </div>
-      <div class="route-map" id="routeMap">
-      </div>
-      <div class="map-attribution-note">
-       Mapa &copy; OpenStreetMap contributors &middot; rota calculada com OSRM &middot; geocodifica&ccedil;&atilde;o autom&aacute;tica, com op&ccedil;&atilde;o de revis&atilde;o manual
-      </div>
-     </article>
-     <article class="panel route-stops-card">
-      <div class="panel-head route-stops-head">
-       <div>
-        <h2>
+</article>
+<article class="panel route-stops-card">
+<div class="panel-head route-stops-head">
+<div>
+<h2>
          Paradas
         </h2>
-        <p class="route-drag-help">
-         Arraste uma parada para mudar a sequ&ecirc;ncia. Use o ✕ para retirar um fornecedor da rota deste dia. O cadastro do fornecedor n&atilde;o &eacute; apagado.
+<p class="route-drag-help">
+         Arraste uma parada para mudar a sequência. Use o ✕ para retirar um fornecedor da rota deste dia. O cadastro do fornecedor não é apagado.
         </p>
-       </div>
-       <div class="route-stops-actions">
-        <button class="button secondary" id="resetRouteOrder" type="button">
-         Ordem autom&aacute;tica
+</div>
+<div class="route-stops-actions">
+<button class="button secondary" id="resetRouteOrder" type="button">
+         Ordem automática
         </button>
-        <button class="button secondary" id="restoreRouteStops" type="button">
+<button class="button secondary" id="restoreRouteStops" type="button">
          Restaurar fornecedores
         </button>
-        <button class="button secondary" disabled="" id="openGoogleRoute">
+<button class="button secondary" disabled="" id="openGoogleRoute">
          Google Maps
         </button>
-       </div>
-      </div>
-      <div class="route-stops-list" id="routeStopsList">
-      </div>
-      <div class="google-route-links" id="googleRouteLinks">
-      </div>
-      <div class="route-issues" id="routeIssues">
-      </div>
-     </article>
-    </section>
-   </div>
-  </main>
-  <div id="toast">
-  </div>
- </body>
+</div>
+</div>
+<div class="route-stops-list" id="routeStopsList">
+</div>
+<div class="google-route-links" id="googleRouteLinks">
+</div>
+<div class="route-issues" id="routeIssues">
+</div>
+</article>
+</section>
+</div>
+</main>
+<div id="toast">
+</div>
+</body>
 </html>
