@@ -98,3 +98,64 @@ body{margin:0;background:#f4f7fb;color:#172033;font:14px Segoe UI,Arial,sans-ser
 
 /* Links de rota do Google Maps divididos para respeitar o limite de paradas por URL. */
 .google-route-links{display:grid;gap:9px;margin-top:12px}.google-route-links-title{font-size:12px;line-height:1.45;color:#536176;font-weight:700}.google-route-warning{font-size:11px;line-height:1.45;color:#8b5b00;background:#fff8e8;border:1px solid #f3dfad;border-radius:8px;padding:9px}.google-route-links-list{display:grid;gap:7px}.google-route-link{display:grid;gap:3px;padding:10px 12px;border:1px solid #dfe7f1;border-radius:9px;background:#fff;text-decoration:none;color:#26364b}.google-route-link:hover{border-color:#2f80ed;background:#f7fbff}.google-route-link strong{font-size:12px}.google-route-link span{font-size:11px;line-height:1.4;color:#596a80}.google-route-link small{font-size:10px;color:#2f80ed;font-weight:700}
+
+/* Navegação por áreas: painel e roteirizador são telas independentes dentro do mesmo app. */
+.app-view{display:none;min-width:0}
+.app-view.active{display:block;animation:appViewIn .18s ease-out}
+@keyframes appViewIn{from{opacity:.7;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
+.sidebar .brand{cursor:pointer;user-select:none}
+.sidebar .brand:focus-visible,.sidebar a:focus-visible,.button:focus-visible{outline:3px solid #8bc1ff;outline-offset:2px}
+.sidebar nav a{transition:background .15s ease,color .15s ease}
+.button{transition:transform .12s ease,box-shadow .12s ease,background .12s ease}
+.button:not(:disabled):hover{transform:translateY(-1px);box-shadow:0 5px 14px rgba(34,92,159,.14)}
+.route-page-header{align-items:center;padding:3px 0 19px;border-bottom:1px solid #e5ebf3;margin-bottom:22px}
+.route-page-header h1{font-size:32px;letter-spacing:-.6px}
+.route-page-header .subtitle{max-width:710px;line-height:1.5;margin-bottom:0}
+.route-page-header .actions{flex-wrap:wrap;justify-content:flex-end}
+.route-page-pill{display:inline-flex;align-items:center;gap:8px;padding:9px 12px;border:1px solid #dce7f4;border-radius:999px;background:#fff;color:#42607e;font-size:11px;font-weight:800;white-space:nowrap}
+.route-page-dot{width:8px;height:8px;border-radius:50%;background:#31a36a;box-shadow:0 0 0 3px #e7f7ef}
+.route-filter{align-items:center}
+.route-controls{flex-wrap:wrap}
+.route-controls input{min-width:150px}
+.route-map-card .panel-head{align-items:flex-start;flex-wrap:wrap;margin-bottom:13px}
+.route-map-card .panel-head h2{margin:4px 0}
+.map-header-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+.map-header-actions .route-badge{max-width:100%;white-space:normal;text-align:center;line-height:1.35}
+.route-map{background:#f1f5f9}
+.route-map .leaflet-container{font-family:inherit}
+.route-map .leaflet-popup-content-wrapper{border-radius:10px;box-shadow:0 8px 26px rgba(20,42,70,.16)}
+.route-map .leaflet-popup-content{font-size:12px;line-height:1.5}
+.route-map .leaflet-control-zoom{border-radius:10px;overflow:hidden}
+.route-stop{transition:border-color .14s ease,box-shadow .14s ease,background .14s ease;cursor:pointer}
+.route-stop-selected{border-color:#73a9e8!important;background:#f1f7ff!important;box-shadow:0 0 0 2px rgba(47,128,237,.12)!important}
+.route-stop-selected .stop-number{box-shadow:0 0 0 4px rgba(47,128,237,.12)}
+.route-stops-card .panel-head h2{margin-bottom:0}
+.route-stops-card .route-stops-list{scrollbar-width:thin;scrollbar-color:#cbd7e6 transparent}
+.route-summary .kpi{transition:transform .15s ease,box-shadow .15s ease}
+.route-summary .kpi:hover{transform:translateY(-2px);box-shadow:0 9px 24px rgba(29,53,87,.08)}
+.address-tools{background:linear-gradient(115deg,#fff 0%,#f9fbfe 100%)}
+.address-tools>div:first-child{max-width:740px}
+.address-tools-actions .button{white-space:nowrap}
+@media(max-width:1200px){.route-page-header h1{font-size:28px}}
+@media(max-width:700px){
+  body{display:block}
+  .sidebar{display:block!important;position:sticky;inset:0 0 auto;width:100%;height:auto;padding:10px 12px;z-index:2500;box-shadow:0 5px 20px rgba(7,27,58,.16)}
+  .brand{gap:8px;margin:0 0 9px!important}
+  .brand b{width:32px;height:32px;border-radius:9px;font-size:12px}
+  .brand strong{font-size:12px}.brand small{font-size:9px}
+  .sidebar nav{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+  .sidebar nav::-webkit-scrollbar{display:none}
+  .sidebar a{flex:0 0 auto;padding:9px 11px;font-size:12px;white-space:nowrap}
+  .main{margin:0;width:100%;padding:16px 12px 28px}
+  .route-page-header{padding-top:2px;margin-bottom:16px}
+  .route-page-header h1{font-size:26px}
+  .route-page-header .actions{justify-content:flex-start}
+  .route-page-pill{display:none}
+  .map-header-actions{justify-content:flex-start;width:100%}
+  .map-header-actions .route-badge{margin-left:auto}
+  .route-map{height:430px}
+  .route-filter{gap:14px}
+  .route-controls{align-items:stretch}
+  .route-controls label{flex:1}
+  .route-controls input{width:100%}
+}

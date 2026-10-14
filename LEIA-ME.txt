@@ -53,3 +53,13 @@ ATUALIZAÇÕES — 13/10/2026
 - Links de rotas grandes do Google Maps são divididos em trechos sequenciais, com no máximo 3 paradas intermediárias por link para melhor compatibilidade com celular. Abra os trechos em ordem.
 - Fornecedores sem endereço confirmado continuam destacados nas pendências e não são inseridos automaticamente no link até que o endereço seja cadastrado/localizado.
 - A rota continua considerando a data de AGENDAMENTO e os tipos COLETA/ENTREGA; RECEBIMENTO fica fora.
+
+MELHORIAS — ROTEIRIZADOR E NAVEGAÇÃO
+- Dashboard e Roteirizador agora são áreas separadas no menu lateral, mas permanecem no mesmo app para compartilhar a base carregada sem reimportá-la ao alternar de área.
+- O roteirizador só inicializa o mapa quando sua área fica visível, evitando iniciar o Leaflet em um painel oculto.
+- O mapa usa uma base clara, botões para enquadrar a rota e centralizar a Pharmainox e seleção de parada clicando na lista.
+- As bibliotecas MapLibre foram removidas porque não eram usadas; o mapa continua usando Leaflet.
+- A geocodificação automática foi limitada a no máximo duas variações do Nominatim e um fallback Photon por endereço, com cache negativo por 24 horas. Isso reduz chamadas repetidas e consultas excessivas em serviços públicos.
+- Coordenadas confirmadas ficam associadas ao registro do fornecedor. “Exportar cadastro completo” inclui endereços e coordenadas para que possam ser importados em outro navegador/computador.
+- Para compartilhar essas coordenadas entre usuários do projeto, exporte o cadastro completo e atualize o arquivo enderecos_manuais_pharmainox.json na pasta do projeto; depois faça commit e push para o GitHub. Os dados salvos no navegador não são publicados automaticamente.
+- O botão “Revalidar mapa” remove resultados automáticos salvos, mantendo os pontos marcados manualmente no mapa.

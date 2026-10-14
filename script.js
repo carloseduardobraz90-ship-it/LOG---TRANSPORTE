@@ -27,6 +27,8 @@ const S = {
   map: null,
   routeLayer: null,
   markersLayer: null,
+  routeMarkers: {},
+  routeBounds: [],
   routeRunId: 0,
   geocodeCache: {},
   manualAddresses: {},
@@ -775,6 +777,25 @@ async function loadBundledManualAddresses() {
     for (const [code, localItem] of Object.entries(current)) {
       if (!localItem || typeof localItem !== 'object') continue;
       const bundleItem = merged[code];
+      const isAutoCoordinateRecord = ['geocodificado', 'geocode'].includes(String(localItem.origem || '').toLowerCase());
+      if (isAutoCoordinateRecord && bundleItem) {
+        // Never let an automatic cache entry replace a curated address. Reuse
+        // its coordinates only when the address still matches exactly.
+        const localAddressKey = geoAddressKey(localItem.endereco || '', localItem.cidade || '');
+        const bundleAddressKey = geoAddressKey(bundleItem.endereco || '', bundleItem.cidade || '');
+        const hasCoords = Number.isFinite(Number(localItem.lat)) && Number.isFinite(Number(localItem.lng));
+        if (hasCoords && localAddressKey && localAddressKey === bundleAddressKey) {
+          merged[code] = {
+            ...bundleItem,
+            lat: Number(localItem.lat),
+            lng: Number(localItem.lng),
+            addressKey: localItem.addressKey || localAddressKey,
+            coordenadaOrigem: localItem.coordenadaOrigem || 'geocode',
+            coordenadasAtualizadasEm: localItem.coordenadasAtualizadasEm || localItem.atualizadoEm || ''
+          };
+        }
+        continue;
+      }
       const localTime = Date.parse(localItem.atualizadoEm || '') || 0;
       const bundleTime = Date.parse(bundleItem?.atualizadoEm || '') || 0;
       if (!bundleItem || localTime >= bundleTime) merged[code] = localItem;
@@ -791,7 +812,11 @@ async function loadBundledManualAddresses() {
 
 function getManualAddress(code) {
   const item = S.manualAddresses[manualKey(code)];
-  return item && isGoodManualAddress(item.endereco) ? item : null;
+  if (!item || !isGoodManualAddress(item.endereco)) return null;
+  // Geocoded records cache coordinates; they should not override a newer
+  // address coming from the supplier master file.
+  if (['geocodificado', 'geocode'].includes(String(item.origem || '').toLowerCase())) return null;
+  return item;
 }
 
 function resolveSupplier(code, name) {
@@ -868,28 +893,38 @@ const PHARMAINNOX = {
 };
 
 function initMap() {
-  if (S.map) return;
-  S.map = L.map('routeMap', {
-    zoomControl: true,
+  if (S.map) return S.map;
+  const mapElement = $('routeMap');
+  // Leaflet calculates its size at initialization; wait until its view is visible.
+  if (!mapElement || !isRouteViewActive() || typeof L === 'undefined') return null;
+
+  S.map = L.map(mapElement, {
+    zoomControl: false,
     scrollWheelZoom: true,
-    preferCanvas: true
+    preferCanvas: true,
+    zoomSnap: 0.5
   }).setView([PHARMAINNOX.lat, PHARMAINNOX.lng], 10);
 
-  // Mapa base simples e estável. A rota é desenhada separadamente pelo OSRM.
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap contributors'
+  // Light basemap improves legibility of the route and numbered stops.
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    subdomains: 'abcd',
+    maxZoom: 20,
+    attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
   }).addTo(S.map);
 
+  L.control.zoom({ position: 'bottomright' }).addTo(S.map);
   S.markersLayer = L.layerGroup().addTo(S.map);
   S.routeLayer = L.layerGroup().addTo(S.map);
   S.map.on('click', handleMapPick);
+  return S.map;
 }
 
 function clearMap() {
-  initMap();
-  S.markersLayer.clearLayers();
-  S.routeLayer.clearLayers();
+  if (!S.map) return;
+  S.markersLayer?.clearLayers();
+  S.routeLayer?.clearLayers();
+  S.routeMarkers = {};
+  S.routeBounds = [];
 }
 
 function markerIcon(label, isOrigin = false) {
@@ -1040,44 +1075,73 @@ function geoAddressKey(address, city = '') {
 }
 
 function getSupplierCoords(code, address = '', city = '') {
-  const item = S.supplierCoords?.[normalizeCode(code)];
-  if (!item) return null;
-
+  const codeKey = normalizeCode(code);
+  const savedCoord = S.supplierCoords?.[codeKey];
+  const manual = S.manualAddresses?.[codeKey];
+  const manualCoord = manual && (manual.lat != null || manual.latitude != null) ? {
+    lat: manual.lat ?? manual.latitude,
+    lng: manual.lng ?? manual.lon ?? manual.longitude,
+    displayName: manual.displayName || manual.endereco,
+    origem: manual.coordenadaOrigem || manual.origem,
+    addressKey: manual.addressKey || (manual.endereco ? geoAddressKey(manual.endereco, manual.cidade || '') : '')
+  } : null;
   const expectedAddressKey = geoAddressKey(address, city);
-  if (expectedAddressKey && item.addressKey && item.addressKey !== expectedAddressKey) {
-    return null;
-  }
 
-  // Coordinates from older versions did not retain their address. Re-geocode
-  // old automatic results, but keep manually pinned locations unless the user
-  // changes that supplier's address in the editor.
-  if (expectedAddressKey && !item.addressKey && item.origem !== 'manual-mapa') {
-    return null;
+  // If a saved coordinate belongs to an older address, keep looking for a
+  // compatible bundled/manual coordinate instead of stopping at the stale entry.
+  for (const item of [savedCoord, manualCoord]) {
+    if (!item) continue;
+    const storedAddressKey = item.addressKey || '';
+    if (expectedAddressKey && storedAddressKey && storedAddressKey !== expectedAddressKey) continue;
+    if (expectedAddressKey && !storedAddressKey && item.origem !== 'manual-mapa') continue;
+    const lat = Number(item.lat ?? item.latitude), lng = Number(item.lng ?? item.lon ?? item.longitude);
+    if (Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+      return { lat, lng, displayName: item.displayName || manual?.endereco || '' };
+    }
   }
-  if (expectedAddressKey && !item.addressKey && item.origem === 'manual-mapa') {
-    item.addressKey = expectedAddressKey;
-    saveSupplierCoords();
-  }
-
-  const lat = Number(item.lat), lng = Number(item.lng);
-  return Number.isFinite(lat) && Number.isFinite(lng)
-    ? { lat, lng, displayName: item.displayName || '' }
-    : null;
+  return null;
 }
 
 function setSupplierCoords(code, lat, lng, origem = 'manual-mapa', address = '', city = '') {
   const keyCode = normalizeCode(code);
   if (!keyCode) return false;
   const nlat = Number(lat), nlng = Number(lng);
-  if (!Number.isFinite(nlat) || !Number.isFinite(nlng)) return false;
+  if (!Number.isFinite(nlat) || !Number.isFinite(nlng) || nlat < -90 || nlat > 90 || nlng < -180 || nlng > 180) return false;
+  const now = new Date().toISOString();
+  const addressKey = geoAddressKey(address, city);
+  const currentCoord = S.supplierCoords?.[keyCode] || {};
   S.supplierCoords[keyCode] = {
+    ...currentCoord,
     lat: nlat,
     lng: nlng,
     origem,
-    addressKey: geoAddressKey(address, city),
-    atualizadoEm: new Date().toISOString()
+    addressKey,
+    displayName: currentCoord.displayName || address,
+    atualizadoEm: now
   };
   saveSupplierCoords();
+
+  // Keep one portable record per supplier, including its confirmed coordinates.
+  // This makes Exportar endereços useful across machines, not only in this browser.
+  if (address && isGoodManualAddress(address)) {
+    const current = S.manualAddresses?.[keyCode] || {};
+    const currentKey = current.endereco ? geoAddressKey(current.endereco, current.cidade || '') : '';
+    const sameAddress = currentKey && currentKey === addressKey;
+    S.manualAddresses[keyCode] = {
+      ...current,
+      endereco: address,
+      cidade: city || current.cidade || '',
+      origem: current.origem || (origem === 'manual-mapa' ? 'manual-mapa' : 'geocodificado'),
+      atualizadoEm: now,
+      lat: nlat,
+      lng: nlng,
+      addressKey,
+      coordenadaOrigem: origem,
+      coordenadasAtualizadasEm: now,
+      displayName: S.supplierCoords[keyCode].displayName || address
+    };
+    saveManualAddresses();
+  }
   return true;
 }
 
@@ -1121,13 +1185,11 @@ function buildGeoQueries(address, fallbackCity = '', supplierName = '') {
     .toUpperCase();
   const cityAlreadyInAddress = c && fold(cleaned).includes(fold(c));
   const cityPart = cityAlreadyInAddress ? '' : c;
+  // A short list avoids many sequential calls to public geocoders.
   const queries = [
     [cleaned, cityPart, 'Brasil'].filter(Boolean).join(', '),
-    [withoutCountry, cityPart, 'Brasil'].filter(Boolean).join(', '),
     [n, cleaned, cityPart, 'Brasil'].filter(Boolean).join(', '),
-    [cleaned, 'Brasil'].filter(Boolean).join(', '),
-    [withoutCountry, 'Brasil'].filter(Boolean).join(', '),
-    [n, cleaned, 'Brasil'].filter(Boolean).join(', ')
+    [cleaned, 'Brasil'].filter(Boolean).join(', ')
   ];
   return [...new Set(queries.map(q => q.trim()).filter(Boolean))];
 }
@@ -1201,9 +1263,9 @@ async function geocodeAddress(address, fallbackCity = '', supplierCode = '', sup
   if (cached?.notFound) {
     const attemptedAt = Date.parse(cached.attemptedAt || '');
     if (
-      cached.version === 2 &&
+      Number(cached.version) >= 2 &&
       Number.isFinite(attemptedAt) &&
-      Date.now() - attemptedAt < 15 * 60 * 1000
+      Date.now() - attemptedAt < 24 * 60 * 60 * 1000
     ) {
       return null;
     }
@@ -1219,8 +1281,8 @@ async function geocodeAddress(address, fallbackCity = '', supplierCode = '', sup
   const queries = buildGeoQueries(address, fallbackCity, name);
   let candidates = [];
 
-  // Primeiro tenta Nominatim com mais de uma forma de consulta.
-  for (const query of queries) {
+  // Tenta no máximo duas variações no Nominatim; o resultado fica em cache permanente.
+  for (const query of queries.slice(0, 2)) {
     try {
       const results = await geocodeNominatim(query);
       candidates.push(...results);
@@ -1230,13 +1292,10 @@ async function geocodeAddress(address, fallbackCity = '', supplierCode = '', sup
     }
   }
 
-  // Fallback para Photon quando Nominatim não localizar o endereço.
+  // Photon é usado como fallback único, evitando rajadas de consultas em serviços públicos.
   if (!candidates.length) {
     try {
-      for (const query of queries.slice(0, 2)) {
-        candidates.push(...await geocodePhoton(query));
-        if (candidates.length) break;
-      }
+      candidates.push(...await geocodePhoton(queries[0] || full));
     } catch (e) {
       console.warn('Photon falhou:', e);
     }
@@ -1245,7 +1304,7 @@ async function geocodeAddress(address, fallbackCity = '', supplierCode = '', sup
   if (!candidates.length) {
     S.geocodeCache[keyCache] = {
       notFound: true,
-      version: 2,
+      version: 3,
       attemptedAt: new Date().toISOString()
     };
     saveGeoCache();
@@ -1528,16 +1587,6 @@ function renderRouteIssues(groupedRows) {
         const geo = await geocodeAddress(address, city, code, supplierName);
         if (geo) {
           setSupplierCoords(code, geo.lat, geo.lng, 'geocode', address, city);
-          const manual = getManualAddress(code);
-          if (!manual) {
-            S.manualAddresses[manualKey(code)] = {
-              endereco: address,
-              cidade: city,
-              origem: 'geocode',
-              atualizadoEm: new Date().toISOString()
-            };
-            saveManualAddresses();
-          }
           toast(`Fornecedor ${normalizeCode(code)} localizado e salvo.`);
         } else {
           toast('Não foi encontrado automaticamente. Use “Marcar no mapa”.');
@@ -1611,6 +1660,18 @@ function renderStopsList(ordered, dateKey = '') {
     : '<div class="empty-route">Nenhuma parada com endereço confirmado neste dia.</div>';
   $('routeStopsList').innerHTML = cards || empty;
 
+  $('routeStopsList').querySelectorAll('.route-stop').forEach(card => {
+    card.addEventListener('click', e => {
+      if (e.target.closest('button')) return;
+      const marker = S.routeMarkers?.[card.dataset.routeKey || ''];
+      if (!marker || !S.map) return;
+      $('routeStopsList').querySelectorAll('.route-stop').forEach(x => x.classList.remove('route-stop-selected'));
+      card.classList.add('route-stop-selected');
+      S.map.setView(marker.getLatLng(), Math.max(S.map.getZoom(), 15), { animate: true });
+      marker.openPopup();
+    });
+  });
+
   $('routeStopsList').querySelectorAll('.remove-route-stop').forEach(btn => {
     btn.addEventListener('click', async e => {
       e.preventDefault();
@@ -1666,6 +1727,8 @@ function bindRouteStopDrag(dateKey) {
 }
 
 async function renderRoute() {
+  if (!isRouteViewActive()) return;
+  if (!initMap()) return;
   const runId = ++S.routeRunId;
   const dateKey = $('routeDate').value;
   clearMap();
@@ -1682,7 +1745,9 @@ async function renderRoute() {
     $('routeMissing').textContent = '0';
     $('routeDistance').textContent = '—';
     $('routeDuration').textContent = '—';
-    $('routeStopsList').innerHTML = '<div class="empty-route">Selecione um dia para montar a rota.</div>';
+    $('routeStopsList').innerHTML = S.log.length
+      ? '<div class="empty-route">Selecione um dia para montar a rota.</div>'
+      : '<div class="empty-route">Para montar a rota, volte ao Dashboard e carregue a base de pedidos. Depois, escolha o dia nesta tela.</div>';
     $('routeIssues').innerHTML = '';
     renderGoogleRouteLinks([]);
     return;
@@ -1821,16 +1886,18 @@ async function renderRoute() {
 
   clearMap();
   const bounds = [];
-  L.marker([PHARMAINNOX.lat, PHARMAINNOX.lng], { icon: markerIcon('P', true) })
+  const originMarker = L.marker([PHARMAINNOX.lat, PHARMAINNOX.lng], { icon: markerIcon('P', true) })
     .bindPopup(`<b>Pharmainox</b><br>${escapeHtml(PHARMAINNOX.endereco)}`)
     .addTo(S.markersLayer);
+  S.routeMarkers.__origin = originMarker;
   bounds.push([PHARMAINNOX.lat, PHARMAINNOX.lng]);
 
   orderedForMarkers.forEach((s, idx) => {
     const projects = s.projects?.length ? s.projects.join(', ') : '—';
-    L.marker([s.lat, s.lng], { icon: markerIcon(String(idx + 1), false) })
+    const marker = L.marker([s.lat, s.lng], { icon: markerIcon(String(idx + 1), false) })
       .bindPopup(`<b>${escapeHtml(s.supplierName)}</b><br>Cód. ${escapeHtml(s.supplierCode)}<br>${escapeHtml(s.address)}<br>Projeto(s): ${escapeHtml(projects)}<br>Pedido(s): ${escapeHtml(s.orders.join(', ') || '—')}`)
       .addTo(S.markersLayer);
+    S.routeMarkers[getRouteStopKey(s)] = marker;
     bounds.push([s.lat, s.lng]);
   });
 
@@ -1843,8 +1910,14 @@ async function renderRoute() {
     latlngs.forEach(p => bounds.push(p));
   }
 
-  if (bounds.length) S.map.fitBounds(bounds, { padding: [35, 35], maxZoom: 13 });
-  setTimeout(() => S.map.invalidateSize(), 200);
+  S.routeBounds = bounds.slice();
+  if (bounds.length) S.map.fitBounds(bounds, { padding: [42, 42], maxZoom: 13 });
+  setTimeout(() => {
+    if (S.map && isRouteViewActive()) {
+      S.map.invalidateSize({ pan: false });
+      if (S.routeBounds.length) S.map.fitBounds(S.routeBounds, { padding: [42, 42], maxZoom: 13 });
+    }
+  }, 120);
 
   renderGoogleRouteLinks(orderedForMarkers);
 }
@@ -2050,7 +2123,25 @@ function openAddressSearch(inputId, city = '', supplierName = '') {
 window.openAddressSearch = openAddressSearch;
 
 function exportManualAddresses() {
-  const blob = new Blob([JSON.stringify(S.manualAddresses, null, 2)], { type: 'application/json;charset=utf-8' });
+  const portable = JSON.parse(JSON.stringify(S.manualAddresses || {}));
+  for (const [code, coord] of Object.entries(S.supplierCoords || {})) {
+    if (!coord || !Number.isFinite(Number(coord.lat)) || !Number.isFinite(Number(coord.lng))) continue;
+    const row = portable[code] || {};
+    const coordAddressKey = coord.addressKey || '';
+    const rowAddressKey = row.addressKey || (row.endereco ? geoAddressKey(row.endereco, row.cidade || '') : '');
+    if (coordAddressKey && rowAddressKey && coordAddressKey !== rowAddressKey) continue;
+    portable[code] = {
+      ...row,
+      ...(row.endereco ? {} : { endereco: row.displayName || coord.displayName || '' }),
+      origem: row.origem || (coord.origem === 'manual-mapa' ? 'manual-mapa' : 'geocodificado'),
+      lat: Number(coord.lat),
+      lng: Number(coord.lng),
+      addressKey: coordAddressKey || rowAddressKey,
+      coordenadaOrigem: coord.origem || row.coordenadaOrigem || 'geocodificado',
+      coordenadasAtualizadasEm: coord.atualizadoEm || row.coordenadasAtualizadasEm || new Date().toISOString()
+    };
+  }
+  const blob = new Blob([JSON.stringify(portable, null, 2)], { type: 'application/json;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -2064,10 +2155,31 @@ function importManualAddresses(file) {
   reader.onload = () => {
     try {
       const obj = JSON.parse(reader.result);
-      if (!obj || typeof obj !== 'object') throw new Error('Formato inválido');
-      S.manualAddresses = { ...S.manualAddresses, ...obj };
+      if (!obj || typeof obj !== 'object' || Array.isArray(obj)) throw new Error('Formato inválido');
+      const normalizedImport = {};
+      for (const [code, item] of Object.entries(obj)) {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+        normalizedImport[normalizeCode(code)] = {
+          ...item,
+          origem: item.origem || (item.coordenadaOrigem === 'manual-mapa' ? 'manual-mapa' : (item.coordenadaOrigem ? 'geocodificado' : 'manual'))
+        };
+      }
+      S.manualAddresses = { ...S.manualAddresses, ...normalizedImport };
+      for (const [code, item] of Object.entries(normalizedImport)) {
+        const lat = Number(item?.lat ?? item?.latitude);
+        const lng = Number(item?.lng ?? item?.lon ?? item?.longitude);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+        S.supplierCoords[normalizeCode(code)] = {
+          lat, lng,
+          origem: item.coordenadaOrigem || item.origem || 'importado',
+          addressKey: item.addressKey || geoAddressKey(item.endereco || '', item.cidade || ''),
+          displayName: item.displayName || item.endereco || '',
+          atualizadoEm: item.coordenadasAtualizadasEm || item.atualizadoEm || new Date().toISOString()
+        };
+      }
       saveManualAddresses();
-      toast('Endereços manuais importados.');
+      saveSupplierCoords();
+      toast('Cadastro completo de endereços e coordenadas importado.');
       renderRoute();
     } catch {
       toast('Não foi possível importar o arquivo de endereços.');
@@ -2089,6 +2201,38 @@ function clearManualAddresses() {
   renderRoute();
 }
 
+function isRouteViewActive() {
+  return $('routesView')?.classList.contains('active') || false;
+}
+
+function switchAppView(view, navKey = '') {
+  const showRoutes = view === 'routes';
+  $('dashboardView')?.classList.toggle('active', !showRoutes);
+  $('routesView')?.classList.toggle('active', showRoutes);
+
+  document.querySelectorAll('.sidebar nav a').forEach(link => {
+    const active = navKey
+      ? link.dataset.navKey === navKey
+      : (showRoutes ? link.dataset.appView === 'routes' : link.dataset.navKey === 'dashboard');
+    link.classList.toggle('active', active);
+    if (active) link.setAttribute('aria-current', 'page');
+    else link.removeAttribute('aria-current');
+  });
+
+  if (showRoutes) {
+    // Wait for display/layout before creating or resizing Leaflet.
+    requestAnimationFrame(() => {
+      initMap();
+      if (S.map) S.map.invalidateSize({ pan: false });
+      renderRoute();
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } else {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setTimeout(() => Object.values(S.charts || {}).forEach(chart => chart?.resize?.()), 80);
+  }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   const renderVehicleFiles=()=>{const list=$('vehicleFileList');if(!list)return;if(!S.vehicleUploads.length){list.innerHTML='<div class="upload-empty-state">Nenhum arquivo selecionado.</div>';return;}list.innerHTML=S.vehicleUploads.map((item,idx)=>{const kind=item.type==='journey'?'JORNADA / KM':item.type==='fuel'?'ABASTECIMENTO':'NÃO IDENTIFICADO';const cls=item.type==='journey'?'source-journey':item.type==='fuel'?'source-fuel':'source-unknown';return `<div class="detected-file-card ${cls}"><div class="detected-file-icon">${item.type==='journey'?'🛣️':item.type==='fuel'?'⛽':'📄'}</div><div class="detected-file-main"><strong>${escapeHtml(item.vehicle||'Veículo não identificado')}</strong><span>${kind}</span><em>${escapeHtml(item.file.name)}</em>${item.error?`<small class="detected-error">${escapeHtml(item.error)}</small>`:`<small>${item.rows.toLocaleString('pt-BR')} registros detectados</small>`}</div><button type="button" class="remove-file-button" data-remove-vehicle-file="${idx}" title="Remover">×</button></div>`;}).join('');list.querySelectorAll('[data-remove-vehicle-file]').forEach(btn=>btn.addEventListener('click',()=>{S.vehicleUploads.splice(Number(btn.dataset.removeVehicleFile),1);renderVehicleFiles();updateSourceStatus();}));};
   const updateSourceStatus=()=>{const valid=S.vehicleUploads.filter(x=>!x.error&&(x.type==='journey'||x.type==='fuel'));$('status').textContent=`${valid.length}/4 arquivos de veículos identificados e ${S.logFiles?.length||0} arquivo(s) de pedidos selecionados.`;};
@@ -2097,6 +2241,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('update').addEventListener('click',async()=>{const valid=S.vehicleUploads.filter(x=>!x.error&&(x.type==='journey'||x.type==='fuel')),bad=S.vehicleUploads.filter(x=>x.error),logs=S.logFiles||[];const journeys=valid.filter(x=>x.type==='journey'),fuels=valid.filter(x=>x.type==='fuel');if(valid.length!==4||bad.length||!logs.length||journeys.length!==2||fuels.length!==2){toast(`Selecione 4 arquivos válidos de veículos (2 Jornada + 2 Abastecimento). Encontrados: ${journeys.length} jornada e ${fuels.length} abastecimento${logs.length?'':' · falta o arquivo de pedidos'}.`);return;}try{S.fuel=[];S.journey=[];S.log=[];S.sources={fuel:[],journey:[],log:[]};const detectedVehicles=[...new Set(valid.map(x=>x.vehicle).filter(Boolean))].sort();if(detectedVehicles.length!==2||!detectedVehicles.every(v=>valid.some(x=>x.vehicle===v&&x.type==='journey')&&valid.some(x=>x.vehicle===v&&x.type==='fuel')))throw new Error(`Os 4 arquivos não formam dois pares completos por veículo. Veículos encontrados: ${detectedVehicles.join(', ')||'nenhum'}.`);for(const item of valid){const rows=item.parsedRows||await read(item.file);if(item.type==='journey'){const n=normalizeJourney(rows,item.file.name,item.vehicle);S.journey.push(...n);S.sources.journey.push({vehicle:item.vehicle,file:item.file.name,rows:n.length});}else{const n=normalizeFuel(rows,item.file.name,item.vehicle);S.fuel.push(...n);S.sources.fuel.push({vehicle:item.vehicle,file:item.file.name,rows:n.length});}}for(const file of logs){const rows=await read(file),type=sourceType(rows);if(type!=='log')throw new Error(`O arquivo "${file.name}" não parece ser uma base de pedidos/logística.`);const n=normalizeLog(rows);S.log.push(...n);S.sources.log.push({file:file.name,rows:n.length});}
     const seenFuel=new Set();S.fuel=S.fuel.filter(r=>{const sig=[r.date?.getTime()||'',r.vehicle,r.km,Number.isFinite(r.value)?r.value.toFixed(2):''].join('|');if(seenFuel.has(sig))return false;seenFuel.add(sig);return true;});
     const seenJourney=new Set();S.journey=S.journey.filter(r=>{const sig=[r.date?.getTime()||'',r.vehicle,r.statusKey,r.km].join('|');if(seenJourney.has(sig))return false;seenJourney.add(sig);return true;});
-    $('vehicleFileList').innerHTML=valid.map(x=>`<div class="detected-file-card ${x.type==='journey'?'source-journey':'source-fuel'}"><div class="detected-file-icon">${x.type==='journey'?'🛣️':'⛽'}</div><div class="detected-file-main"><strong>${escapeHtml(x.vehicle)}</strong><span>${x.type==='journey'?'JORNADA / KM':'ABASTECIMENTO'}</span><em>${escapeHtml(x.file.name)}</em><small>Dados carregados: ${x.rows.toLocaleString('pt-BR')} registros</small></div></div>`).join('');$('logFileList').innerHTML=S.sources.log.map(x=>`<span class="chip source-log">${escapeHtml(x.file)} · ${x.rows.toLocaleString('pt-BR')} registros</span>`).join('');$('vehicle').innerHTML='<option value="todos">Todos</option>'+detectedVehicles.map(v=>`<option>${escapeHtml(v)}</option>`).join('');populateRouteDate();update();await renderRoute();toast(`Atualizado. ${S.sources.journey.length} jornada(s), ${S.sources.fuel.length} abastecimento(s) e ${S.sources.log.length} arquivo(s) de pedidos.`);}catch(e){console.error(e);toast(e?.message||'Não foi possível carregar os arquivos selecionados.');}});
-  ['year','vehicle','start','end','periodicity'].forEach(id=>$(id).addEventListener('change',update));$('routeDate').addEventListener('change',renderRoute);$('routeRefresh').addEventListener('click',renderRoute);$('resetRouteOrder').addEventListener('click',resetRouteOrder);$('restoreRouteStops').addEventListener('click',()=>{const dateKey=$('routeDate')?.value||'';if(!dateKey){toast('Selecione o dia da rota.');return;}const count=loadRouteExcluded(dateKey).length;if(!count){toast('Não há fornecedores retirados neste dia.');return;}restoreAllRouteStops(dateKey);toast(`${count} fornecedor(es) restaurado(s) na rota.`);renderRoute();});$('exportManualAddresses').addEventListener('click',exportManualAddresses);$('importManualAddresses').addEventListener('click',()=>$('manualAddressFile').click());$('manualAddressFile').addEventListener('change',e=>{if(e.target.files[0])importManualAddresses(e.target.files[0]);e.target.value='';});$('clearManualAddresses').addEventListener('click',clearManualAddresses);$('clearGeoCache').addEventListener('click',()=>{S.geocodeCache={};for(const [code,coords] of Object.entries(S.supplierCoords||{})){if(coords?.origem!=='manual-mapa')delete S.supplierCoords[code];}saveGeoCache();saveSupplierCoords();toast('Localizações automáticas serão refeitas. Os pontos marcados manualmente foram mantidos.');renderRoute();});$('clear').addEventListener('click',()=>{$('year').value='todos';$('vehicle').value='todos';$('start').value='';$('end').value='';$('periodicity').value='month';update();});$('export').addEventListener('click',()=>{const rows=S.filteredFuel.map(r=>({Data:r.dateText,Veiculo:r.vehicle,Valor:r.value,PrecoPorLitro:Number.isFinite(r.price)?r.price:'',Litros:Number.isFinite(r.liters)?r.liters:'',KM:r.km}));const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Abastecimento');XLSX.writeFile(wb,'abastecimentos_filtrados.xlsx');});loadManualAddresses();loadGeoCache();loadSupplierCoords();await loadBundledManualAddresses();initMap();renderVehicleFiles();update();
+    $('vehicleFileList').innerHTML=valid.map(x=>`<div class="detected-file-card ${x.type==='journey'?'source-journey':'source-fuel'}"><div class="detected-file-icon">${x.type==='journey'?'🛣️':'⛽'}</div><div class="detected-file-main"><strong>${escapeHtml(x.vehicle)}</strong><span>${x.type==='journey'?'JORNADA / KM':'ABASTECIMENTO'}</span><em>${escapeHtml(x.file.name)}</em><small>Dados carregados: ${x.rows.toLocaleString('pt-BR')} registros</small></div></div>`).join('');$('logFileList').innerHTML=S.sources.log.map(x=>`<span class="chip source-log">${escapeHtml(x.file)} · ${x.rows.toLocaleString('pt-BR')} registros</span>`).join('');$('vehicle').innerHTML='<option value="todos">Todos</option>'+detectedVehicles.map(v=>`<option>${escapeHtml(v)}</option>`).join('');populateRouteDate();update();if(isRouteViewActive())await renderRoute();toast(`Atualizado. ${S.sources.journey.length} jornada(s), ${S.sources.fuel.length} abastecimento(s) e ${S.sources.log.length} arquivo(s) de pedidos.`);}catch(e){console.error(e);toast(e?.message||'Não foi possível carregar os arquivos selecionados.');}});
+  ['year','vehicle','start','end','periodicity'].forEach(id=>$(id).addEventListener('change',update));$('routeDate').addEventListener('change',renderRoute);$('routeRefresh').addEventListener('click',renderRoute);$('resetRouteOrder').addEventListener('click',resetRouteOrder);$('restoreRouteStops').addEventListener('click',()=>{const dateKey=$('routeDate')?.value||'';if(!dateKey){toast('Selecione o dia da rota.');return;}const count=loadRouteExcluded(dateKey).length;if(!count){toast('Não há fornecedores retirados neste dia.');return;}restoreAllRouteStops(dateKey);toast(`${count} fornecedor(es) restaurado(s) na rota.`);renderRoute();});$('exportManualAddresses').addEventListener('click',exportManualAddresses);$('importManualAddresses').addEventListener('click',()=>$('manualAddressFile').click());$('manualAddressFile').addEventListener('change',e=>{if(e.target.files[0])importManualAddresses(e.target.files[0]);e.target.value='';});$('clearManualAddresses').addEventListener('click',clearManualAddresses);$('clearGeoCache').addEventListener('click',()=>{S.geocodeCache={};for(const [code,coords] of Object.entries(S.supplierCoords||{})){if(coords?.origem!=='manual-mapa')delete S.supplierCoords[code];}for(const item of Object.values(S.manualAddresses||{})){if(!item||item.coordenadaOrigem==='manual-mapa')continue;delete item.lat;delete item.lng;delete item.latitude;delete item.longitude;delete item.addressKey;delete item.coordenadaOrigem;delete item.coordenadasAtualizadasEm;delete item.displayName;}saveGeoCache();saveSupplierCoords();saveManualAddresses();toast('Localizações automáticas serão refeitas. Os pontos marcados manualmente foram mantidos.');renderRoute();});$('clear').addEventListener('click',()=>{$('year').value='todos';$('vehicle').value='todos';$('start').value='';$('end').value='';$('periodicity').value='month';update();});$('export').addEventListener('click',()=>{const rows=S.filteredFuel.map(r=>({Data:r.dateText,Veiculo:r.vehicle,Valor:r.value,PrecoPorLitro:Number.isFinite(r.price)?r.price:'',Litros:Number.isFinite(r.liters)?r.liters:'',KM:r.km}));const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Abastecimento');XLSX.writeFile(wb,'abastecimentos_filtrados.xlsx');});loadManualAddresses();loadGeoCache();loadSupplierCoords();await loadBundledManualAddresses();renderVehicleFiles();update();
+  document.querySelectorAll('[data-app-view]').forEach(el => {
+    const activate = () => switchAppView(el.dataset.appView === 'routes' ? 'routes' : 'dashboard', el.dataset.navKey || 'dashboard');
+    if (el.matches('a')) {
+      el.addEventListener('click', e => {
+        e.preventDefault();
+        activate();
+        const targetId = el.dataset.scrollTo;
+        if (targetId) setTimeout(() => $(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 90);
+      });
+    } else if (el.classList.contains('brand')) {
+      el.addEventListener('click', activate);
+      el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); } });
+    }
+  });
+  $('routeBackDashboard')?.addEventListener('click', () => switchAppView('dashboard', 'dashboard'));
+  $('fitRouteMap')?.addEventListener('click', () => {
+    if (!S.map) return;
+    if (S.routeBounds?.length) S.map.fitBounds(S.routeBounds, { padding: [42, 42], maxZoom: 13 });
+    else S.map.setView([PHARMAINNOX.lat, PHARMAINNOX.lng], 12);
+  });
+  $('centerPharmainox')?.addEventListener('click', () => S.map?.setView([PHARMAINNOX.lat, PHARMAINNOX.lng], 15, { animate: true }));
 });
