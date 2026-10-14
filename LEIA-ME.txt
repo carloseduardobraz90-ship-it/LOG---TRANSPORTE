@@ -46,3 +46,10 @@ ORDEM MANUAL DA ROTA
 - A sequência manual é salva por dia neste navegador.
 - Ao alterar a ordem, a rota OSRM é recalculada exatamente na nova sequência.
 - O botão 'Ordem automática' remove a ordem manual daquele dia e devolve a otimização automática.
+
+
+ATUALIZAÇÕES — 13/10/2026
+- A lista e o popup de cada fornecedor agora exibem Projeto(s) além de Pedido(s). O projeto é lido pelo nome do cabeçalho da base.
+- Links de rotas grandes do Google Maps são divididos em trechos sequenciais, com no máximo 3 paradas intermediárias por link para melhor compatibilidade com celular. Abra os trechos em ordem.
+- Fornecedores sem endereço confirmado continuam destacados nas pendências e não são inseridos automaticamente no link até que o endereço seja cadastrado/localizado.
+- A rota continua considerando a data de AGENDAMENTO e os tipos COLETA/ENTREGA; RECEBIMENTO fica fora.

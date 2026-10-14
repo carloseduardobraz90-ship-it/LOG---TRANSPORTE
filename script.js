@@ -332,6 +332,9 @@ function normalizeLog(rows) {
     const city = String(get(r, ['cidade']) || positional(r, 10) || 'Não informado').trim();
     const buyer = String(get(r, ['comprador']) || positional(r, 20) || 'Não informado').trim();
     const order = String(get(r, ['pedido_', 'pedido']) || positional(r, 1) || '').trim();
+    // Busca o número do projeto pelo cabeçalho para evitar confundir a coluna
+    // com um identificador interno caso a ordem das colunas seja diferente.
+    const project = String(get(r, ['projeto', 'numero do projeto', 'número do projeto', 'projeto_']) || '').trim();
     return {
       ...r,
       _date: emission,
@@ -345,7 +348,8 @@ function normalizeLog(rows) {
       _supplierCode: supplierCode,
       _supplierName: supplierName,
       _buyer: buyer,
-      _order: order
+      _order: order,
+      _project: project
     };
   });
 }
@@ -832,6 +836,7 @@ function groupRouteStops(dateKey) {
         city: r._city,
         buyerSet: new Set(),
         orderSet: new Set(),
+        projectSet: new Set(),
         rows: []
       });
     }
@@ -839,6 +844,7 @@ function groupRouteStops(dateKey) {
     g.rows.push(r);
     if (r._buyer && r._buyer !== 'Não informado') g.buyerSet.add(r._buyer);
     if (r._order) g.orderSet.add(r._order);
+    if (r._project) g.projectSet.add(r._project);
     if ((!g.supplierName || g.supplierName === 'Não informado') && r._supplierName) g.supplierName = r._supplierName;
   });
 
@@ -848,6 +854,7 @@ function groupRouteStops(dateKey) {
       ...g,
       buyers: [...g.buyerSet],
       orders: [...g.orderSet],
+      projects: [...g.projectSet],
       resolution: resolved
     };
   });
@@ -1281,12 +1288,79 @@ function safeId(v) {
   return String(v || '').replace(/[^a-zA-Z0-9_-]/g, '_');
 }
 
-function googleDirectionsUrl(orderedStops) {
-  if (!orderedStops.length || orderedStops.length > 23) return '';
-  const origin = `${PHARMAINNOX.lat},${PHARMAINNOX.lng}`;
-  const destination = origin;
-  const waypoints = orderedStops.map(s => `${s.lat},${s.lng}`).join('|');
-  return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&travelmode=driving&waypoints=${encodeURIComponent(waypoints)}`;
+function googleDirectionsSegments(orderedStops) {
+  if (!orderedStops?.length) return [];
+
+  // O Google Maps URLs aceita até 3 paradas intermediárias em navegadores
+  // móveis e até 9 em outras plataformas. Usamos 3 para funcionar também
+  // quando o motorista abre o link pelo celular.
+  const maxWaypoints = 3;
+  const nodes = [
+    { ...PHARMAINNOX, routeLabel: 'Pharmainox (saída)' },
+    ...orderedStops.map(s => ({ ...s, routeLabel: s.supplierName || 'Fornecedor' })),
+    { ...PHARMAINNOX, routeLabel: 'Pharmainox (retorno)' }
+  ];
+  const segments = [];
+  let startIndex = 0;
+
+  while (startIndex < nodes.length - 1) {
+    const endIndex = Math.min(startIndex + maxWaypoints + 1, nodes.length - 1);
+    const part = nodes.slice(startIndex, endIndex + 1);
+    const origin = `${part[0].lat},${part[0].lng}`;
+    const destination = `${part[part.length - 1].lat},${part[part.length - 1].lng}`;
+    const waypoints = part.slice(1, -1).map(p => `${p.lat},${p.lng}`).join('|');
+    const url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&travelmode=driving${waypoints ? `&waypoints=${encodeURIComponent(waypoints)}` : ''}`;
+    segments.push({
+      url,
+      startLabel: part[0].routeLabel || part[0].supplierName || 'Ponto anterior',
+      endLabel: part[part.length - 1].routeLabel || part[part.length - 1].supplierName || 'Próximo ponto',
+      startIndex,
+      endIndex
+    });
+    // O destino de um trecho vira a origem do próximo, para não pular paradas.
+    startIndex = endIndex;
+  }
+  return segments;
+}
+
+function renderGoogleRouteLinks(orderedStops) {
+  const box = $('googleRouteLinks');
+  const button = $('openGoogleRoute');
+  if (!box || !button) return;
+
+  const segments = googleDirectionsSegments(orderedStops);
+  if (!segments.length) {
+    box.innerHTML = '';
+    button.disabled = true;
+    button.textContent = 'Google Maps';
+    button.onclick = null;
+    return;
+  }
+
+  button.disabled = false;
+  button.textContent = segments.length === 1 ? 'Google Maps' : 'Abrir trecho 1';
+  button.onclick = () => window.open(segments[0].url, '_blank', 'noopener,noreferrer');
+
+  const pendingCount = Number($('routeMissing')?.textContent?.replace(/\./g, '').replace(',', '.') || 0);
+  const warning = pendingCount > 0
+    ? `<div class="google-route-warning">Atenção: ${pendingCount} fornecedor(es) ainda estão sem endereço confirmado e não entram nos trechos até serem localizados na seção de pendências abaixo.</div>`
+    : '';
+
+  if (segments.length === 1) {
+    box.innerHTML = warning;
+    return;
+  }
+
+  box.innerHTML = `
+    <div class="google-route-links-title">A rota foi dividida em ${segments.length} trechos para evitar o limite de paradas por link do Google Maps. Abra os trechos na ordem indicada.</div>
+    ${warning}
+    <div class="google-route-links-list">${segments.map((segment, i) => `
+      <a class="google-route-link" href="${escapeHtml(segment.url)}" target="_blank" rel="noopener noreferrer">
+        <strong>Trecho ${i + 1} de ${segments.length}</strong>
+        <span>${escapeHtml(segment.startLabel)} → ${escapeHtml(segment.endLabel)}</span>
+        <small>Abrir no Google Maps ↗</small>
+      </a>`).join('')}
+    </div>`;
 }
 
 async function osrmRoute(points) {
@@ -1386,6 +1460,8 @@ function renderRouteIssues(groupedRows) {
 
   const rows = issues.map(s => {
     const code = s.supplierCode || '';
+    const projects = s.projects?.length ? s.projects.join(', ') : '—';
+    const orders = s.orders?.length ? s.orders.join(', ') : '—';
     const id = `addr_${safeId(code || s.supplierName)}`;
     const manual = getManualAddress(code);
     const current = manual?.endereco || s.resolution?.entry?.endereco || '';
@@ -1401,6 +1477,7 @@ function renderRouteIssues(groupedRows) {
         <div class="route-issue-main">
           <b>${escapeHtml(s.supplierName)}</b>
           <small>Código ${escapeHtml(code || 'não informado')} · ${escapeHtml(s.city)}</small>
+          <small>Projeto(s): ${escapeHtml(projects)} · Pedido(s): ${escapeHtml(orders)}</small>
           <small>Status: ${escapeHtml(routeIssueLabel(s.resolution.state))}</small>
           ${coordinateText}
         </div>
@@ -1510,6 +1587,7 @@ function renderStopsList(ordered, dateKey = '') {
   const cards = ordered.map((s, i) => {
     const buyer = s.buyers.length ? s.buyers.join(', ') : '—';
     const orders = s.orders.length ? s.orders.join(', ') : '—';
+    const projects = s.projects?.length ? s.projects.join(', ') : '—';
     const source = s.resolution?.source === 'manual' ? ' · endereço manual' : '';
     const routeKey = getRouteStopKey(s);
     return `
@@ -1520,6 +1598,7 @@ function renderStopsList(ordered, dateKey = '') {
           <strong>${escapeHtml(s.supplierName)}</strong>
           <span>Cód. ${escapeHtml(s.supplierCode || '—')} · ${escapeHtml(s.city)}${escapeHtml(source)}</span>
           <span>Comprador: ${escapeHtml(buyer)}</span>
+          <span>Projeto(s): ${escapeHtml(projects)}</span>
           <span>Pedido(s): ${escapeHtml(orders)}</span>
           <small>${escapeHtml(s.address)}</small>
         </div>
@@ -1592,6 +1671,7 @@ async function renderRoute() {
   clearMap();
   $('openGoogleRoute').disabled = true;
   $('openGoogleRoute').onclick = null;
+  renderGoogleRouteLinks([]);
 
   if (!dateKey) {
     $('routeTitle').textContent = 'Mapa da rota';
@@ -1604,6 +1684,7 @@ async function renderRoute() {
     $('routeDuration').textContent = '—';
     $('routeStopsList').innerHTML = '<div class="empty-route">Selecione um dia para montar a rota.</div>';
     $('routeIssues').innerHTML = '';
+    renderGoogleRouteLinks([]);
     return;
   }
 
@@ -1626,6 +1707,7 @@ async function renderRoute() {
 
   if (!baseValid.length) {
     renderStopsList([], dateKey);
+    renderGoogleRouteLinks([]);
     return;
   }
 
@@ -1745,8 +1827,9 @@ async function renderRoute() {
   bounds.push([PHARMAINNOX.lat, PHARMAINNOX.lng]);
 
   orderedForMarkers.forEach((s, idx) => {
+    const projects = s.projects?.length ? s.projects.join(', ') : '—';
     L.marker([s.lat, s.lng], { icon: markerIcon(String(idx + 1), false) })
-      .bindPopup(`<b>${escapeHtml(s.supplierName)}</b><br>Cód. ${escapeHtml(s.supplierCode)}<br>${escapeHtml(s.address)}<br>Pedido(s): ${escapeHtml(s.orders.join(', ') || '—')}`)
+      .bindPopup(`<b>${escapeHtml(s.supplierName)}</b><br>Cód. ${escapeHtml(s.supplierCode)}<br>${escapeHtml(s.address)}<br>Projeto(s): ${escapeHtml(projects)}<br>Pedido(s): ${escapeHtml(s.orders.join(', ') || '—')}`)
       .addTo(S.markersLayer);
     bounds.push([s.lat, s.lng]);
   });
@@ -1763,11 +1846,7 @@ async function renderRoute() {
   if (bounds.length) S.map.fitBounds(bounds, { padding: [35, 35], maxZoom: 13 });
   setTimeout(() => S.map.invalidateSize(), 200);
 
-  const googleUrl = googleDirectionsUrl(orderedForMarkers);
-  if (googleUrl) {
-    $('openGoogleRoute').disabled = false;
-    $('openGoogleRoute').onclick = () => window.open(googleUrl, '_blank', 'noopener,noreferrer');
-  }
+  renderGoogleRouteLinks(orderedForMarkers);
 }
 
 function resetRouteOrder() {

@@ -94,3 +94,7 @@ body{margin:0;background:#f4f7fb;color:#172033;font:14px Segoe UI,Arial,sans-ser
 .route-issue-editable .route-address-actions{align-items:center}
 .route-issue-editable .remove-route-issue{margin-left:auto}
 @media(max-width:700px){.route-issue-editable .remove-route-issue{margin-left:0;width:100%}}
+
+
+/* Links de rota do Google Maps divididos para respeitar o limite de paradas por URL. */
+.google-route-links{display:grid;gap:9px;margin-top:12px}.google-route-links-title{font-size:12px;line-height:1.45;color:#536176;font-weight:700}.google-route-warning{font-size:11px;line-height:1.45;color:#8b5b00;background:#fff8e8;border:1px solid #f3dfad;border-radius:8px;padding:9px}.google-route-links-list{display:grid;gap:7px}.google-route-link{display:grid;gap:3px;padding:10px 12px;border:1px solid #dfe7f1;border-radius:9px;background:#fff;text-decoration:none;color:#26364b}.google-route-link:hover{border-color:#2f80ed;background:#f7fbff}.google-route-link strong{font-size:12px}.google-route-link span{font-size:11px;line-height:1.4;color:#596a80}.google-route-link small{font-size:10px;color:#2f80ed;font-weight:700}
