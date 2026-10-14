@@ -179,3 +179,22 @@ body{margin:0;background:#f4f7fb;color:#172033;font:14px Segoe UI,Arial,sans-ser
 .workspace-page .chart-card:hover,.workspace-page .kpi:hover{box-shadow:0 9px 26px rgba(24,68,119,.08)}
 .sidebar nav a[data-nav-key]{font-weight:600}
 @media(max-width:850px){.workspace-heading{align-items:flex-start;flex-wrap:wrap}.workspace-heading-actions{margin-left:0;width:100%}.workspace-heading-actions .button{width:100%}.workspace-heading h1{font-size:26px}.workspace-title-icon{width:44px;flex-basis:44px;height:44px}.shared-filters{gap:10px}}
+
+/* Assistente opcional de endereços com IA */
+.route-ai-results{grid-column:1/-1;display:grid;gap:8px;font-size:12px;color:#38506f;margin-top:4px}
+.route-ai-results:empty{display:none}
+.route-ai-option{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px;border:1px solid #dbe6f3;border-radius:9px;background:#f7faff}
+.route-ai-option span{overflow-wrap:anywhere}
+@media(max-width:700px){.route-ai-option{align-items:stretch;flex-direction:column}}
+
+/* Configuração opcional do Gemini no roteirizador */
+.gemini-key-panel{margin:16px 0;padding:20px}
+.gemini-key-title{display:flex;gap:12px;align-items:flex-start;margin-bottom:14px}
+.gemini-key-title>span{font-size:24px}
+.gemini-key-title h2{font-size:18px;margin:0 0 5px}
+.gemini-key-title p,.gemini-key-warning{color:#64748b;font-size:13px;line-height:1.5;margin:0}
+.gemini-key-controls{display:flex;gap:10px;align-items:end;flex-wrap:wrap}
+.gemini-key-controls label{width:100%;font-weight:600;font-size:13px}
+.gemini-key-controls input{flex:1 1 260px;min-width:170px;padding:12px;border:1px solid #cbd5e1;border-radius:10px}
+.gemini-key-status{font-size:13px;font-weight:600;margin:12px 0;color:#2563eb}
+.gemini-key-warning{margin-top:8px}

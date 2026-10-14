@@ -1,3 +1,108 @@
+// ================================================
+// GEMINI — CONFIGURAÇÃO DA CHAVE DA API
+// Substitua o texto abaixo pela chave do Google AI Studio.
+// ATENÇÃO: em GitHub Pages esta chave fica PÚBLICA
+// para qualquer visitante, mesmo sem aparecer na tela.
+// ================================================
+const GEMINI_API_KEY = "AQ.Ab8RN6JnF2EVu-rg4_a-ZDxcsHRjwWk3ZUOUGxO7siY61utd7w";
+const GEMINI_MODEL = 'gemini-2.5-flash-lite';
+function getGeminiKey() {
+  const key = GEMINI_API_KEY.trim();
+  return key === 'AQ.Ab8RN6JnF2EVu-rg4_a-ZDxcsHRjwWk3ZUOUGxO7siY61utd7w' ? '' : key;
+}
+
+async function suggestAddressWithAI(supplierName, address, city) {
+  const key = getGeminiKey();
+  if (!key) throw new Error('Configure a chave no script.js, substituindo ADD CHAVE API AQUI.');
+  const prompt = `Você auxilia a padronização de endereços brasileiros para busca em geocodificadores. Não invente números, CEPs, cidades ou coordenadas. Não afirme que o endereço existe sem prova. Sugira no máximo 3 variantes de texto de pesquisa baseadas apenas nos dados fornecidos. Se não houver informação suficiente, retorne lista vazia. Responda APENAS JSON no formato {"suggestions":["endereço 1"]}.\nNome: ${String(supplierName).slice(0,240)}\nEndereço: ${String(address).slice(0,240)}\nCidade: ${String(city).slice(0,240)}`;
+  const response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.1, responseMimeType: 'application/json', maxOutputTokens: 500 }
+    })
+  }, 16000);
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    if (response.status === 429) throw new Error('Limite de uso da API atingido. Tente novamente mais tarde.');
+    if (response.status === 400 || response.status === 403) throw new Error('Chave inválida, API indisponível ou sem permissão. Confira no Google AI Studio.');
+    throw new Error(`Serviço Gemini indisponível (HTTP ${response.status}).`);
+  }
+  let parsed;
+  try {
+    const raw = (payload.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
+    parsed = JSON.parse(raw || '{}');
+  } catch { throw new Error('A IA não retornou sugestões no formato esperado.'); }
+  return Array.isArray(parsed.suggestions)
+    ? [...new Set(parsed.suggestions.filter(x => typeof x === 'string' && x.length <= 240).map(x => x.trim()).filter(Boolean))].slice(0,3)
+    : [];
+}
+
+async function showAISuggestions(btn) {
+  const input = $(btn.dataset.input || '');
+  const code = btn.dataset.code || '';
+  const city = btn.dataset.city || '';
+  const supplierName = btn.dataset.supplier || '';
+  const address = input?.value.trim() || '';
+  if (!address) { toast('Informe um endereço para a IA analisar.'); return; }
+  const holder = btn.closest('.route-address-editor')?.querySelector('.route-ai-results');
+  if (!holder) return;
+  btn.disabled = true;
+  holder.textContent = 'Analisando possíveis correções do endereço…';
+  try {
+    const suggestions = await suggestAddressWithAI(supplierName, address, city);
+    holder.replaceChildren();
+    if (!suggestions.length) {
+      holder.textContent = 'A IA não encontrou uma sugestão confiável. Confirme o endereço com o fornecedor.';
+      return;
+    }
+    const title = document.createElement('strong');
+    title.textContent = 'Sugestões da IA (não verificadas). Escolha uma para testar no mapa:';
+    holder.append(title);
+    for (const suggestion of suggestions) {
+      const row = document.createElement('div');
+      row.className = 'route-ai-option';
+      const text = document.createElement('span');
+      text.textContent = suggestion;
+      const action = document.createElement('button');
+      action.type = 'button';
+      action.className = 'button secondary mini-button';
+      action.textContent = 'Testar no mapa';
+      action.addEventListener('click', async () => {
+        action.disabled = true;
+        try {
+          const queries = buildGeoQueries(suggestion, city, supplierName);
+          let matches = [];
+          for (const q of queries.slice(0, 2)) {
+            try { matches = await geocodeNominatim(q); if (matches.length) break; }
+            catch (e) { console.warn('Falha no geocodificador:', e); }
+          }
+          if (!matches.length) {
+            try { matches = await geocodePhoton(queries[0] || suggestion); } catch (e) { console.warn(e); }
+          }
+          if (!matches.length) { toast('Endereço não encontrado no mapa. Confira com o fornecedor.'); return; }
+          const best = matches.sort((a,b) => scoreGeoResult(b, city)-scoreGeoResult(a, city))[0];
+          const confirmed = window.confirm(`CONFIRA O ENDEREÇO E A POSIÇÃO ANTES DE SALVAR.\n\nFornecedor: ${supplierName}\nSugestão: ${suggestion}\nMapa encontrou: ${best.displayName}\nCoordenadas: ${best.lat.toFixed(6)}, ${best.lng.toFixed(6)}\n\nSalvar este ponto e endereço para o fornecedor?`);
+          if (!confirmed) return;
+          // Só grava após confirmação explícita. Nunca confia em coordenadas geradas pela IA.
+          setSupplierCoords(code, best.lat, best.lng, 'manual-ia-confirmada', suggestion, city);
+          toast('Endereço e ponto confirmados e salvos neste navegador. Exporte o cadastro para compartilhar.');
+          await renderRoute();
+        } catch (e) { toast(`Não foi possível testar o endereço: ${e.message}`); }
+        finally { action.disabled = false; }
+      });
+      row.append(text, action);
+      holder.append(row);
+    }
+    const warning = document.createElement('small');
+    warning.textContent = 'A IA pode errar. Confira a rua, o número e a cidade; se necessário, use “Marcar no mapa”.';
+    holder.append(warning);
+  } catch (e) {
+    holder.textContent = `Busca por IA indisponível: ${e.message}`;
+  } finally { btn.disabled = false; }
+}
+
 // Preço do combustível por ano.
 // 2025 = R$ 6,49/L | 2026 = R$ 7,49/L
 const FUEL_PRICES_PER_YEAR = {
@@ -1545,10 +1650,12 @@ function renderRouteIssues(groupedRows) {
           <div class="route-address-actions">
             <button type="button" class="button secondary mini-button save-route-address" data-code="${escapeHtml(code)}" data-input="${escapeHtml(id)}" data-city="${escapeHtml(s.city)}" data-supplier="${escapeHtml(s.supplierName)}">Salvar endereço</button>
             <button type="button" class="button secondary mini-button locate-route-address" data-code="${escapeHtml(code)}" data-input="${escapeHtml(id)}" data-city="${escapeHtml(s.city)}" data-supplier="${escapeHtml(s.supplierName)}" ${mapButtonDisabled}>Localizar</button>
+            <button type="button" class="button secondary mini-button ai-route-address" data-code="${escapeHtml(code)}" data-input="${escapeHtml(id)}" data-city="${escapeHtml(s.city)}" data-supplier="${escapeHtml(s.supplierName)}" ${!hasAddress ? 'disabled' : ''}>✨ Buscar com IA</button>
             <button type="button" class="button secondary mini-button mark-map-address" data-code="${escapeHtml(code)}" data-input="${escapeHtml(id)}" data-city="${escapeHtml(s.city)}" data-supplier="${escapeHtml(s.supplierName)}" ${mapButtonDisabled}>Marcar no mapa</button>
             <button type="button" class="button secondary mini-button open-address-search" data-input="${escapeHtml(id)}" data-city="${escapeHtml(s.city)}" data-supplier="${escapeHtml(s.supplierName)}">Google Maps</button>
             <button type="button" class="button danger-button mini-button remove-route-issue" data-route-key="${escapeHtml(getRouteStopKey(s))}">Retirar da rota</button>
           </div>
+          <div class="route-ai-results" aria-live="polite"></div>
         </div>
       </div>`;
   }).join('');
@@ -1600,6 +1707,8 @@ function renderRouteIssues(groupedRows) {
       await renderRoute();
     });
   });
+
+  $('routeIssues').querySelectorAll('.ai-route-address').forEach(btn => btn.addEventListener('click', () => showAISuggestions(btn)));
 
   $('routeIssues').querySelectorAll('.mark-map-address').forEach(btn => {
     btn.addEventListener('click', () => startMapPick(
