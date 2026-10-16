@@ -1,15 +1,5 @@
-// ================================================
-// GEMINI — CONFIGURAÇÃO DA CHAVE DA API
-// Substitua o texto abaixo pela chave do Google AI Studio.
-// ATENÇÃO: em GitHub Pages esta chave fica PÚBLICA
-// para qualquer visitante, mesmo sem aparecer na tela.
-// ================================================
-const GEMINI_API_KEY = "AQ.Ab8RN6JnF2EVu-rg4_a-ZDxcsHRjwWk3ZUOUGxO7siY61utd7w";
-const GEMINI_MODEL = 'gemini-2.5-flash-lite';
-function getGeminiKey() {
-  const key = GEMINI_API_KEY.trim();
-  return key === 'AQ.Ab8RN6JnF2EVu-rg4_a-ZDxcsHRjwWk3ZUOUGxO7siY61utd7w' ? '' : key;
-}
+// Gemini via Cloudflare Worker. A chave fica somente no Secret do Worker.
+const GEMINI_WORKER_URL = 'https://pharmainox-gemini-api.carloseduardobraz90.workers.dev/';
 
 async function suggestAddressWithAI(supplierName, address, city) {
   const prompt = `Você auxilia a padronização de endereços brasileiros para busca em geocodificadores. Não invente números, CEPs, cidades ou coordenadas. Não afirme que o endereço existe sem prova. Sugira no máximo 3 variantes de texto de pesquisa baseadas apenas nos dados fornecidos. Se não houver informação suficiente, retorne lista vazia. Responda APENAS JSON no formato {"suggestions":["endereço 1"]}.\nNome: ${String(supplierName).slice(0,240)}\nEndereço: ${String(address).slice(0,240)}\nCidade: ${String(city).slice(0,240)}`;
