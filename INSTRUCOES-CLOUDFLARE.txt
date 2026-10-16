@@ -1,0 +1,9 @@
+LOG-TRANSPORTE - Integracao Cloudflare/Gemini
+
+1. O script.js agora envia {prompt} ao Worker em GEMINI_WORKER_URL. Nenhuma chave de API deve ficar neste arquivo.
+2. O Worker precisa aceitar POST com JSON {"prompt":"..."} e devolver o JSON original do Gemini (candidates).
+3. A chave Gemini fica em Cloudflare Workers > Settings > Variables and Secrets > GEMINI_API_KEY (Secret). Revogue a chave antiga que foi exposta.
+4. O Worker atual e uma versao de teste, sem autenticacao/rate limiting. Antes de uso publico, configure controles contra abuso, limites e monitoramento. CORS sozinho nao protege o endpoint.
+5. Este ZIP nao contem .git. Nao substitua a pasta .git do seu repositorio local. Copie somente os arquivos de site para a pasta de trabalho existente.
+6. Para corrigir o commit bloqueado: confira que a chave antiga nao aparece em nenhum arquivo; git add . ; git commit --amend --no-edit ; git push origin main. Se houver mais de um commit pendente com segredos, sera necessario limpar todos.
+7. Esta integracao nao foi testada ao vivo contra a API. O Worker deve estar publicado e funcionando.

@@ -1,11 +1,6 @@
-CONFIGURAÇÃO DA IA GEMINI
+IA GEMINI VIA CLOUDFLARE WORKER
 
-1. Abra script.js no VS Code.
-2. Busque ADD CHAVE API AQUI.
-3. Substitua o texto pela chave do Google AI Studio.
-4. Salve e publique os arquivos.
-5. Na aba Roteirizador, use Buscar com IA nos endereços pendentes.
-
-ATENÇÃO: a chave no JavaScript de um site GitHub Pages é PUBLICAMENTE VISÍVEL para qualquer visitante. O uso pode consumir sua cota e gerar custos conforme seu plano. Para manter a chave privada, use um backend.
-
-A IA sugere buscas, mas não garante endereços corretos. Confirme o ponto antes de salvar.
+A chave nao deve ficar no script.js. Configure GEMINI_API_KEY como Secret no Cloudflare Worker.
+O site chama GEMINI_WORKER_URL com POST JSON {"prompt":"..."}; o Worker publicado deve devolver a resposta original do Gemini com candidates.
+Para testes, use o Worker configurado no painel Cloudflare. Revogue a chave anteriormente exposta.
+Antes do uso publico, implemente limitacao de requisicoes e protecao contra abuso. CORS nao e autenticacao.

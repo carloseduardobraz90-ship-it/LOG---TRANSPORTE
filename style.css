@@ -198,3 +198,13 @@ body{margin:0;background:#f4f7fb;color:#172033;font:14px Segoe UI,Arial,sans-ser
 .gemini-key-controls input{flex:1 1 260px;min-width:170px;padding:12px;border:1px solid #cbd5e1;border-radius:10px}
 .gemini-key-status{font-size:13px;font-weight:600;margin:12px 0;color:#2563eb}
 .gemini-key-warning{margin-top:8px}
+
+/* Melhorias de mapa: alternância de camadas e detalhes rodoviários */
+.route-leg-summary { margin-top: 12px; }
+.route-leg-details { border: 1px solid var(--border, #d9e0e8); border-radius: 10px; overflow: hidden; }
+.route-leg-details summary { padding: 12px 14px; cursor: pointer; font-weight: 650; }
+.route-leg-scroll { overflow-x: auto; }
+.route-leg-table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+.route-leg-table th, .route-leg-table td { padding: 9px 12px; border-top: 1px solid #e5e9ef; text-align: left; }
+.route-leg-table th { background: #f4f7fa; color: #273747; }
+.route-leg-hint { margin: 8px 12px 12px; font-size: .78rem; color: #66758a; }

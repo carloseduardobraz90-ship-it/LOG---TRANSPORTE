@@ -1,32 +1,17 @@
-// ================================================
-// GEMINI — CONFIGURAÇÃO DA CHAVE DA API
-// Substitua o texto abaixo pela chave do Google AI Studio.
-// ATENÇÃO: em GitHub Pages esta chave fica PÚBLICA
-// para qualquer visitante, mesmo sem aparecer na tela.
-// ================================================
-const GEMINI_API_KEY = "."; // ADD CHAVE API AQUI
-const GEMINI_MODEL = 'gemini-2.5-flash-lite';
-function getGeminiKey() {
-  const key = GEMINI_API_KEY.trim();
-  return key === '.' ? '' : key;
-}
+// Gemini via Cloudflare Worker. A chave fica somente no Secret do Worker.
+const GEMINI_WORKER_URL = 'https://pharmainox-gemini-api.carloseduardobraz90.workers.dev/';
 
 async function suggestAddressWithAI(supplierName, address, city) {
-  const key = getGeminiKey();
-  if (!key) throw new Error('Configure a chave no script.js, substituindo ADD CHAVE API AQUI.');
   const prompt = `Você auxilia a padronização de endereços brasileiros para busca em geocodificadores. Não invente números, CEPs, cidades ou coordenadas. Não afirme que o endereço existe sem prova. Sugira no máximo 3 variantes de texto de pesquisa baseadas apenas nos dados fornecidos. Se não houver informação suficiente, retorne lista vazia. Responda APENAS JSON no formato {"suggestions":["endereço 1"]}.\nNome: ${String(supplierName).slice(0,240)}\nEndereço: ${String(address).slice(0,240)}\nCidade: ${String(city).slice(0,240)}`;
-  const response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
+  const response = await fetchWithTimeout(GEMINI_WORKER_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.1, responseMimeType: 'application/json', maxOutputTokens: 500 }
-    })
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt })
   }, 16000);
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     if (response.status === 429) throw new Error('Limite de uso da API atingido. Tente novamente mais tarde.');
-    if (response.status === 400 || response.status === 403) throw new Error('Chave inválida, API indisponível ou sem permissão. Confira no Google AI Studio.');
+    if (response.status === 400 || response.status === 403) throw new Error('Solicitação não autorizada ou inválida no serviço de IA.');
     throw new Error(`Serviço Gemini indisponível (HTTP ${response.status}).`);
   }
   let parsed;
@@ -1012,10 +997,15 @@ function initMap() {
 
   // OpenStreetMap standard tiles: no API key required.
   // Follow the OSM tile usage policy; this public service is best for modest traffic.
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>'
+  const attribution = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>';
+  const streetMap = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19, attribution
   }).addTo(S.map);
+  const terrainMap = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+    maxZoom: 17,
+    attribution: attribution + ' | &copy; <a href="https://opentopomap.org" target="_blank" rel="noopener noreferrer">OpenTopoMap</a>'
+  });
+  L.control.layers({ 'Ruas': streetMap, 'Relevo': terrainMap }, null, { position: 'topright', collapsed: true }).addTo(S.map);
 
   L.control.zoom({ position: 'bottomright' }).addTo(S.map);
   S.markersLayer = L.layerGroup().addTo(S.map);
@@ -1586,7 +1576,7 @@ async function calculateRoute(points, allowOptimization = true) {
   for (let i = 0; i < routePoints.length - 1; i++) {
     const legPoints = [routePoints[i], routePoints[i + 1]];
     const leg = await osrmRoute(legPoints);
-    legs.push(leg);
+    legs.push({ distance: leg.distance, duration: leg.duration });
     totalDistance += Number(leg.distance) || 0;
     totalDuration += Number(leg.duration) || 0;
     const coords = leg.geometry?.coordinates || [];
@@ -1600,11 +1590,29 @@ async function calculateRoute(points, allowOptimization = true) {
     route: {
       distance: totalDistance,
       duration: totalDuration,
+      legs,
       geometry: { type: 'LineString', coordinates: geometry }
     },
     ordered,
     optimized
   };
+}
+
+// Resumo por trecho, calculado a partir das distâncias e durações rodoviárias do OSRM.
+function renderRouteLegSummary(route, stops) {
+  const target = $('routeLegSummary');
+  if (!target) return;
+  if (!route || !Array.isArray(route.legs) || !route.legs.length) {
+    target.innerHTML = '<p class="route-leg-hint">Os trechos aparecem aqui quando o serviço de rotas retornar os dados.</p>';
+    return;
+  }
+  const names = ['Pharmainox', ...stops.map(s => s.supplierName || 'Fornecedor'), 'Pharmainox'];
+  const rows = route.legs.map((leg, i) => `
+    <tr><td>${i + 1}</td><td>${escapeHtml(names[i] || 'Parada')} → ${escapeHtml(names[i + 1] || 'Parada')}</td>
+    <td>${formatDistance(leg.distance)}</td><td>${formatDuration(leg.duration)}</td></tr>`).join('');
+  target.innerHTML = `<details class="route-leg-details"><summary>Ver distância e tempo por trecho (${route.legs.length})</summary>
+    <div class="route-leg-scroll"><table class="route-leg-table"><thead><tr><th>#</th><th>Trajeto</th><th>Distância</th><th>Tempo estimado</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="route-leg-hint">Estimativas de direção sem trânsito em tempo real; confirme o percurso antes da saída.</p></details>`;
 }
 
 function routeIssueLabel(state) {
@@ -1844,6 +1852,8 @@ async function renderRoute() {
   $('openGoogleRoute').disabled = true;
   $('openGoogleRoute').onclick = null;
   renderGoogleRouteLinks([]);
+  const legSummary = $('routeLegSummary');
+  if (legSummary) legSummary.innerHTML = '';
 
   if (!dateKey) {
     $('routeTitle').textContent = 'Mapa da rota';
@@ -1991,6 +2001,7 @@ async function renderRoute() {
   }
 
   const orderedForMarkers = ordered.length ? ordered : geoPoints;
+  renderRouteLegSummary(route, orderedForMarkers);
   renderStopsList(orderedForMarkers, dateKey);
 
   clearMap();
@@ -2004,7 +2015,7 @@ async function renderRoute() {
   orderedForMarkers.forEach((s, idx) => {
     const projects = s.projects?.length ? s.projects.join(', ') : '—';
     const marker = L.marker([s.lat, s.lng], { icon: markerIcon(String(idx + 1), false) })
-      .bindPopup(`<b>${escapeHtml(s.supplierName)}</b><br>Cód. ${escapeHtml(s.supplierCode)}<br>${escapeHtml(s.address)}<br>Projeto(s): ${escapeHtml(projects)}<br>Pedido(s): ${escapeHtml(s.orders.join(', ') || '—')}`)
+      .bindPopup(`<b>${escapeHtml(s.supplierName)}</b><br>Cód. ${escapeHtml(s.supplierCode)}<br>${escapeHtml(s.address)}<br>Projeto(s): ${escapeHtml(projects)}<br>Pedido(s): ${escapeHtml(s.orders.join(', ') || '—')}<br><a href="${escapeHtml('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(s.address + ', ' + (s.city || 'SP')))}" target="_blank" rel="noopener noreferrer">Abrir endereço no Google Maps ↗</a>` )
       .addTo(S.markersLayer);
     S.routeMarkers[getRouteStopKey(s)] = marker;
     bounds.push([s.lat, s.lng]);
