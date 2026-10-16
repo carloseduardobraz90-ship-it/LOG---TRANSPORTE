@@ -2,23 +2,26 @@
 const GEMINI_WORKER_URL = 'https://pharmainox-gemini-api.carloseduardobraz90.workers.dev/';
 
 async function suggestAddressWithAI(supplierName, address, city) {
+  // O Worker recebe um prompt no deploy inicial; a versão mais recente pode
+  // receber campos estruturados e devolver { suggestions: [...] }.
   const prompt = `Você auxilia a padronização de endereços brasileiros para busca em geocodificadores. Não invente números, CEPs, cidades ou coordenadas. Não afirme que o endereço existe sem prova. Sugira no máximo 3 variantes de texto de pesquisa baseadas apenas nos dados fornecidos. Se não houver informação suficiente, retorne lista vazia. Responda APENAS JSON no formato {"suggestions":["endereço 1"]}.\nNome: ${String(supplierName).slice(0,240)}\nEndereço: ${String(address).slice(0,240)}\nCidade: ${String(city).slice(0,240)}`;
   const response = await fetchWithTimeout(GEMINI_WORKER_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt })
+    body: JSON.stringify({ prompt, supplierName, address, city })
   }, 16000);
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     if (response.status === 429) throw new Error('Limite de uso da API atingido. Tente novamente mais tarde.');
-    if (response.status === 400 || response.status === 403) throw new Error('Solicitação não autorizada ou inválida no serviço de IA.');
-    throw new Error(`Serviço Gemini indisponível (HTTP ${response.status}).`);
+    throw new Error(payload.error || `Serviço Gemini indisponível (HTTP ${response.status}).`);
   }
-  let parsed;
-  try {
-    const raw = (payload.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
-    parsed = JSON.parse(raw || '{}');
-  } catch { throw new Error('A IA não retornou sugestões no formato esperado.'); }
+  let parsed = payload;
+  if (!Array.isArray(parsed.suggestions)) {
+    try {
+      const raw = (payload.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
+      parsed = JSON.parse(raw.replace(/^```(?:json)?\s*|\s*```$/g, '').trim() || '{}');
+    } catch { throw new Error('A IA não retornou sugestões no formato esperado.'); }
+  }
   return Array.isArray(parsed.suggestions)
     ? [...new Set(parsed.suggestions.filter(x => typeof x === 'string' && x.length <= 240).map(x => x.trim()).filter(Boolean))].slice(0,3)
     : [];

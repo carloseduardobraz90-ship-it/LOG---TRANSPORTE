@@ -1,0 +1,11 @@
+CORREÇÃO DA BUSCA COM IA
+
+1. Copie index.html e script.js para a pasta original do projeto.
+2. Não substitua a pasta .git original.
+3. O cliente agora aceita resposta Gemini direta (candidates) e resposta do Worker ({suggestions}).
+4. Envia tanto prompt quanto supplierName/address/city, compatível com os dois Workers mostrados na conversa.
+5. O index.html usa um parâmetro de versão para evitar cache antigo de script.js.
+6. Confira que a chave Gemini está somente no Secret do Cloudflare e revogue a chave antiga.
+7. Confira no Git o histórico de commits antes de publicar: a chave antiga pode continuar em commits pendentes.
+8. Se o navegador continuar exibindo ADD_CHAVE_AQUI, o script antigo ainda está sendo carregado; confira Network/Source e faça deploy do index.html novo.
+9. O Worker público precisa de rate limiting e proteção contra abuso; CORS não é autenticação.
