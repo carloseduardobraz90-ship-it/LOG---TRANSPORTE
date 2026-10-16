@@ -4,11 +4,11 @@
 // ATENÇÃO: em GitHub Pages esta chave fica PÚBLICA
 // para qualquer visitante, mesmo sem aparecer na tela.
 // ================================================
-const GEMINI_API_KEY = "AQ.Ab8RN6JnF2EVu-rg4_a-ZDxcsHRjwWk3ZUOUGxO7siY61utd7w";
+const GEMINI_API_KEY = "AQ.Ab8RN6JJHUypCd6jTgxg6kOYUBN6anyDEnt5PmkfwgaPvqwNSg";
 const GEMINI_MODEL = 'gemini-2.5-flash-lite';
 function getGeminiKey() {
   const key = GEMINI_API_KEY.trim();
-  return key === 'AQ.Ab8RN6JnF2EVu-rg4_a-ZDxcsHRjwWk3ZUOUGxO7siY61utd7w' ? '' : key;
+  return key === 'AQ.Ab8RN6JJHUypCd6jTgxg6kOYUBN6anyDEnt5PmkfwgaPvqwNSg' ? '' : key;
 }
 
 async function suggestAddressWithAI(supplierName, address, city) {
