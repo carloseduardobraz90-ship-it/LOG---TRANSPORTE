@@ -208,3 +208,11 @@ body{margin:0;background:#f4f7fb;color:#172033;font:14px Segoe UI,Arial,sans-ser
 .route-leg-table th, .route-leg-table td { padding: 9px 12px; border-top: 1px solid #e5e9ef; text-align: left; }
 .route-leg-table th { background: #f4f7fa; color: #273747; }
 .route-leg-hint { margin: 8px 12px 12px; font-size: .78rem; color: #66758a; }
+
+.saved-address-edit { margin-top: 10px; cursor: auto; }
+.saved-address-edit summary { color: #176849; cursor: pointer; font-weight: 600; padding: 6px 0; }
+.saved-address-edit .route-address-editor { margin-top: 8px; }
+.saved-address-edit input { width: 100%; box-sizing: border-box; min-width: 0; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; }
+.saved-address-edit label { display: block; margin-bottom: 6px; font-weight: 600; }
+.saved-address-edit .route-address-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.saved-address-edit .address-edit-status { font-size: 12px; margin-top: 6px; }

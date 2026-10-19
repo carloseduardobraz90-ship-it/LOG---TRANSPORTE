@@ -1451,7 +1451,7 @@ function googleDirectionsSegments(orderedStops) {
   // O Google Maps URLs aceita até 3 paradas intermediárias em navegadores
   // móveis e até 9 em outras plataformas. Usamos 3 para funcionar também
   // quando o motorista abre o link pelo celular.
-  const maxWaypoints = 9;
+  const maxWaypoints = 3;
   const nodes = [
     { ...PHARMAINNOX, routeLabel: 'Pharmainox (saída)' },
     ...orderedStops.map(s => ({ ...s, routeLabel: s.supplierName || 'Fornecedor' })),
@@ -1770,6 +1770,17 @@ function renderStopsList(ordered, dateKey = '') {
           <span>Projeto(s): ${escapeHtml(projects)}</span>
           <span>Pedido(s): ${escapeHtml(orders)}</span>
           <small>${escapeHtml(s.address)}</small>
+<details class="saved-address-edit">
+<summary>Alterar endereço</summary>
+<div class="route-address-editor">
+<label for="edit_addr_${i}">Endereço do fornecedor</label>
+<input id="edit_addr_${i}" type="text" value="${escapeHtml(getManualAddress(s.supplierCode)?.endereco || s.resolution?.entry?.endereco || s.address || '')}" placeholder="Digite o endereço completo...">
+<div class="route-address-actions">
+<button type="button" class="button secondary mini-button update-saved-address" data-index="${i}" ${!s.supplierCode ? 'disabled' : ''}>Salvar alteração</button>
+<button type="button" class="button secondary mini-button cancel-saved-address">Cancelar</button>
+</div><small>A alteração será usada nas rotas deste fornecedor e salva neste navegador.</small>
+<div class="address-edit-status" role="status" aria-live="polite"></div>
+</div></details>
         </div>
         <button type="button" class="remove-route-stop" data-route-key="${escapeHtml(routeKey)}" title="Retirar fornecedor desta rota do dia" aria-label="Retirar ${escapeHtml(s.supplierName)} da rota">×</button>
       </div>`;
@@ -1782,7 +1793,7 @@ function renderStopsList(ordered, dateKey = '') {
 
   $('routeStopsList').querySelectorAll('.route-stop').forEach(card => {
     card.addEventListener('click', e => {
-      if (e.target.closest('button')) return;
+      if (e.target.closest('button, details, input, label')) return;
       const marker = S.routeMarkers?.[card.dataset.routeKey || ''];
       if (!marker || !S.map) return;
       $('routeStopsList').querySelectorAll('.route-stop').forEach(x => x.classList.remove('route-stop-selected'));
@@ -1801,6 +1812,46 @@ function renderStopsList(ordered, dateKey = '') {
       excludeRouteStop(dateKey, routeKey);
       toast('Fornecedor retirado da rota deste dia.');
       await renderRoute();
+    });
+  });
+
+
+  $('routeStopsList').querySelectorAll('.saved-address-edit').forEach(editor => {
+    const card = editor.closest('.route-stop');
+    const input = editor.querySelector('input');
+    const save = editor.querySelector('.update-saved-address');
+    const cancel = editor.querySelector('.cancel-saved-address');
+    editor.addEventListener('toggle', () => { card.draggable = !editor.open; });
+    editor.addEventListener('click', e => e.stopPropagation());
+    editor.querySelector('summary').addEventListener('click', () => {
+      if (!editor.open) requestAnimationFrame(() => input.focus());
+    });
+    cancel.addEventListener('click', () => {
+      input.value = input.defaultValue;
+      editor.querySelector('.address-edit-status').textContent = '';
+      editor.open = false;
+    });
+    const submit = async () => {
+      if (save.disabled) return;
+      const stop = ordered[Number(save.dataset.index)];
+      delete input.dataset.saved;
+      save.disabled = true;
+      cancel.disabled = true;
+      input.readOnly = true;
+      editor.querySelector('.address-edit-status').textContent = 'Salvando alteração e atualizando a localização…';
+      try {
+        await saveRouteAddress(stop.supplierCode, input.id, stop.resolution?.entry?.cidade || stop.city, stop.supplierName);
+      } finally {
+        save.disabled = !stop.supplierCode;
+        cancel.disabled = false;
+        input.readOnly = false;
+        editor.querySelector('.address-edit-status').textContent = input.dataset.saved === 'true' ? input.title : 'Confira o endereço informado e tente novamente.';
+      }
+    };
+    save.addEventListener('click', submit);
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); submit(); }
+      if (e.key === 'Escape' && !cancel.disabled) cancel.click();
     });
   });
 
