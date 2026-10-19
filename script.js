@@ -1451,7 +1451,7 @@ function googleDirectionsSegments(orderedStops) {
   // O Google Maps URLs aceita até 3 paradas intermediárias em navegadores
   // móveis e até 9 em outras plataformas. Usamos 3 para funcionar também
   // quando o motorista abre o link pelo celular.
-  const maxWaypoints = 3;
+  const maxWaypoints = 9;
   const nodes = [
     { ...PHARMAINNOX, routeLabel: 'Pharmainox (saída)' },
     ...orderedStops.map(s => ({ ...s, routeLabel: s.supplierName || 'Fornecedor' })),
