@@ -20,10 +20,10 @@
 <!-- Scripts locais -->
 <script defer="" src="fornecedores.js">
 </script>
-<script defer="" src="script.js?v=20261021-principais">
+<script defer="" src="script.js?v=20261021-visual">
 </script>
 <link rel="stylesheet" href="order-dashboard.css"/>
-<script defer src="order-dashboard.js?v=20261021-principais"></script>
+<script defer src="order-dashboard.js?v=20261021-visual"></script>
 </head>
 <body>
 <aside class="sidebar">
@@ -51,13 +51,13 @@
      Logística
     </a>
 <a data-app-view="dashboard" data-nav-key="frota" href="#frota">Frota</a>
-<a data-app-view="routes" data-nav-key="roteirizador" href="#roteirizador">
+<a data-app-view="dashboard" data-nav-key="tabelas" href="#tabelas">Tabelas</a><a data-app-view="routes" data-nav-key="roteirizador" href="#roteirizador">
      Roteirizador
     </a>
 </nav>
 </aside>
 <main class="main" id="dashboard">
-<div class="app-view active" id="dashboardView"><section class="filters panel logistics-filters shared-filters">
+<div class="app-view active" id="dashboardView"><section hidden class="filters panel logistics-filters shared-filters"><div class="filter-bar-title"><strong>Filtros</strong><button class="button secondary" id="clear">Limpar</button></div>
 <div>
 <label for="year">
         Ano
@@ -96,7 +96,7 @@
        </label>
 <input id="end" type="date"/>
 </div>
-<div><label for="analysisMonth">Filtrar mês</label><input id="analysisMonth" type="month"/></div><div><label for="analysisWeek">Filtrar semana</label><select id="analysisWeek"><option value="">Todas as semanas</option></select></div><div class="chart-period-control">
+<div><label for="analysisMonth">Mês</label><input id="analysisMonth" type="month"/></div><div><label for="analysisWeek">Semana</label><select id="analysisWeek"><option value="">Todas as semanas</option></select></div><div><label for="analysisWeekday">Dia da semana</label><select id="analysisWeekday"><option value="">Todos os dias</option><option value="1">Segunda-feira</option><option value="2">Terça-feira</option><option value="3">Quarta-feira</option><option value="4">Quinta-feira</option><option value="5">Sexta-feira</option><option value="6">Sábado</option><option value="0">Domingo</option></select></div><div class="chart-period-control">
 <label for="periodicity">
         Agrupar gráficos por
        </label>
@@ -112,12 +112,10 @@
         </option>
 </select>
 </div>
-<button class="button secondary" id="clear">
-       Limpar
-      </button>
+
 </section><div class="workspace-page active" id="workspaceDashboard"><header class="workspace-heading"><div class="workspace-title-icon">▦</div><div><p class="eyebrow">VISÃO GERAL</p><h1>Dashboard</h1><p class="subtitle">Visão consolidada dos indicadores e carregamento dos arquivos.</p></div><div class="workspace-heading-actions"><button class="button" id="update">
-       Atualizar frota
-      </button></div></header><div class="workspace-hint workspace-hint-primary"><span class="workspace-hint-icon">↗</span><div><strong>Central de indicadores</strong><span>Os pedidos são carregados ao selecionar o arquivo. Para os indicadores da frota, selecione os quatro arquivos e clique em Atualizar frota.</span></div></div><section class="upload panel upload-sources upload-sources-vehicles">
+       Atualizar dashboard
+      </button></div></header><section class="dashboard-kpi-section"><div class="dashboard-section-title"><div><p class="eyebrow">TODOS OS DADOS IMPORTADOS</p><h2>Visão da operação</h2></div><span class="overview-pill">Sem filtros</span></div><div class="dashboard-kpis"><article class="metric-card metric-neutral"><div class="metric-top"><span>Valor abastecido</span><i aria-hidden="true"></i></div><strong id="value" class="">—</strong><small>Investimento total em combustível</small></article><article class="metric-card metric-neutral"><div class="metric-top"><span>Litros abastecidos</span><i aria-hidden="true"></i></div><strong id="liters" class="">—</strong><small>Informados ou estimados pelo preço/L</small></article><article class="metric-card metric-neutral"><div class="metric-top"><span>Abastecimentos</span><i aria-hidden="true"></i></div><strong id="refuels" class="">—</strong><small>Registros importados</small></article><article class="metric-card metric-neutral"><div class="metric-top"><span>Itens de pedidos</span><i aria-hidden="true"></i></div><strong id="logCount" class="">—</strong><small>Linhas da base logística</small></article><article class="metric-card metric-good"><div class="metric-top"><span>KM percorridos</span><i aria-hidden="true"></i></div><strong id="distance" class="">—</strong><small>Soma das jornadas válidas</small></article><article class="metric-card metric-neutral"><div class="metric-top"><span>KM/L indicativo</span><i aria-hidden="true"></i></div><strong id="kml" class="">—</strong><small>KM / litros abastecidos no mesmo período</small></article><article class="metric-card metric-neutral"><div class="metric-top"><span>Pedidos únicos</span><i aria-hidden="true"></i></div><strong id="dashOrders" class="">—</strong><small>Números distintos na base</small></article><article class="metric-card metric-good"><div class="metric-top"><span>Itens finalizados</span><i aria-hidden="true"></i></div><strong id="dashFinalized" class="">—</strong><small>Status FINALIZADO ou ENTREGUE</small></article><article class="metric-card metric-good"><div class="metric-top"><span>Conclusão dos itens</span><i aria-hidden="true"></i></div><strong id="dashCompletion" class="">—</strong><small>Finalizados / total de itens</small></article><article class="metric-card metric-neutral"><div class="metric-top"><span>Itens sem conclusão</span><i aria-hidden="true"></i></div><strong id="dashPending" class="">—</strong><small>Demais status da base</small></article><article class="metric-card metric-bad"><div class="metric-top"><span>Agendamentos vencidos</span><i aria-hidden="true"></i></div><strong id="dashOverdue" class="">—</strong><small>Sem conclusão e com data anterior a hoje</small></article><article class="metric-card metric-bad"><div class="metric-top"><span>Alterações indicadas</span><i aria-hidden="true"></i></div><strong id="dashChanges" class="">—</strong><small>Maior sufixo por pedido-base/fornecedor</small></article><article class="metric-card metric-good"><div class="metric-top"><span>Jornadas válidas</span><i aria-hidden="true"></i></div><strong id="dashQuality" class="">—</strong><small>Dias/veículo com saída e chegada válidas</small></article><article class="metric-card metric-bad"><div class="metric-top"><span>Pendências de jornada</span><i aria-hidden="true"></i></div><strong id="dashIssues" class="">—</strong><small>Dias/veículo excluídos do cálculo de KM</small></article><article class="metric-card metric-neutral"><div class="metric-top"><span>Valor dos itens</span><i aria-hidden="true"></i></div><strong id="dashOrderValue" class="">—</strong><small>Soma dos valores na base de pedidos</small></article><article class="metric-card metric-neutral"><div class="metric-top"><span>Período da frota</span><i aria-hidden="true"></i></div><strong id="period" class="period-value">—</strong><small>Primeiro e último apontamento</small></article></div><p class="dashboard-footnote" id="dashboardUpdated">Carregue os arquivos para começar. Cores indicam resultados concluídos e pendências; valores financeiros são neutros.</p></section><div class="workspace-hint workspace-hint-primary"><span class="workspace-hint-icon">↗</span><div><strong>Central de indicadores</strong><span>Os pedidos são carregados ao selecionar o arquivo. Para os indicadores da frota, selecione os quatro arquivos e clique em Atualizar dashboard.</span></div></div><section class="upload panel upload-sources upload-sources-vehicles">
 <div class="upload-section-title">
 <div>
 <p class="eyebrow">
@@ -185,84 +183,6 @@
 <p class="upload-status" id="status">
       Pedidos podem ser carregados separadamente. Para atualizar a frota, selecione os quatro arquivos dos veículos.
      </p>
-</section><section class="kpis">
-<article class="kpi">
-<span>
-        Valor abastecido
-       </span>
-<strong id="value">
-        R$ 0,00
-       </strong>
-<small>
-        Soma dos registros filtrados
-       </small>
-</article>
-<article class="kpi">
-<span>
-        Litros calculados
-       </span>
-<strong id="liters">
-        —
-       </strong>
-<small>
-        Informados ou calculados por preço/L
-       </small>
-</article>
-<article class="kpi">
-<span>
-        Abastecimentos
-       </span>
-<strong id="refuels">
-        0
-       </strong>
-<small>
-        Arquivos de abastecimento
-       </small>
-</article>
-<article class="kpi">
-<span>
-        Registros logísticos
-       </span>
-<strong id="logCount">
-        0
-       </strong>
-<small>
-        Base geral filtrada
-       </small>
-</article>
-<article class="kpi">
-<span>
-        KM percorridos
-       </span>
-<strong id="distance">
-        0 km
-       </strong>
-<small>
-        CHEGANDO − SAINDO
-       </small>
-</article>
-<article class="kpi">
-<span>
-        KM/L
-       </span>
-<strong id="kml">
-        —
-       </strong>
-<small>
-        Indicativo: KM ÷ litros abastecidos
-       </small>
-</article>
-<article class="kpi">
-<span>
-        Início / término
-       </span>
-<strong class="period-value" id="period">
-        —
-       </strong>
-<small>
-        Primeiro e último apontamento
-       </small>
-</article>
 </section></div><div class="workspace-page" id="workspaceFuel"><header class="workspace-heading"><div class="workspace-title-icon">⛽</div><div><p class="eyebrow">CONTROLE DE COMBUSTÍVEL</p><h1>Abastecimento</h1><p class="subtitle">Custos, litros, consumo e histórico de abastecimentos.</p></div></header><div class="workspace-hint"><span class="workspace-hint-icon">✦</span><div><strong>Filtros compartilhados</strong><span>Altere ano, veículo, período ou datas acima. Os indicadores da frota e dos abastecimentos serão atualizados juntos. A Logística tem seus próprios filtros por agendamento.</span></div></div><section class="charts workspace-charts"><article class="panel chart-card">
 <div class="chart-title-row">
 <h2 id="titleMonthValue">
@@ -326,44 +246,7 @@
 <canvas id="weekday">
 </canvas>
 </div>
-</article></section><section class="panel table-panel" id="abastecimento">
-<div class="panel-head">
-<h2>
-       Abastecimentos
-      </h2>
-<button class="button secondary" id="export">
-       Exportar CSV
-      </button>
-</div>
-<div class="table-wrap">
-<table>
-<thead>
-<tr>
-<th>
-          Data/Hora
-         </th>
-<th>
-          Veículo
-         </th>
-<th>
-          Valor
-         </th>
-<th>
-          Preço/L
-         </th>
-<th>
-          Litros
-         </th>
-<th>
-          KM
-         </th>
-<th>Origem dos litros</th></tr>
-</thead>
-<tbody id="fuelTable">
-</tbody>
-</table>
-</div>
-</section></div><div class="workspace-page" id="workspaceLogistics"><header class="workspace-heading"><div class="workspace-title-icon">▤</div><div><p class="eyebrow">GESTÃO DOS PEDIDOS</p><h1>Logística</h1><p class="subtitle">Pedidos, agendamentos, prazos e valores com filtros combinados.</p></div></header><div id="orderDashboard">
+</article></section></div><div class="workspace-page" id="workspaceLogistics"><header class="workspace-heading"><div class="workspace-title-icon">▤</div><div><p class="eyebrow">GESTÃO DOS PEDIDOS</p><h1>Logística</h1><p class="subtitle">Pedidos, agendamentos, prazos e valores com filtros combinados.</p></div></header><div id="orderDashboard">
 
     <div class="container"><div class="card integration-note"><strong>Filtros da Logística</strong><p>Todos os filtros abaixo são combinados e atualizam os gráficos, indicadores e tabelas desta aba. Datas usam AGENDAMENTO. A base é carregada na Visão Geral, em Arquivo dos pedidos. Este painel e o roteirizador usam automaticamente esse mesmo arquivo.</p><p>Agendamentos únicos não comprovam visitas realizadas. Prazo médio é emissão até agendamento dos itens finalizados, não prazo real de entrega. Produtos/serviços são classificados pelo texto da descrição. As regiões seguem o cadastro de cidades deste dashboard.</p><p id="lg-filterScope" aria-live="polite"></p><p id="lg-dateQuality" aria-live="polite"></p></div>
         
@@ -372,7 +255,7 @@
 
         <div class="card">
 
-            <div class="filters-grid"><div class="filter-group"><label for="lg-monthFilter">Mês do agendamento</label><input id="lg-monthFilter" type="month" class="form-control"></div><div class="filter-group"><label for="lg-weekFilter">Semana do agendamento</label><select id="lg-weekFilter" class="form-control"><option value="">Todas as semanas</option></select></div><div class="filter-group"><label for="lg-weekdayFilter">Dia da semana</label><select id="lg-weekdayFilter" class="form-control"><option value="">Todos os dias</option><option value="1">Segunda-feira</option><option value="2">Terça-feira</option><option value="3">Quarta-feira</option><option value="4">Quinta-feira</option><option value="5">Sexta-feira</option><option value="6">Sábado</option><option value="0">Domingo</option></select></div>
+            <div class="filter-bar-title"><strong>Filtros</strong><button id="lg-btnClear" class="button secondary">Limpar</button></div><div class="filters-grid"><div class="filter-group"><label for="lg-monthFilter">Mês</label><input id="lg-monthFilter" type="month" class="form-control"></div><div class="filter-group"><label for="lg-weekFilter">Semana</label><select id="lg-weekFilter" class="form-control"><option value="">Todas as semanas</option></select></div><div class="filter-group"><label for="lg-weekdayFilter">Dia da semana</label><select id="lg-weekdayFilter" class="form-control"><option value="">Todos os dias</option><option value="1">Segunda-feira</option><option value="2">Terça-feira</option><option value="3">Quarta-feira</option><option value="4">Quinta-feira</option><option value="5">Sexta-feira</option><option value="6">Sábado</option><option value="0">Domingo</option></select></div>
 
                 
                 
@@ -467,7 +350,7 @@
                 
                 <div class="filter-group">
                     <label for="lg-dtInicio">
-                        Agendamento Inicial (Coluna V)
+                        Data inicial
                     </label>
 
                     <input type="date" id="lg-dtInicio" class="form-control">
@@ -476,24 +359,14 @@
                 
                 <div class="filter-group">
                     <label for="lg-dtFim">
-                        Agendamento Final (Coluna V)
+                        Data final
                     </label>
 
                     <input type="date" id="lg-dtFim" class="form-control">
                 </div>
 
                 
-                <div class="filter-group" style="display: flex; gap: 8px;">
-
-                    <button id="lg-btnUpdate" class="btn btn-primary" style="flex: 1;">
-                        Atualizar
-                    </button>
-
-                    <button id="lg-btnClear" class="btn btn-secondary">
-                        Limpar
-                    </button>
-
-                </div>
+                
 
             </div>
         </div>
@@ -698,7 +571,7 @@
                     font-size: 1rem;
                     margin-bottom: 12px;
                 ">
-                    Fornecedores com Mais Alterações de Ponto
+                    Top 5 fornecedores com mais alterações de ponto
                 </h3>
 
                 <p class="grafico-info">
@@ -754,7 +627,90 @@
 
         
 
-        <div class="card">
+        
+
+    </div>
+
+
+    
+
+    
+
+</div></div><div class="workspace-page" id="workspaceTables"><header class="workspace-heading"><div class="workspace-title-icon">▤</div><div><p class="eyebrow">BASES E CONFERÊNCIA</p><h1>Tabelas</h1><p class="subtitle">Bases completas e detalhes das análises em um só lugar.</p></div></header><section class="panel raw-data-panel"><div class="panel-head"><h2>Dados dos arquivos importados</h2><button class="button secondary" id="exportRaw">Exportar base</button></div><div class="table-controls"><label>Base<select id="rawDataset"><option value="orders">Pedidos</option><option value="fuel">Abastecimentos</option><option value="journey">Jornadas / KM</option></select></label><label>Buscar<input id="rawSearch" type="search" placeholder="Pedido, fornecedor, placa..."></label><span id="rawCount"></span></div><div class="table-wrap"><table><thead><tr id="rawHead"></tr></thead><tbody id="rawBody"></tbody></table></div><div class="table-pagination"><button class="button secondary" id="rawPrev">Anterior</button><span id="rawPage"></span><button class="button secondary" id="rawNext">Próxima</button></div></section><p class="table-context">As tabelas de análise abaixo acompanham os filtros de sua aba de origem: Frota/Abastecimento ou Logística. A base completa acima tem busca própria e não é limitada pelos filtros dos gráficos.</p><details class="table-detail"><summary>Abastecimentos filtrados</summary><section class="panel table-panel" id="abastecimento">
+<div class="panel-head">
+<h2>
+       Abastecimentos
+      </h2>
+<button class="button secondary" id="export">
+       Exportar CSV
+      </button>
+</div>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>
+          Data/Hora
+         </th>
+<th>
+          Veículo
+         </th>
+<th>
+          Valor
+         </th>
+<th>
+          Preço/L
+         </th>
+<th>
+          Litros
+         </th>
+<th>
+          KM
+         </th>
+<th>Origem dos litros</th></tr>
+</thead>
+<tbody id="fuelTable">
+</tbody>
+</table>
+</div>
+</section></details><details class="table-detail"><summary>Conferência diária da frota</summary><section class="panel table-panel" id="consumoDiario">
+<div class="panel-head">
+<div>
+<h2>
+        Conferência diária de KM e abastecimentos
+       </h2>
+<span class="data-source-note">
+        KM soma pares cronológicos de saída/chegada no mesmo dia. Dias incompletos ou inconsistentes ficam fora dos totais. Abastecimentos sem jornada também aparecem. O KM/L diário relaciona distância com litros comprados no dia; não representa consumo real.
+       </span>
+</div>
+</div>
+<div class="table-wrap">
+<table class="daily-table">
+<thead><tr><th>Data</th><th>Dia</th><th>Veículo</th><th>Primeira saída</th><th>KM inicial</th><th>Última chegada</th><th>KM final</th><th>KM válidos</th><th>Valor abastecido</th><th>Litros abastecidos</th><th>KM/L indicativo</th><th>Situação da jornada</th><th>Arquivos de origem</th></tr></thead>
+<tbody id="dailyTable">
+</tbody>
+</table>
+</div>
+</section></details><details class="table-detail"><summary>Prévia de pedidos por emissão</summary><section class="panel table-panel" id="logisticaPreview">
+<div class="panel-head">
+<h2>
+       Prévia da base logística
+      </h2>
+<span class="data-source-note">
+       Rota = AGENDAMENTO (V) · TIPO = COLETA/ENTREGA · Fornecedor = código (J)
+      </span>
+</div>
+<div class="table-wrap">
+<table>
+<thead>
+<tr id="logHead">
+</tr>
+</thead>
+<tbody id="logTable">
+</tbody>
+</table>
+</div>
+</section></details><details class="table-detail"><summary>Comparação por período e veículo</summary><section class="panel table-panel"><div class="panel-head"><h2>Comparação por período e veículo</h2><button class="button secondary" id="exportAnalysis">Exportar análise</button></div><div class="table-wrap"><table><thead><tr><th>Período</th><th>Veículo</th><th>KM válidos</th><th>Valor abastecido</th><th>Litros abastecidos</th><th>KM/L indicativo</th><th>Dias válidos / jornada</th><th>Abastecimentos</th><th>Observação</th></tr></thead><tbody id="analysisTable"></tbody></table></div></section></details><details class="table-detail"><summary>Detalhamento dos pedidos da Logística</summary><div class="card">
 
             <h3 style="
                 font-size: 1rem;
@@ -837,16 +793,7 @@
 
             </div>
 
-        </div>
-
-    </div>
-
-
-    
-
-    
-
-</div></div><div class="workspace-page" id="workspaceFleet"><header class="workspace-heading"><div class="workspace-title-icon">▤</div><div><p class="eyebrow">ANÁLISE OPERACIONAL</p><h1>Frota</h1><p class="subtitle">Quilometragem, desempenho, pedidos e distribuição logística.</p></div></header><div class="workspace-hint"><span class="workspace-hint-icon">✦</span><div><strong>Filtros compartilhados</strong><span>Altere ano, veículo, período ou datas acima. Os indicadores da frota e dos abastecimentos serão atualizados juntos. A Logística tem seus próprios filtros por agendamento.</span></div></div><section class="panel analysis-context"><h2>Base da análise</h2><p id="analysisScope" aria-live="polite"></p><p id="qualitySummary" aria-live="polite"></p><details><summary>Como interpretar os números</summary><p>KM: soma das viagens com saída e chegada no mesmo dia, em ordem cronológica e com hodômetro válido. O filtro de mês recorta as semanas que atravessam meses. Semana de segunda a domingo, conforme calendário ISO. Datas inicial/final, ano, mês e semana são combinados.</p><p>KM/L indicativo = KM válido ÷ litros abastecidos no mesmo grupo. Compra de combustível e consumo do tanque ocorrem em momentos diferentes: grupos sem abastecimento ficam sem esse indicador. Não é uma medição de eficiência real. Quando não há litros ou preço/L informados, os litros são estimados pelo preço anual de referência: 2025 = R$ 6,49/L; 2026 = R$ 7,49/L. Para outros anos, o preço padrão é R$ 7,49/L. Confira esses valores com a base antes de interpretar o indicador.</p><p>Por dia da semana: soma de todas as segundas, terças e demais dias dentro dos filtros. Os pedidos são contados por linha e filtrados pela emissão; o filtro de placa se aplica apenas à frota, pois a base de pedidos não tem vínculo comprovado com o veículo.</p></details></section><section class="charts workspace-charts"><article class="panel chart-card">
+        </div></details></div><div class="workspace-page" id="workspaceFleet"><header class="workspace-heading"><div class="workspace-title-icon">▤</div><div><p class="eyebrow">ANÁLISE OPERACIONAL</p><h1>Frota</h1><p class="subtitle">Quilometragem, desempenho, pedidos e distribuição logística.</p></div></header><div class="workspace-hint"><span class="workspace-hint-icon">✦</span><div><strong>Filtros compartilhados</strong><span>Altere ano, veículo, período ou datas acima. Os indicadores da frota e dos abastecimentos serão atualizados juntos. A Logística tem seus próprios filtros por agendamento.</span></div></div><section class="panel analysis-context"><h2>Base da análise</h2><p id="analysisScope" aria-live="polite"></p><p id="qualitySummary" aria-live="polite"></p><details><summary>Como interpretar os números</summary><p>KM: soma das viagens com saída e chegada no mesmo dia, em ordem cronológica e com hodômetro válido. O filtro de mês recorta as semanas que atravessam meses. Semana de segunda a domingo, conforme calendário ISO. Datas inicial/final, ano, mês e semana são combinados.</p><p>KM/L indicativo = KM válido ÷ litros abastecidos no mesmo grupo. Compra de combustível e consumo do tanque ocorrem em momentos diferentes: grupos sem abastecimento ficam sem esse indicador. Não é uma medição de eficiência real. Quando não há litros ou preço/L informados, os litros são estimados pelo preço anual de referência: 2025 = R$ 6,49/L; 2026 = R$ 7,49/L. Para outros anos, o preço padrão é R$ 7,49/L. Confira esses valores com a base antes de interpretar o indicador.</p><p>Por dia da semana: soma de todas as segundas, terças e demais dias dentro dos filtros. Os pedidos são contados por linha e filtrados pela emissão; o filtro de placa se aplica apenas à frota, pois a base de pedidos não tem vínculo comprovado com o veículo.</p></details></section><section class="charts workspace-charts"><article class="panel chart-card">
 <h2 id="titleDistanceVehicle">
         KM por veículo e mês
        </h2>
@@ -875,60 +822,7 @@
 <canvas id="dailyDistance">
 </canvas>
 </div>
-</article><article class="panel chart-card">
-<h2>
-        Linhas de pedidos por status
-       </h2>
-<div class="chart-box">
-<canvas id="chartStatus">
-</canvas>
-</div>
-</article><article class="panel chart-card">
-<h2>
-        Linhas de pedidos por cidade
-       </h2>
-<div class="chart-box">
-<canvas id="city">
-</canvas>
-</div>
-</article></section><section class="charts workspace-charts"><article class="panel chart-card"><h2>KM por dia da semana e veículo</h2><div class="chart-box"><canvas id="distanceWeekday"></canvas></div></article><article class="panel chart-card"><h2>KM/L indicativo por dia da semana e veículo</h2><div class="chart-box"><canvas id="kmlWeekday"></canvas></div></article></section><section class="panel table-panel"><div class="panel-head"><h2>Comparação por período e veículo</h2><button class="button secondary" id="exportAnalysis">Exportar análise</button></div><div class="table-wrap"><table><thead><tr><th>Período</th><th>Veículo</th><th>KM válidos</th><th>Valor abastecido</th><th>Litros abastecidos</th><th>KM/L indicativo</th><th>Dias válidos / jornada</th><th>Abastecimentos</th><th>Observação</th></tr></thead><tbody id="analysisTable"></tbody></table></div></section><section class="panel table-panel" id="consumoDiario">
-<div class="panel-head">
-<div>
-<h2>
-        Conferência diária de KM e abastecimentos
-       </h2>
-<span class="data-source-note">
-        KM soma pares cronológicos de saída/chegada no mesmo dia. Dias incompletos ou inconsistentes ficam fora dos totais. Abastecimentos sem jornada também aparecem. O KM/L diário relaciona distância com litros comprados no dia; não representa consumo real.
-       </span>
-</div>
-</div>
-<div class="table-wrap">
-<table class="daily-table">
-<thead><tr><th>Data</th><th>Dia</th><th>Veículo</th><th>Primeira saída</th><th>KM inicial</th><th>Última chegada</th><th>KM final</th><th>KM válidos</th><th>Valor abastecido</th><th>Litros abastecidos</th><th>KM/L indicativo</th><th>Situação da jornada</th><th>Arquivos de origem</th></tr></thead>
-<tbody id="dailyTable">
-</tbody>
-</table>
-</div>
-</section><section class="panel table-panel" id="logisticaPreview">
-<div class="panel-head">
-<h2>
-       Prévia da base logística
-      </h2>
-<span class="data-source-note">
-       Rota = AGENDAMENTO (V) · TIPO = COLETA/ENTREGA · Fornecedor = código (J)
-      </span>
-</div>
-<div class="table-wrap">
-<table>
-<thead>
-<tr id="logHead">
-</tr>
-</thead>
-<tbody id="logTable">
-</tbody>
-</table>
-</div>
-</section></div>
+</article></section><section class="charts workspace-charts"><article class="panel chart-card"><h2>KM por dia da semana e veículo</h2><div class="chart-box"><canvas id="distanceWeekday"></canvas></div></article><article class="panel chart-card"><h2>KM/L indicativo por dia da semana e veículo</h2><div class="chart-box"><canvas id="kmlWeekday"></canvas></div></article></section></div>
 
 
 

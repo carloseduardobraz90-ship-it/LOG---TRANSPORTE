@@ -2,7 +2,7 @@
 'use strict';
 const hostDocument=window.document;
 const root=hostDocument.getElementById('orderDashboard');
-const document={getElementById:id=>hostDocument.getElementById('lg-'+id),createElement:tag=>hostDocument.createElement(tag),querySelector:selector=>root.querySelector(selector.replace(/#([a-zA-Z][\w-]*)/g,'#lg-$1')),addEventListener:(...args)=>hostDocument.addEventListener(...args)};
+const document={getElementById:id=>hostDocument.getElementById('lg-'+id),createElement:tag=>hostDocument.createElement(tag),querySelector:selector=>hostDocument.querySelector(selector.replace(/#([a-zA-Z][\w-]*)/g,'#lg-$1')),addEventListener:(...args)=>hostDocument.addEventListener(...args)};
 let dadosBrutos = [];
 
 let dadosFiltrados = [];
@@ -2206,7 +2206,7 @@ function atualizarControleAlteracoes(dados) {
         )
             .sort(
                 (a, b) => b[1] - a[1]
-            );
+            ).slice(0,5);
 
     tabela.innerHTML =
         ranking.length

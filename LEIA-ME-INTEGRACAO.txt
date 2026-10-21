@@ -1,13 +1,27 @@
-VERSÃO COM ARQUIVOS PRINCIPAIS — 21/10/2026
+PAINEL PHARMAINOX — APARÊNCIA E ORGANIZAÇÃO — 21/10/2026
 
-Extraia o ZIP e copie o conteúdo de site-logistica para a pasta do projeto, substituindo os arquivos da versão anterior. Inclua order-dashboard.js e order-dashboard.css.
+ATUALIZAR
+Copie o conteúdo da pasta site-logistica para o projeto, incluindo order-dashboard.js e order-dashboard.css. Faça commit/push e aguarde a publicação da sua hospedagem. Atualize com Ctrl+F5. O ZIP não inclui os CSVs usados na validação.
 
-Na Visão Geral, carregue os quatro arquivos dos veículos no campo de veículos e o arquivo de pedidos no campo de pedidos. A Logística e o Roteirizador usam automaticamente a mesma base de pedidos. Não há mais campo de upload na aba Logística.
+DASHBOARD
+16 KPIs sobre o conjunto completo de dados importados, sem filtros de análise. Os arquivos continuam sendo carregados aqui. O botão Atualizar fica somente no Dashboard (os controles operacionais do Roteirizador foram preservados).
+Verde indica itens concluídos ou dados válidos. Vermelho destaca agendamentos vencidos, alterações e pendências de jornada. Gasto, valor dos itens e demais volumes sem meta ficam neutros: valor alto não implica bom resultado.
+Os agendamentos vencidos são linhas sem status FINALIZADO/ENTREGUE com agendamento anterior ao dia atual. Não são comprovação de atraso físico. Alterações são inferidas pelo maior sufixo de cada pedido-base/fornecedor.
 
-Para a frota, use Atualizar frota depois de selecionar os quatro arquivos. Para pedidos, a importação ocorre ao selecionar o arquivo principal.
+FILTROS E GRÁFICOS
+Logística: mantém filtros por agendamento, fornecedor, tipo, item, região, projeto e status; mês, semana, dia da semana e intervalo são combinados. Apenas botão Limpar, atualização automática. Ranking de alterações limitado aos cinco primeiros.
+Frota e Abastecimento: controles com o mesmo visual, incluindo dia da semana, mês, semana, datas, veículo, ano e agrupamento. Compartilham a seleção temporal.
+A Logística usa sua própria seleção por agendamento; Frota e Abastecimento usam datas dos apontamentos. Não existe vínculo comprovado entre pedido e placa.
+Legendas dos gráficos com múltiplas séries permitem ocultar/exibir veículos ou semanas. Tooltips mostram unidades e valores.
 
-Todos os filtros da Logística continuam combinados em todos os gráficos, indicadores e tabelas da aba. Datas se referem ao agendamento. Frota e Roteirizador têm seus próprios filtros.
+TABELAS
+Detalhes removidos do fim das abas de análise e reunidos na aba Tabelas. As tabelas de análise seguem os filtros da aba de origem.
+A base completa permite escolher Pedidos, Abastecimentos ou Jornadas/KM, buscar dados, navegar em páginas de 100 linhas e exportar todas as linhas da seleção/busca para Excel. As bases dos dois veículos são reunidas e preservam a identificação de placa/veículo. Não há descarte de registros por limite de visualização na base completa.
 
-Conferência: 40 verificações da integração aprovadas, incluindo as 22.581 linhas do CSV real de pedidos e o recorte de outubro/segunda-feira, com 62 linhas. Outras 39 verificações da frota e da identificação por conteúdo dos cinco arquivos também aprovadas. Conferência visual no navegador ainda pendente.
+VALIDAÇÃO
+40 verificações de integração da Logística, incluindo as 22.581 linhas reais dos pedidos e os filtros combinados, e 47 verificações da frota, identificação dos cinco arquivos, dia da semana e independência dos KPIs globais.
+Confirmada a ausência de tabelas de detalhe em Dashboard, Abastecimento e Frota; Logística mantém apenas o ranking top 5.
+HTML do Roteirizador comparado com a versão anterior, sem alterações.
+A conferência visual em navegador não pôde ser realizada nesta sessão. Recomenda-se conferir na hospedagem de teste, inclusive em celular, antes de substituir a versão de uso.
 
-Os CSVs enviados para teste não foram incluídos no pacote do site. Nenhuma publicação foi feita nesta sessão.
+Nenhuma publicação ou integração com banco de dados foi realizada.
