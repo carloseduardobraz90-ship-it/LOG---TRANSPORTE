@@ -1,33 +1,13 @@
-PHARMAINOX — DASHBOARD INTEGRADO — 21/10/2026
+VERSÃO COM ARQUIVOS PRINCIPAIS — 21/10/2026
 
-ABRIR
-Extraia o ZIP inteiro para uma nova pasta e abra index.html. Para uma hospedagem de teste, envie todos os arquivos juntos. Preserve a versão anterior para comparação. Não foi feita publicação nesta sessão.
+Extraia o ZIP e copie o conteúdo de site-logistica para a pasta do projeto, substituindo os arquivos da versão anterior. Inclua order-dashboard.js e order-dashboard.css.
 
-LOGÍSTICA
-O dashboard enviado foi integrado na aba Logística. Pode carregar somente o arquivo de pedidos, na própria aba ou na Visão Geral; a mesma base é usada pelo roteirizador. Não precisa dos arquivos de veículos para analisar os pedidos.
-Todos os filtros da Logística são combinados antes de alimentar os gráficos, KPIs e tabelas: mês, semana, dia da semana, status, tipo, fornecedor, produtos/serviços, projeto, região e agendamento inicial/final.
-Semana = segunda a domingo (ISO). As semanas são identificadas por intervalo de datas e ano, sem misturar semanas de meses/anos distintos. O mês recorta os dias das semanas que o atravessam.
-Limpar restaura todos os filtros, incluindo mês, semana e dia da semana. Um recorte vazio limpa as visualizações anteriores.
-Os gráficos de valores finalizados mostram somente FINALIZADO dentro do recorte; escolher outro status deixa esse gráfico sem valores. Os gráficos temporais exigem AGENDAMENTO válido.
+Na Visão Geral, carregue os quatro arquivos dos veículos no campo de veículos e o arquivo de pedidos no campo de pedidos. A Logística e o Roteirizador usam automaticamente a mesma base de pedidos. Não há mais campo de upload na aba Logística.
 
-DEFINIÇÕES
-Pedidos únicos: números de pedido distintos no recorte.
-Itens: linhas da base, não soma das quantidades.
-Prazo médio: diferença entre emissão e agendamento dos itens FINALIZADOS com datas válidas. Não é prazo real de entrega. Sem dados válidos, mostra traço.
-Agendamentos únicos: fornecedor + data de agendamento. Não comprova visita realizada. O gráfico por fornecedor mostra os 15 maiores no recorte.
-Alterações: soma do maior sufixo .1/.2/etc. de cada pedido-base e fornecedor no recorte. É um indicador inferido, não uma contagem de eventos ocorridos naquela semana.
-Produto/serviço: classificação pelo texto da descrição, conforme dashboard fornecido.
-Região: cadastro de cidades do dashboard fornecido; cidade desconhecida fica não identificada.
-Datas ausentes são informadas na qualidade da base, ficam fora dos gráficos temporais e são excluídas quando um filtro temporal é selecionado. Sem filtro temporal podem compor os indicadores gerais.
+Para a frota, use Atualizar frota depois de selecionar os quatro arquivos. Para pedidos, a importação ocorre ao selecionar o arquivo principal.
 
-FROTA E ABASTECIMENTO
-A análise anterior de veículos foi preservada em Frota. Frota e Abastecimento usam os filtros superiores de veículo e período. A Logística tem filtros próprios baseados no agendamento, pois não existe vínculo comprovado entre pedido e placa.
-O roteirizador continua com sua seleção de data própria.
+Todos os filtros da Logística continuam combinados em todos os gráficos, indicadores e tabelas da aba. Datas se referem ao agendamento. Frota e Roteirizador têm seus próprios filtros.
 
-VALIDAÇÃO
-36 verificações de integração: todos os sete renderizadores da Logística recebem exatamente o mesmo conjunto de linhas para cada filtro e combinações testadas; inclui domingo, recortes vazios, visitas deduplicadas, datas inclusivas, semana ISO e ausência de IDs duplicados.
-34 verificações da análise da frota continuaram aprovadas.
-Os testes usaram dados sintéticos. A abertura visual de arquivos locais foi bloqueada pelo navegador desta sessão. Não foi possível concluir conferência visual nem reconciliar com as bases reais, que não foram fornecidas. Faça essa conferência na hospedagem de teste antes de substituir a versão de produção.
+Conferência: 40 verificações da integração aprovadas, incluindo as 22.581 linhas do CSV real de pedidos e o recorte de outubro/segunda-feira, com 62 linhas. Outras 39 verificações da frota e da identificação por conteúdo dos cinco arquivos também aprovadas. Conferência visual no navegador ainda pendente.
 
-DEPENDÊNCIAS
-Chart.js, SheetJS e Leaflet continuam carregados pelos CDNs da versão anterior; é necessário acesso à internet. Não foram incluídos banco de dados, persistência nova ou conexão AppSheet.
+Os CSVs enviados para teste não foram incluídos no pacote do site. Nenhuma publicação foi feita nesta sessão.

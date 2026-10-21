@@ -20,10 +20,10 @@
 <!-- Scripts locais -->
 <script defer="" src="fornecedores.js">
 </script>
-<script defer="" src="script.js?v=20261021-integrado">
+<script defer="" src="script.js?v=20261021-principais">
 </script>
 <link rel="stylesheet" href="order-dashboard.css"/>
-<script defer src="order-dashboard.js?v=20261021-integrado"></script>
+<script defer src="order-dashboard.js?v=20261021-principais"></script>
 </head>
 <body>
 <aside class="sidebar">
@@ -365,7 +365,7 @@
 </div>
 </section></div><div class="workspace-page" id="workspaceLogistics"><header class="workspace-heading"><div class="workspace-title-icon">▤</div><div><p class="eyebrow">GESTÃO DOS PEDIDOS</p><h1>Logística</h1><p class="subtitle">Pedidos, agendamentos, prazos e valores com filtros combinados.</p></div></header><div id="orderDashboard">
 
-    <div class="container"><div class="card integration-note"><strong>Filtros da Logística</strong><p>Todos os filtros abaixo são combinados e atualizam os gráficos, indicadores e tabelas desta aba. Datas usam AGENDAMENTO. O carregamento abaixo e o arquivo de pedidos da Visão Geral alimentam a mesma base do roteirizador.</p><p>Agendamentos únicos não comprovam visitas realizadas. Prazo médio é emissão até agendamento dos itens finalizados, não prazo real de entrega. Produtos/serviços são classificados pelo texto da descrição. As regiões seguem o cadastro de cidades deste dashboard.</p><p id="lg-filterScope" aria-live="polite"></p><p id="lg-dateQuality" aria-live="polite"></p></div>
+    <div class="container"><div class="card integration-note"><strong>Filtros da Logística</strong><p>Todos os filtros abaixo são combinados e atualizam os gráficos, indicadores e tabelas desta aba. Datas usam AGENDAMENTO. A base é carregada na Visão Geral, em Arquivo dos pedidos. Este painel e o roteirizador usam automaticamente esse mesmo arquivo.</p><p>Agendamentos únicos não comprovam visitas realizadas. Prazo médio é emissão até agendamento dos itens finalizados, não prazo real de entrega. Produtos/serviços são classificados pelo texto da descrição. As regiões seguem o cadastro de cidades deste dashboard.</p><p id="lg-filterScope" aria-live="polite"></p><p id="lg-dateQuality" aria-live="polite"></p></div>
         
 
         
@@ -375,13 +375,7 @@
             <div class="filters-grid"><div class="filter-group"><label for="lg-monthFilter">Mês do agendamento</label><input id="lg-monthFilter" type="month" class="form-control"></div><div class="filter-group"><label for="lg-weekFilter">Semana do agendamento</label><select id="lg-weekFilter" class="form-control"><option value="">Todas as semanas</option></select></div><div class="filter-group"><label for="lg-weekdayFilter">Dia da semana</label><select id="lg-weekdayFilter" class="form-control"><option value="">Todos os dias</option><option value="1">Segunda-feira</option><option value="2">Terça-feira</option><option value="3">Quarta-feira</option><option value="4">Quinta-feira</option><option value="5">Sexta-feira</option><option value="6">Sábado</option><option value="0">Domingo</option></select></div>
 
                 
-                <div class="filter-group">
-                    <label for="lg-excelFile">
-                        Arquivo Base (.XLSX / .CSV)
-                    </label>
-
-                    <input type="file" id="lg-excelFile" class="form-control" accept=".csv, .xlsx, .xls">
-                </div>
+                
 
                 
                 <div class="filter-group">

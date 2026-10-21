@@ -2668,6 +2668,9 @@ function lgLoad(rows){
  const saved=lgCurrentFilters();dadosBrutos=rows.map(r=>Object.fromEntries(Object.entries(r).filter(([k])=>!k.startsWith('_')).map(([k,v])=>[k,v instanceof Date?v.toLocaleDateString('pt-BR'):v])));
  popularFiltrosSelect(dadosBrutos);for(const [field,id]of Object.entries({status:'statusFilter',category:'categoryFilter',service:'serviceFilter',project:'projectFilter',region:'regionFilter',supplier:'supplierFilter'})){const el=document.getElementById(id);if([...el.options].some(o=>o.value===saved[field]))el.value=saved[field];}
  lgSelectWeeks();processarEAtualizar();
+ const banner=document.getElementById('statusBanner');banner.style.display='flex';banner.className='status-banner '+(dadosBrutos.length?'':'aviso');
+ document.getElementById('statusMensagem').textContent=dadosBrutos.length?'Usando a base de pedidos da Visão Geral':'Aguardando o arquivo de pedidos da Visão Geral';
+ document.getElementById('statusDetalhes').textContent=dadosBrutos.length?dadosBrutos.length.toLocaleString('pt-BR')+' linhas carregadas automaticamente. Não é necessário importar novamente.':'Carregue os arquivos principais na Visão Geral. A Logística será atualizada automaticamente.';
 }
 window.PharmainoxLogistics={load:lgLoad,filterRows:lgFilterRows,weekKey:lgWeek,refresh:processarEAtualizar,resize:()=>[graficoStatusInstance,graficoCategoriaInstance,graficoEvolucaoValorInstance,graficoVisitasSemanaInstance,graficoVisitasDiaInstance].forEach(c=>c?.resize()),getFilteredRows:()=>dadosFiltrados.slice()};
 document.addEventListener('DOMContentLoaded',()=>{['weekFilter','weekdayFilter'].forEach(id=>document.getElementById(id).addEventListener('change',processarEAtualizar));document.getElementById('monthFilter').addEventListener('change',()=>{document.getElementById('weekFilter').value='';lgSelectWeeks();processarEAtualizar();});lgLoad(window.PharmainoxSources?.getLogRows()||[]);});
