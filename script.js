@@ -2265,13 +2265,29 @@ function dashboardOrderSummary(rows,now=new Date()){
  const changes=new Map();for(const r of rows){const order=String(r._order||''),m=order.match(/\.(\d+)$/);if(!m)continue;const id=r._supplierCode+'|'+order.replace(/(?:\.\d+)+$/,'');changes.set(id,Math.max(changes.get(id)||0,+m[1]));}
  return {orders:orders.size,finalized,pending,completion:rows.length?finalized/rows.length:NaN,overdue:rows.filter(r=>!done(r)&&r._scheduleDate&&key(r._scheduleDate)<today).length,changes:[...changes.values()].reduce((s,n)=>s+n,0),value:rows.reduce((s,r)=>{const n=number(get(r,['vlr.total','vlrtotal','valor total']));return s+(Number.isFinite(n)?n:0)},0)};
 }
+function dashboardFilterValues(){return {year:$('dashYear')?.value||'',month:$('dashMonth')?.value||'',week:$('dashWeek')?.value||'',start:$('dashStart')?.value||'',end:$('dashEnd')?.value||''};}
+function dashboardMatchesDate(date,f=dashboardFilterValues()){
+ const active=Object.values(f).some(Boolean);if(!date||isNaN(date))return !active;const k=key(date);
+ return (!f.year||date.getFullYear()===Number(f.year))&&(!f.month||date.getMonth()+1===Number(f.month))&&(!f.week||isoWeekKey(date)===f.week)&&(!f.start||k>=f.start)&&(!f.end||k<=f.end);
+}
+function refreshDashboardDateOptions(){
+ const all=[...S.journey.map(r=>r.date),...S.fuel.map(r=>r.date),...S.log.map(r=>r._scheduleDate)].filter(d=>d&&!isNaN(d));
+ const year=$('dashYear'),week=$('dashWeek');if(!year||!week)return;const oldYear=year.value;
+ const years=[...new Set(all.map(d=>String(d.getFullYear())))].sort();year.innerHTML='<option value="">Todos os anos</option>'+years.map(y=>'<option value="'+y+'">'+y+'</option>').join('');year.value=years.includes(oldYear)?oldYear:'';
+ const oldWeek=week.value,month=$('dashMonth').value;const dates=all.filter(d=>(!year.value||d.getFullYear()===Number(year.value))&&(!month||d.getMonth()+1===Number(month)));
+ const weeks=[...new Set(dates.map(isoWeekKey))].sort();week.innerHTML='<option value="">Todas as semanas</option>'+weeks.map(w=>{const [y,n]=w.split('-W').map(Number);const start=new Date(y,0,4);start.setDate(start.getDate()-(start.getDay()+6)%7+(n-1)*7);const end=new Date(start);end.setDate(end.getDate()+6);return '<option value="'+w+'">'+start.toLocaleDateString('pt-BR')+' a '+end.toLocaleDateString('pt-BR')+'</option>';}).join('');week.value=weeks.includes(oldWeek)?oldWeek:'';
+}
+
 function renderDashboardOverview(){
- const daily=buildDailyMetrics(S.journey,S.fuel),sum=summarizeConsumption(daily),orders=dashboardOrderSummary(S.log);
+ refreshDashboardDateOptions();
+ const filters=dashboardFilterValues(),fuel=S.fuel.filter(r=>dashboardMatchesDate(r.date,filters)),journey=S.journey.filter(r=>dashboardMatchesDate(r.date,filters)),log=S.log.filter(r=>dashboardMatchesDate(r._scheduleDate,filters));
+ const daily=buildDailyMetrics(S.journey,S.fuel).filter(r=>dashboardMatchesDate(r.date,filters)),sum=summarizeConsumption(daily),orders=dashboardOrderSummary(log);
  const set=(id,value,tone)=>{const el=$(id);if(!el)return;el.textContent=value;const card=el.closest?.('.metric-card');if(card&&tone)card.className='metric-card metric-'+tone;};
- set('value',money(sum.totalValue));set('liters',sum.totalLiters?fmt(sum.totalLiters)+' L':'—');set('refuels',fmt(S.fuel.length));set('logCount',fmt(S.log.length));set('distance',sum.validDays?fmt(sum.totalDistance)+' km':'—',sum.validDays?'good':'neutral');set('kml',fmt(sum.avgKmL));
+ set('value',money(sum.totalValue));set('liters',sum.totalLiters?fmt(sum.totalLiters)+' L':'—');set('refuels',fmt(fuel.length));set('logCount',fmt(log.length));set('distance',sum.validDays?fmt(sum.totalDistance)+' km':'—',sum.validDays?'good':'neutral');set('kml',fmt(sum.avgKmL));
  set('dashOrders',fmt(orders.orders));set('dashFinalized',fmt(orders.finalized),orders.finalized?'good':'neutral');set('dashCompletion',Number.isFinite(orders.completion)?fmt(orders.completion*100)+'%':'—',orders.finalized?'good':'neutral');set('dashPending',fmt(orders.pending));set('dashOverdue',fmt(orders.overdue),orders.overdue?'bad':'good');set('dashChanges',fmt(orders.changes),orders.changes?'bad':'good');set('dashQuality',sum.totalDays?fmt(sum.validDays/sum.totalDays*100)+'%':'—',sum.totalDays?(sum.incompleteDays?'neutral':'good'):'neutral');set('dashIssues',fmt(sum.incompleteDays),sum.incompleteDays?'bad':'good');set('dashOrderValue',money(orders.value));
- const dates=[...S.journey,...S.fuel].map(r=>r.date).filter(Boolean).sort((a,b)=>a-b);set('period',dates.length?dates[0].toLocaleDateString('pt-BR')+' — '+dates.at(-1).toLocaleDateString('pt-BR'):'—');
- set('dashboardUpdated','Visão completa dos arquivos importados · '+fmt(S.log.length)+' itens logísticos · '+fmt(S.journey.length)+' apontamentos de jornada · '+fmt(S.fuel.length)+' abastecimentos. Verde: conclusão e jornadas válidas. Vermelho: pendências e alterações; valores financeiros sem classificação de desempenho.');
+ const dates=[...journey,...fuel].map(r=>r.date).filter(Boolean).sort((a,b)=>a-b);set('period',dates.length?dates[0].toLocaleDateString('pt-BR')+' — '+dates.at(-1).toLocaleDateString('pt-BR'):'—');
+ set('dashScope',Object.values(filters).some(Boolean)?'Período filtrado':'Todos os períodos');
+ set('dashboardUpdated','Dados no período selecionado · '+fmt(log.length)+' itens logísticos · '+fmt(journey.length)+' apontamentos de jornada · '+fmt(fuel.length)+' abastecimentos. Verde: conclusão e jornadas válidas. Vermelho: pendências e alterações; valores financeiros sem classificação de desempenho.');
 }
 function rawSourceRows(){const type=$('rawDataset')?.value||'orders';if(type==='orders')return S.log.map(r=>Object.fromEntries(Object.entries(r).filter(([k])=>!k.startsWith('_'))));const kind=type==='fuel'?'fuel':'journey';const raw=S.vehicleUploads.filter(f=>f.type===kind&&!f.error).flatMap(f=>f.parsedRows||[]);return raw.length?raw:(kind==='fuel'?S.fuel:S.journey);}
 function filteredRawRows(){const q=cleanKey($('rawSearch')?.value||'');const rows=rawSourceRows();return q?rows.filter(r=>cleanKey(Object.values(r).join(' ')).includes(q)):rows;}
@@ -2325,4 +2341,10 @@ document.addEventListener('DOMContentLoaded',()=>{
  $('rawPrev')?.addEventListener('click',()=>{S.rawPage=(S.rawPage||1)-1;renderRawTable();});$('rawNext')?.addEventListener('click',()=>{S.rawPage=(S.rawPage||1)+1;renderRawTable();});
  $('exportRaw')?.addEventListener('click',()=>{const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(filteredRawRows()),'Base');XLSX.writeFile(wb,'base_'+($('rawDataset').value||'pedidos')+'.xlsx');});
  renderDashboardOverview();renderRawTable();
+});
+
+document.addEventListener('DOMContentLoaded',()=>{
+ ['dashYear','dashMonth'].forEach(id=>$(id).addEventListener('change',()=>{$('dashWeek').value='';renderDashboardOverview();}));
+ ['dashWeek','dashStart','dashEnd'].forEach(id=>$(id).addEventListener('change',renderDashboardOverview));
+ $('dashClear').addEventListener('click',()=>{['dashYear','dashMonth','dashWeek','dashStart','dashEnd'].forEach(id=>$(id).value='');renderDashboardOverview();});
 });

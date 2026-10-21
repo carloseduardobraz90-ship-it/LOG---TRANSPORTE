@@ -1,10 +1,14 @@
+ATUALIZAÇÃO: FILTROS DO DASHBOARD
+Ano, mês, semana ISO (segunda a domingo), data inicial e final são combinados em todos os KPIs. Pedidos usam AGENDAMENTO; frota usa a data dos apontamentos. Limpar restaura todos os períodos. Datas ausentes ficam fora dos recortes temporais. Filtros independentes das outras abas.
+54 verificações da frota e do Dashboard aprovadas com dados reais, incluindo os novos filtros.
+
 PAINEL PHARMAINOX — APARÊNCIA E ORGANIZAÇÃO — 21/10/2026
 
 ATUALIZAR
 Copie o conteúdo da pasta site-logistica para o projeto, incluindo order-dashboard.js e order-dashboard.css. Faça commit/push e aguarde a publicação da sua hospedagem. Atualize com Ctrl+F5. O ZIP não inclui os CSVs usados na validação.
 
 DASHBOARD
-16 KPIs sobre o conjunto completo de dados importados, sem filtros de análise. Os arquivos continuam sendo carregados aqui. O botão Atualizar fica somente no Dashboard (os controles operacionais do Roteirizador foram preservados).
+16 KPIs com filtros próprios de ano, mês, semana e intervalo de datas. Os arquivos continuam sendo carregados aqui. O botão Atualizar fica somente no Dashboard (os controles operacionais do Roteirizador foram preservados).
 Verde indica itens concluídos ou dados válidos. Vermelho destaca agendamentos vencidos, alterações e pendências de jornada. Gasto, valor dos itens e demais volumes sem meta ficam neutros: valor alto não implica bom resultado.
 Os agendamentos vencidos são linhas sem status FINALIZADO/ENTREGUE com agendamento anterior ao dia atual. Não são comprovação de atraso físico. Alterações são inferidas pelo maior sufixo de cada pedido-base/fornecedor.
 
@@ -19,7 +23,7 @@ Detalhes removidos do fim das abas de análise e reunidos na aba Tabelas. As tab
 A base completa permite escolher Pedidos, Abastecimentos ou Jornadas/KM, buscar dados, navegar em páginas de 100 linhas e exportar todas as linhas da seleção/busca para Excel. As bases dos dois veículos são reunidas e preservam a identificação de placa/veículo. Não há descarte de registros por limite de visualização na base completa.
 
 VALIDAÇÃO
-40 verificações de integração da Logística, incluindo as 22.581 linhas reais dos pedidos e os filtros combinados, e 47 verificações da frota, identificação dos cinco arquivos, dia da semana e independência dos KPIs globais.
+40 verificações de integração da Logística, incluindo as 22.581 linhas reais dos pedidos e os filtros combinados, e 47 verificações da frota, identificação dos cinco arquivos, dia da semana e independência dos filtros do Dashboard.
 Confirmada a ausência de tabelas de detalhe em Dashboard, Abastecimento e Frota; Logística mantém apenas o ranking top 5.
 HTML do Roteirizador comparado com a versão anterior, sem alterações.
 A conferência visual em navegador não pôde ser realizada nesta sessão. Recomenda-se conferir na hospedagem de teste, inclusive em celular, antes de substituir a versão de uso.
