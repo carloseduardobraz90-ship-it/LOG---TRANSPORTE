@@ -20,7 +20,7 @@
 <!-- Scripts locais -->
 <script defer="" src="fornecedores.js">
 </script>
-<script defer="" src="script.js?v=20261016-ia-fix2">
+<script defer="" src="script.js?v=20261021-analise">
 </script>
 </head>
 <body>
@@ -93,9 +93,9 @@
        </label>
 <input id="end" type="date"/>
 </div>
-<div class="chart-period-control">
+<div><label for="analysisMonth">Filtrar mês</label><input id="analysisMonth" type="month"/></div><div><label for="analysisWeek">Filtrar semana</label><select id="analysisWeek"><option value="">Todas as semanas</option></select></div><div class="chart-period-control">
 <label for="periodicity">
-        Período dos gráficos
+        Agrupar gráficos por
        </label>
 <select id="periodicity">
 <option value="month">
@@ -104,7 +104,7 @@
 <option value="week">
          Semana
         </option>
-<option value="year">
+<option value="day">Dia</option><option value="year">
          Ano
         </option>
 </select>
@@ -202,7 +202,7 @@
         —
        </strong>
 <small>
-        Valor ÷ preço do litro do ano
+        Informados ou calculados por preço/L
        </small>
 </article>
 <article class="kpi">
@@ -246,7 +246,7 @@
         —
        </strong>
 <small>
-        KM rodados ÷ litros
+        Indicativo: KM ÷ litros abastecidos
        </small>
 </article>
 <article class="kpi">
@@ -305,7 +305,7 @@
 </article><article class="panel chart-card">
 <div class="chart-title-row">
 <h2 id="titleDailyConsumption">
-         Consumo por mês
+         KM/L indicativo por mês
         </h2>
 <span class="chart-badge">
          Tempo
@@ -354,23 +354,23 @@
 <th>
           KM
          </th>
-</tr>
+<th>Origem dos litros</th></tr>
 </thead>
 <tbody id="fuelTable">
 </tbody>
 </table>
 </div>
-</section></div><div class="workspace-page" id="workspaceLogistics"><header class="workspace-heading"><div class="workspace-title-icon">▤</div><div><p class="eyebrow">ANÁLISE OPERACIONAL</p><h1>Logística</h1><p class="subtitle">Quilometragem, desempenho, pedidos e distribuição logística.</p></div></header><div class="workspace-hint"><span class="workspace-hint-icon">✦</span><div><strong>Filtros compartilhados</strong><span>Altere ano, veículo, período ou datas acima. Os indicadores de todas as abas serão atualizados juntos.</span></div></div><section class="charts workspace-charts"><article class="panel chart-card">
-<h2>
-        KM percorridos por veículo
+</section></div><div class="workspace-page" id="workspaceLogistics"><header class="workspace-heading"><div class="workspace-title-icon">▤</div><div><p class="eyebrow">ANÁLISE OPERACIONAL</p><h1>Logística</h1><p class="subtitle">Quilometragem, desempenho, pedidos e distribuição logística.</p></div></header><div class="workspace-hint"><span class="workspace-hint-icon">✦</span><div><strong>Filtros compartilhados</strong><span>Altere ano, veículo, período ou datas acima. Os indicadores de todas as abas serão atualizados juntos.</span></div></div><section class="panel analysis-context"><h2>Base da análise</h2><p id="analysisScope" aria-live="polite"></p><p id="qualitySummary" aria-live="polite"></p><details><summary>Como interpretar os números</summary><p>KM: soma das viagens com saída e chegada no mesmo dia, em ordem cronológica e com hodômetro válido. O filtro de mês recorta as semanas que atravessam meses. Semana de segunda a domingo, conforme calendário ISO. Datas inicial/final, ano, mês e semana são combinados.</p><p>KM/L indicativo = KM válido ÷ litros abastecidos no mesmo grupo. Compra de combustível e consumo do tanque ocorrem em momentos diferentes: grupos sem abastecimento ficam sem esse indicador. Não é uma medição de eficiência real. Quando não há litros ou preço/L informados, os litros são estimados pelo preço anual de referência: 2025 = R$ 6,49/L; 2026 = R$ 7,49/L. Para outros anos, o preço padrão é R$ 7,49/L. Confira esses valores com a base antes de interpretar o indicador.</p><p>Por dia da semana: soma de todas as segundas, terças e demais dias dentro dos filtros. Os pedidos são contados por linha e filtrados pela emissão; o filtro de placa se aplica apenas à frota, pois a base de pedidos não tem vínculo comprovado com o veículo.</p></details></section><section class="charts workspace-charts"><article class="panel chart-card">
+<h2 id="titleDistanceVehicle">
+        KM por veículo e mês
        </h2>
 <div class="chart-box">
 <canvas id="distanceVehicle">
 </canvas>
 </div>
 </article><article class="panel chart-card">
-<h2>
-        KM/L por veículo
+<h2 id="titleKmlVehicle">
+        KM/L indicativo por veículo e mês
        </h2>
 <div class="chart-box">
 <canvas id="kmlVehicle">
@@ -391,7 +391,7 @@
 </div>
 </article><article class="panel chart-card">
 <h2>
-        Logística por status
+        Linhas de pedidos por status
        </h2>
 <div class="chart-box">
 <canvas id="chartStatus">
@@ -399,71 +399,26 @@
 </div>
 </article><article class="panel chart-card">
 <h2>
-        Logística por cidade
+        Linhas de pedidos por cidade
        </h2>
 <div class="chart-box">
 <canvas id="city">
 </canvas>
 </div>
-</article></section><section class="panel table-panel" id="consumoDiario">
+</article></section><section class="charts workspace-charts"><article class="panel chart-card"><h2>KM por dia da semana e veículo</h2><div class="chart-box"><canvas id="distanceWeekday"></canvas></div></article><article class="panel chart-card"><h2>KM/L indicativo por dia da semana e veículo</h2><div class="chart-box"><canvas id="kmlWeekday"></canvas></div></article></section><section class="panel table-panel"><div class="panel-head"><h2>Comparação por período e veículo</h2><button class="button secondary" id="exportAnalysis">Exportar análise</button></div><div class="table-wrap"><table><thead><tr><th>Período</th><th>Veículo</th><th>KM válidos</th><th>Valor abastecido</th><th>Litros abastecidos</th><th>KM/L indicativo</th><th>Dias válidos / jornada</th><th>Abastecimentos</th><th>Observação</th></tr></thead><tbody id="analysisTable"></tbody></table></div></section><section class="panel table-panel" id="consumoDiario">
 <div class="panel-head">
 <div>
 <h2>
-        Resumo diário de consumo
+        Conferência diária de KM e abastecimentos
        </h2>
 <span class="data-source-note">
-        Saldo estimado: no dia com abastecimento, litros do dia menos KM ÷ KM/L do dia; nos dias sem abastecimento, desconta KM ÷ último KM/L registrado do saldo anterior. Cada abastecimento reinicia a estimativa usando os litros comprados, sem somar o saldo anterior. O combustível que já havia no tanque não é conhecido; se o consumo exceder o saldo, o painel mostra 0 L e sinaliza a divergência.
+        KM soma pares cronológicos de saída/chegada no mesmo dia. Dias incompletos ou inconsistentes ficam fora dos totais. Abastecimentos sem jornada também aparecem. O KM/L diário relaciona distância com litros comprados no dia; não representa consumo real.
        </span>
 </div>
 </div>
 <div class="table-wrap">
 <table class="daily-table">
-<thead>
-<tr>
-<th>
-          Data
-         </th>
-<th>
-          Veículo
-         </th>
-<th>
-          Saída
-         </th>
-<th>
-          KM inicial
-         </th>
-<th>
-          Chegada
-         </th>
-<th>
-          KM final
-         </th>
-<th>
-          KM rodados
-         </th>
-<th>
-          Valor abastecido
-         </th>
-<th>
-          Litros abastecidos
-         </th>
-<th>
-          KM/L do dia
-         </th>
-<th>
-          Consumo estimado
-         </th>
-<th>
-          Saldo estimado
-         </th>
-<th>
-          L/100 km
-         </th>
-<th>
-          Status
-         </th>
-</tr>
-</thead>
+<thead><tr><th>Data</th><th>Dia</th><th>Veículo</th><th>Primeira saída</th><th>KM inicial</th><th>Última chegada</th><th>KM final</th><th>KM válidos</th><th>Valor abastecido</th><th>Litros abastecidos</th><th>KM/L indicativo</th><th>Situação da jornada</th><th>Arquivos de origem</th></tr></thead>
 <tbody id="dailyTable">
 </tbody>
 </table>

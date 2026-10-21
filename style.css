@@ -216,3 +216,6 @@ body{margin:0;background:#f4f7fb;color:#172033;font:14px Segoe UI,Arial,sans-ser
 .saved-address-edit label { display: block; margin-bottom: 6px; font-weight: 600; }
 .saved-address-edit .route-address-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .saved-address-edit .address-edit-status { font-size: 12px; margin-top: 6px; }
+
+/* Análise operacional */
+.shared-filters{flex-wrap:wrap;gap:12px}.analysis-context{padding:20px;margin:16px 0}.analysis-context p{line-height:1.6;margin:8px 0;color:#475569}.analysis-context summary{cursor:pointer;font-weight:600;color:#24476a}.analysis-context h2{font-size:16px}#analysisTable td{white-space:normal;min-width:90px}#analysisTable td:last-child{min-width:220px}.chart-card .chart-box{min-height:290px}

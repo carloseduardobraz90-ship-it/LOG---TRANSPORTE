@@ -1,0 +1,33 @@
+PAINEL DE LOGÍSTICA — 21/10/2026
+
+COMO USAR
+1. Extraia o ZIP para uma nova pasta. Preserve a versão anterior.
+2. Abra index.html ou substitua os arquivos na hospedagem de teste já utilizada.
+3. Carregue os mesmos quatro arquivos de veículos e a base de pedidos.
+4. Clique em Atualizar dashboard.
+5. Em Logística, selecione Filtrar mês e, se necessário, Filtrar semana.
+6. Agrupar gráficos por altera a apresentação em dia, semana, mês ou ano.
+7. Consulte a tabela por período e a conferência diária. Exportar análise gera Excel com duas abas.
+
+MUDANÇAS
+- KM e KM/L por veículo agora têm séries separadas por período.
+- Comparação por dia da semana para cada veículo.
+- Filtros de mês/semana combinados com ano, placa e datas.
+- Semana ISO de segunda a domingo, inclusive na virada do ano.
+- Dias de abastecimento sem jornada entram nos valores e litros.
+- KM soma pares cronológicos de saída/chegada. Um dia com pendências fica fora dos totais de KM; o KM/L do grupo fica indisponível. Viagens que atravessam a meia-noite não são pareadas entre dias nesta versão.
+- A conferência diária mostra arquivos de origem e situação da jornada.
+- A estimativa anterior de saldo do tanque foi retirada da apresentação: a base não informa o combustível inicial do tanque.
+
+INTERPRETAÇÃO DO KM/L
+É uma relação indicativa entre KM válidos e litros abastecidos no mesmo grupo, e não uma medição de consumo real. Não usa média simples de razões diárias. Grupos sem litros ou com pendências de jornada não mostram zero como consumo.
+Litros informados têm prioridade; depois, preço/L informado. Na falta desses campos, mantém-se a estimativa por valor/preço anual da versão original: 2025 R$ 6,49; 2026 R$ 7,49; outros anos R$ 7,49. Esses preços devem ser conferidos com os dados reais.
+
+PEDIDOS
+Status e cidades contam linhas da base (podem ser itens do mesmo pedido), pela data de emissão. Não são quantidades de pedidos únicos nem entregas comprovadas. O filtro de placa se aplica à frota, pois a base de pedidos não possui vínculo comprovado com os veículos.
+
+VALIDAÇÃO
+34 verificações automatizadas com dados sintéticos: viagens múltiplas, ausência de saída/chegada, KM regressivo, abastecimento sem jornada, razão de somas, mês, semana, dia, placa, intervalo de datas, virada de ano e corte de semana por mês.
+A prévia visual não ficou disponível nesta sessão. Não foi possível conferir os resultados com os arquivos operacionais reais, que não vieram no ZIP.
+
+Não foi feita publicação, integração com AppSheet ou mudança de armazenamento.
