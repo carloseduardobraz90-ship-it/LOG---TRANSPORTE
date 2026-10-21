@@ -20,8 +20,10 @@
 <!-- Scripts locais -->
 <script defer="" src="fornecedores.js">
 </script>
-<script defer="" src="script.js?v=20261021-analise">
+<script defer="" src="script.js?v=20261021-integrado">
 </script>
+<link rel="stylesheet" href="order-dashboard.css"/>
+<script defer src="order-dashboard.js?v=20261021-integrado"></script>
 </head>
 <body>
 <aside class="sidebar">
@@ -48,6 +50,7 @@
 <a data-app-view="dashboard" data-nav-key="logistica" data-scroll-to="logistica" href="#logistica">
      Logística
     </a>
+<a data-app-view="dashboard" data-nav-key="frota" href="#frota">Frota</a>
 <a data-app-view="routes" data-nav-key="roteirizador" href="#roteirizador">
      Roteirizador
     </a>
@@ -113,8 +116,8 @@
        Limpar
       </button>
 </section><div class="workspace-page active" id="workspaceDashboard"><header class="workspace-heading"><div class="workspace-title-icon">▦</div><div><p class="eyebrow">VISÃO GERAL</p><h1>Dashboard</h1><p class="subtitle">Visão consolidada dos indicadores e carregamento dos arquivos.</p></div><div class="workspace-heading-actions"><button class="button" id="update">
-       Atualizar dashboard
-      </button></div></header><div class="workspace-hint workspace-hint-primary"><span class="workspace-hint-icon">↗</span><div><strong>Central de indicadores</strong><span>Carregue os arquivos abaixo e clique em Atualizar dashboard. Depois navegue pelas abas sem perder os dados.</span></div></div><section class="upload panel upload-sources upload-sources-vehicles">
+       Atualizar frota
+      </button></div></header><div class="workspace-hint workspace-hint-primary"><span class="workspace-hint-icon">↗</span><div><strong>Central de indicadores</strong><span>Os pedidos são carregados ao selecionar o arquivo. Para os indicadores da frota, selecione os quatro arquivos e clique em Atualizar frota.</span></div></div><section class="upload panel upload-sources upload-sources-vehicles">
 <div class="upload-section-title">
 <div>
 <p class="eyebrow">
@@ -180,7 +183,7 @@
 </div>
 </div>
 <p class="upload-status" id="status">
-      Selecione os 4 arquivos dos veículos e pelo menos 1 arquivo de pedidos.
+      Pedidos podem ser carregados separadamente. Para atualizar a frota, selecione os quatro arquivos dos veículos.
      </p>
 </section><section class="kpis">
 <article class="kpi">
@@ -260,7 +263,7 @@
         Primeiro e último apontamento
        </small>
 </article>
-</section></div><div class="workspace-page" id="workspaceFuel"><header class="workspace-heading"><div class="workspace-title-icon">⛽</div><div><p class="eyebrow">CONTROLE DE COMBUSTÍVEL</p><h1>Abastecimento</h1><p class="subtitle">Custos, litros, consumo e histórico de abastecimentos.</p></div></header><div class="workspace-hint"><span class="workspace-hint-icon">✦</span><div><strong>Filtros compartilhados</strong><span>Altere ano, veículo, período ou datas acima. Os indicadores de todas as abas serão atualizados juntos.</span></div></div><section class="charts workspace-charts"><article class="panel chart-card">
+</section></div><div class="workspace-page" id="workspaceFuel"><header class="workspace-heading"><div class="workspace-title-icon">⛽</div><div><p class="eyebrow">CONTROLE DE COMBUSTÍVEL</p><h1>Abastecimento</h1><p class="subtitle">Custos, litros, consumo e histórico de abastecimentos.</p></div></header><div class="workspace-hint"><span class="workspace-hint-icon">✦</span><div><strong>Filtros compartilhados</strong><span>Altere ano, veículo, período ou datas acima. Os indicadores da frota e dos abastecimentos serão atualizados juntos. A Logística tem seus próprios filtros por agendamento.</span></div></div><section class="charts workspace-charts"><article class="panel chart-card">
 <div class="chart-title-row">
 <h2 id="titleMonthValue">
          Valor por mês
@@ -360,7 +363,496 @@
 </tbody>
 </table>
 </div>
-</section></div><div class="workspace-page" id="workspaceLogistics"><header class="workspace-heading"><div class="workspace-title-icon">▤</div><div><p class="eyebrow">ANÁLISE OPERACIONAL</p><h1>Logística</h1><p class="subtitle">Quilometragem, desempenho, pedidos e distribuição logística.</p></div></header><div class="workspace-hint"><span class="workspace-hint-icon">✦</span><div><strong>Filtros compartilhados</strong><span>Altere ano, veículo, período ou datas acima. Os indicadores de todas as abas serão atualizados juntos.</span></div></div><section class="panel analysis-context"><h2>Base da análise</h2><p id="analysisScope" aria-live="polite"></p><p id="qualitySummary" aria-live="polite"></p><details><summary>Como interpretar os números</summary><p>KM: soma das viagens com saída e chegada no mesmo dia, em ordem cronológica e com hodômetro válido. O filtro de mês recorta as semanas que atravessam meses. Semana de segunda a domingo, conforme calendário ISO. Datas inicial/final, ano, mês e semana são combinados.</p><p>KM/L indicativo = KM válido ÷ litros abastecidos no mesmo grupo. Compra de combustível e consumo do tanque ocorrem em momentos diferentes: grupos sem abastecimento ficam sem esse indicador. Não é uma medição de eficiência real. Quando não há litros ou preço/L informados, os litros são estimados pelo preço anual de referência: 2025 = R$ 6,49/L; 2026 = R$ 7,49/L. Para outros anos, o preço padrão é R$ 7,49/L. Confira esses valores com a base antes de interpretar o indicador.</p><p>Por dia da semana: soma de todas as segundas, terças e demais dias dentro dos filtros. Os pedidos são contados por linha e filtrados pela emissão; o filtro de placa se aplica apenas à frota, pois a base de pedidos não tem vínculo comprovado com o veículo.</p></details></section><section class="charts workspace-charts"><article class="panel chart-card">
+</section></div><div class="workspace-page" id="workspaceLogistics"><header class="workspace-heading"><div class="workspace-title-icon">▤</div><div><p class="eyebrow">GESTÃO DOS PEDIDOS</p><h1>Logística</h1><p class="subtitle">Pedidos, agendamentos, prazos e valores com filtros combinados.</p></div></header><div id="orderDashboard">
+
+    <div class="container"><div class="card integration-note"><strong>Filtros da Logística</strong><p>Todos os filtros abaixo são combinados e atualizam os gráficos, indicadores e tabelas desta aba. Datas usam AGENDAMENTO. O carregamento abaixo e o arquivo de pedidos da Visão Geral alimentam a mesma base do roteirizador.</p><p>Agendamentos únicos não comprovam visitas realizadas. Prazo médio é emissão até agendamento dos itens finalizados, não prazo real de entrega. Produtos/serviços são classificados pelo texto da descrição. As regiões seguem o cadastro de cidades deste dashboard.</p><p id="lg-filterScope" aria-live="polite"></p><p id="lg-dateQuality" aria-live="polite"></p></div>
+        
+
+        
+
+        <div class="card">
+
+            <div class="filters-grid"><div class="filter-group"><label for="lg-monthFilter">Mês do agendamento</label><input id="lg-monthFilter" type="month" class="form-control"></div><div class="filter-group"><label for="lg-weekFilter">Semana do agendamento</label><select id="lg-weekFilter" class="form-control"><option value="">Todas as semanas</option></select></div><div class="filter-group"><label for="lg-weekdayFilter">Dia da semana</label><select id="lg-weekdayFilter" class="form-control"><option value="">Todos os dias</option><option value="1">Segunda-feira</option><option value="2">Terça-feira</option><option value="3">Quarta-feira</option><option value="4">Quinta-feira</option><option value="5">Sexta-feira</option><option value="6">Sábado</option><option value="0">Domingo</option></select></div>
+
+                
+                <div class="filter-group">
+                    <label for="lg-excelFile">
+                        Arquivo Base (.XLSX / .CSV)
+                    </label>
+
+                    <input type="file" id="lg-excelFile" class="form-control" accept=".csv, .xlsx, .xls">
+                </div>
+
+                
+                <div class="filter-group">
+                    <label for="lg-statusFilter">
+                        Status (Coluna W)
+                    </label>
+
+                    <select id="lg-statusFilter" class="form-control">
+                        <option value="TODOS">
+                            Todos os Status
+                        </option>
+                    </select>
+                </div>
+
+                
+                <div class="filter-group">
+                    <label for="lg-categoryFilter">
+                        Categoria / Tipo (Coluna F)
+                    </label>
+
+                    <select id="lg-categoryFilter" class="form-control">
+                        <option value="TODAS">
+                            Todas as Categorias
+                        </option>
+                    </select>
+                </div>
+
+                
+                <div class="filter-group">
+                    <label for="lg-supplierFilter">
+                        Fornecedor (Coluna I - NOME)
+                    </label>
+
+                    <select id="lg-supplierFilter" class="form-control">
+                        <option value="TODOS">
+                            Todos os Fornecedores
+                        </option>
+                    </select>
+                </div>
+
+                
+                <div class="filter-group">
+                    <label for="lg-serviceFilter">
+                        Tipo de Item
+                    </label>
+
+                    <select id="lg-serviceFilter" class="form-control">
+                        <option value="TODOS">
+                            Todos
+                        </option>
+
+                        <option value="PRODUTOS">
+                            Produtos
+                        </option>
+
+                        <option value="SERVICOS">
+                            Serviços
+                        </option>
+                    </select>
+                </div>
+
+                
+                <div class="filter-group">
+                    <label for="lg-projectFilter">
+                        Projeto (Coluna D)
+                    </label>
+
+                    <select id="lg-projectFilter" class="form-control">
+                        <option value="TODOS">
+                            Todos os Projetos
+                        </option>
+                    </select>
+                </div>
+
+                
+                <div class="filter-group">
+                    <label for="lg-regionFilter">
+                        Região do Fornecedor
+                    </label>
+
+                    <select id="lg-regionFilter" class="form-control">
+                        <option value="TODAS">
+                            Todas as Regiões
+                        </option>
+                    </select>
+                </div>
+
+
+                
+                <div class="filter-group">
+                    <label for="lg-dtInicio">
+                        Agendamento Inicial (Coluna V)
+                    </label>
+
+                    <input type="date" id="lg-dtInicio" class="form-control">
+                </div>
+
+                
+                <div class="filter-group">
+                    <label for="lg-dtFim">
+                        Agendamento Final (Coluna V)
+                    </label>
+
+                    <input type="date" id="lg-dtFim" class="form-control">
+                </div>
+
+                
+                <div class="filter-group" style="display: flex; gap: 8px;">
+
+                    <button id="lg-btnUpdate" class="btn btn-primary" style="flex: 1;">
+                        Atualizar
+                    </button>
+
+                    <button id="lg-btnClear" class="btn btn-secondary">
+                        Limpar
+                    </button>
+
+                </div>
+
+            </div>
+        </div>
+
+
+        
+
+        <div id="lg-statusBanner" class="status-banner" style="display: none;">
+
+            <span id="lg-statusIcon">
+                🟢
+            </span>
+
+            <div>
+
+                <strong id="lg-statusMensagem">
+                    Base de dados carregada com sucesso!
+                </strong>
+
+                <p id="lg-statusDetalhes" style="
+                        font-size: 0.85rem;
+                        color: #475569;
+                    ">
+                </p>
+
+            </div>
+        </div>
+
+
+        
+
+        <div id="lg-painelErro" class="painel-erro">
+
+            <div class="erro-titulo">
+                ⚠️ Erros encontrados na base
+            </div>
+
+            <div id="lg-erroDetalhes"></div>
+
+        </div>
+
+
+        
+
+        <div class="kpi-grid">
+
+            <div class="kpi-card">
+
+                <h4>
+                    Pedidos Únicos
+                </h4>
+
+                <span class="kpi-value" id="lg-kpiPedidos">
+                    0
+                </span>
+
+            </div>
+
+
+            <div class="kpi-card">
+
+                <h4>
+                    Total de Itens
+                </h4>
+
+                <span class="kpi-value" id="lg-kpiLinhas">
+                    0
+                </span>
+
+            </div>
+
+
+            <div class="kpi-card">
+
+                <h4>
+                    Prazo médio emissão → agendamento (itens finalizados)
+                </h4>
+
+                <span class="kpi-value" id="lg-kpiLeadTime" style="color: #6b21a8;">
+                    0 dias
+                </span>
+
+            </div>
+
+
+            <div class="kpi-card">
+
+                <h4>
+                    Alterações indicadas pelo sufixo
+                </h4>
+
+                <span class="kpi-value" id="lg-kpiAlteracoes">
+                    0
+                </span>
+
+            </div>
+
+
+            <div class="kpi-card">
+
+                <h4>
+                    Valor dos itens no recorte (Col. Q)
+                </h4>
+
+                <span class="kpi-value" id="lg-kpiValorTotal">
+                    R$ 0,00
+                </span>
+
+            </div>
+</div>
+
+
+        
+
+        <div class="charts-grid">
+
+            
+            <div class="card">
+
+                <h3 style="
+                    font-size: 1rem;
+                    margin-bottom: 16px;
+                ">
+                    Volume de Itens por Status (Coluna W)
+                </h3>
+
+                <div class="chart-container">
+
+                    <canvas id="lg-chartStatus"></canvas>
+
+                </div>
+
+            </div>
+
+
+            
+            <div class="card">
+
+                <h3 style="
+                    font-size: 1rem;
+                    margin-bottom: 16px;
+                ">
+                    Distribuição por Categoria
+                </h3>
+
+                <div class="chart-container">
+
+                    <canvas id="lg-chartCategoria"></canvas>
+
+                </div>
+
+            </div>
+
+
+            
+            <div class="card chart-full">
+
+                <h3 style="
+                    font-size: 1rem;
+                    margin-bottom: 8px;
+                ">
+                    Agendamentos únicos por fornecedor e semana
+                </h3>
+
+                <p class="grafico-info">
+                    Conta agendamentos únicos por fornecedor e data de agendamento. As semanas são de segunda a domingo, identificadas por ano e número ISO.
+                    O gráfico exibe os 15 fornecedores com maior número de visitas no período filtrado.
+                </p>
+
+                <div class="chart-container">
+                    <canvas id="lg-chartVisitasSemana"></canvas>
+                </div>
+
+            </div>
+
+
+            
+            <div class="card">
+
+                <h3 style="
+                    font-size: 1rem;
+                    margin-bottom: 8px;
+                ">
+                    Agendamentos únicos por dia da semana
+                </h3>
+
+                <p class="grafico-info">
+                    Quantidade de agendamentos únicos por dia da semana, considerando os filtros aplicados.
+                </p>
+
+                <div class="chart-container">
+                    <canvas id="lg-chartVisitasDia"></canvas>
+                </div>
+
+            </div>
+
+
+            
+            <div class="card">
+
+                <h3 style="
+                    font-size: 1rem;
+                    margin-bottom: 12px;
+                ">
+                    Fornecedores com Mais Alterações de Ponto
+                </h3>
+
+                <p class="grafico-info">
+                    Identifica pedidos com sufixos .1, .2, .3 etc. Soma o maior sufixo por pedido-base e fornecedor dentro do recorte. Não é uma contagem de eventos realizados no período.
+                </p>
+
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Fornecedor</th>
+                                <th style="text-align:right;">Alterações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="lg-tabelaAlteracoes">
+                            <tr>
+                                <td colspan="2" style="text-align:center;color:var(--text-muted);">
+                                    Nenhuma alteração de ponto identificada.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+            </div>
+
+
+            
+            <div class="card chart-full">
+
+                <h3 style="
+                    font-size: 1rem;
+                    margin-bottom: 8px;
+                ">
+                    Evolução do Valor Finalizado por Semana
+                </h3>
+
+                <p class="grafico-info">
+                    Considera somente registros com STATUS = FINALIZADO,
+                    agrupados pela semana ISO usando a data de AGENDAMENTO.
+                </p>
+
+                <div class="chart-container">
+
+                    <canvas id="lg-chartEvolucaoValor"></canvas>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        
+
+        <div class="card">
+
+            <h3 style="
+                font-size: 1rem;
+                margin-bottom: 16px;
+            ">
+                Detalhamento dos Pedidos
+            </h3>
+
+            <div class="table-responsive">
+
+                <table id="lg-tabelaAgenda">
+
+                    <thead>
+
+                        <tr>
+
+                            <th>
+                                Pedido / Item
+                            </th>
+
+
+                            <th>
+                                Fornecedor (Nome)
+                            </th>
+
+                            <th>
+                                Cidade / UF
+                            </th>
+
+                            <th>
+                                Região
+                            </th>
+
+                            <th>
+                                Projeto
+                            </th>
+
+                            <th>
+                                Data Emissão (G)
+                            </th>
+
+                            <th>
+                                Agendamento (V)
+                            </th>
+
+                            <th>
+                                Lead Time
+                            </th>
+
+                            <th>
+                                Valor Total (Q)
+                            </th>
+
+                            <th>
+                                Status (W)
+                            </th>
+
+                        </tr>
+
+                    </thead>
+
+                    <tbody>
+
+                        <tr>
+
+                            <td colspan="10" style="
+                                    text-align: center;
+                                    color: var(--text-muted);
+                                ">
+
+                                Aguardando arquivo...
+
+                            </td>
+
+                        </tr>
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    
+
+    
+
+</div></div><div class="workspace-page" id="workspaceFleet"><header class="workspace-heading"><div class="workspace-title-icon">▤</div><div><p class="eyebrow">ANÁLISE OPERACIONAL</p><h1>Frota</h1><p class="subtitle">Quilometragem, desempenho, pedidos e distribuição logística.</p></div></header><div class="workspace-hint"><span class="workspace-hint-icon">✦</span><div><strong>Filtros compartilhados</strong><span>Altere ano, veículo, período ou datas acima. Os indicadores da frota e dos abastecimentos serão atualizados juntos. A Logística tem seus próprios filtros por agendamento.</span></div></div><section class="panel analysis-context"><h2>Base da análise</h2><p id="analysisScope" aria-live="polite"></p><p id="qualitySummary" aria-live="polite"></p><details><summary>Como interpretar os números</summary><p>KM: soma das viagens com saída e chegada no mesmo dia, em ordem cronológica e com hodômetro válido. O filtro de mês recorta as semanas que atravessam meses. Semana de segunda a domingo, conforme calendário ISO. Datas inicial/final, ano, mês e semana são combinados.</p><p>KM/L indicativo = KM válido ÷ litros abastecidos no mesmo grupo. Compra de combustível e consumo do tanque ocorrem em momentos diferentes: grupos sem abastecimento ficam sem esse indicador. Não é uma medição de eficiência real. Quando não há litros ou preço/L informados, os litros são estimados pelo preço anual de referência: 2025 = R$ 6,49/L; 2026 = R$ 7,49/L. Para outros anos, o preço padrão é R$ 7,49/L. Confira esses valores com a base antes de interpretar o indicador.</p><p>Por dia da semana: soma de todas as segundas, terças e demais dias dentro dos filtros. Os pedidos são contados por linha e filtrados pela emissão; o filtro de placa se aplica apenas à frota, pois a base de pedidos não tem vínculo comprovado com o veículo.</p></details></section><section class="charts workspace-charts"><article class="panel chart-card">
 <h2 id="titleDistanceVehicle">
         KM por veículo e mês
        </h2>

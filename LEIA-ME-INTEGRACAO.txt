@@ -1,0 +1,33 @@
+PHARMAINOX — DASHBOARD INTEGRADO — 21/10/2026
+
+ABRIR
+Extraia o ZIP inteiro para uma nova pasta e abra index.html. Para uma hospedagem de teste, envie todos os arquivos juntos. Preserve a versão anterior para comparação. Não foi feita publicação nesta sessão.
+
+LOGÍSTICA
+O dashboard enviado foi integrado na aba Logística. Pode carregar somente o arquivo de pedidos, na própria aba ou na Visão Geral; a mesma base é usada pelo roteirizador. Não precisa dos arquivos de veículos para analisar os pedidos.
+Todos os filtros da Logística são combinados antes de alimentar os gráficos, KPIs e tabelas: mês, semana, dia da semana, status, tipo, fornecedor, produtos/serviços, projeto, região e agendamento inicial/final.
+Semana = segunda a domingo (ISO). As semanas são identificadas por intervalo de datas e ano, sem misturar semanas de meses/anos distintos. O mês recorta os dias das semanas que o atravessam.
+Limpar restaura todos os filtros, incluindo mês, semana e dia da semana. Um recorte vazio limpa as visualizações anteriores.
+Os gráficos de valores finalizados mostram somente FINALIZADO dentro do recorte; escolher outro status deixa esse gráfico sem valores. Os gráficos temporais exigem AGENDAMENTO válido.
+
+DEFINIÇÕES
+Pedidos únicos: números de pedido distintos no recorte.
+Itens: linhas da base, não soma das quantidades.
+Prazo médio: diferença entre emissão e agendamento dos itens FINALIZADOS com datas válidas. Não é prazo real de entrega. Sem dados válidos, mostra traço.
+Agendamentos únicos: fornecedor + data de agendamento. Não comprova visita realizada. O gráfico por fornecedor mostra os 15 maiores no recorte.
+Alterações: soma do maior sufixo .1/.2/etc. de cada pedido-base e fornecedor no recorte. É um indicador inferido, não uma contagem de eventos ocorridos naquela semana.
+Produto/serviço: classificação pelo texto da descrição, conforme dashboard fornecido.
+Região: cadastro de cidades do dashboard fornecido; cidade desconhecida fica não identificada.
+Datas ausentes são informadas na qualidade da base, ficam fora dos gráficos temporais e são excluídas quando um filtro temporal é selecionado. Sem filtro temporal podem compor os indicadores gerais.
+
+FROTA E ABASTECIMENTO
+A análise anterior de veículos foi preservada em Frota. Frota e Abastecimento usam os filtros superiores de veículo e período. A Logística tem filtros próprios baseados no agendamento, pois não existe vínculo comprovado entre pedido e placa.
+O roteirizador continua com sua seleção de data própria.
+
+VALIDAÇÃO
+36 verificações de integração: todos os sete renderizadores da Logística recebem exatamente o mesmo conjunto de linhas para cada filtro e combinações testadas; inclui domingo, recortes vazios, visitas deduplicadas, datas inclusivas, semana ISO e ausência de IDs duplicados.
+34 verificações da análise da frota continuaram aprovadas.
+Os testes usaram dados sintéticos. A abertura visual de arquivos locais foi bloqueada pelo navegador desta sessão. Não foi possível concluir conferência visual nem reconciliar com as bases reais, que não foram fornecidas. Faça essa conferência na hospedagem de teste antes de substituir a versão de produção.
+
+DEPENDÊNCIAS
+Chart.js, SheetJS e Leaflet continuam carregados pelos CDNs da versão anterior; é necessário acesso à internet. Não foram incluídos banco de dados, persistência nova ou conexão AppSheet.
