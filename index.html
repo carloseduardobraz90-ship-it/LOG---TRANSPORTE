@@ -26,6 +26,8 @@
 <script defer src="order-dashboard.js?v=20261021-datas"></script>
 <link rel="stylesheet" href="guia-graficos.css">
 <script defer src="guia-graficos.js"></script>
+<link rel="stylesheet" href="filtros-unificados.css">
+<script defer src="filtros-unificados.js"></script>
 </head>
 <body>
 <aside class="sidebar">
@@ -60,7 +62,7 @@
 </nav>
 </aside>
 <main class="main" id="dashboard">
-<div class="app-view active" id="dashboardView"><section hidden class="filters panel logistics-filters shared-filters"><div class="filter-bar-title"><strong>Filtros</strong><button class="button secondary" id="clear">Limpar</button></div>
+<section class="filters panel logistics-filters shared-filters"><div class="filter-bar-title"><strong>Filtros da operação</strong><button class="button secondary" id="clear">Limpar todos</button></div>
 <div>
 <label for="year">
         Ano
@@ -116,9 +118,77 @@
 </select>
 </div>
 
-</section><div class="workspace-page active" id="workspaceDashboard"><header class="workspace-heading"><div class="workspace-title-icon">▦</div><div><p class="eyebrow">VISÃO GERAL</p><h1>Dashboard</h1><p class="subtitle">Visão consolidada dos indicadores e carregamento dos arquivos.</p></div><div class="workspace-heading-actions"><button class="button" id="update">
+<p class="unified-scope" id="unifiedScope" aria-live="polite"></p><p class="unified-note">O período acompanha você entre as abas. Pedidos usam agendamento; frota usa a data do apontamento. Veículo afeta somente frota e combustível.</p><details class="unified-orders"><summary>Refinar pedidos · status, tipo, fornecedor, projeto e região <span id="unifiedOrderCount"></span></summary><div class="unified-order-grid"><div class="filter-group">
+                    <label for="lg-statusFilter">
+                        Status
+                    </label>
+
+                    <select id="lg-statusFilter" class="form-control">
+                        <option value="TODOS">
+                            Todos os Status
+                        </option>
+                    </select>
+                </div><div class="filter-group">
+                    <label for="lg-categoryFilter">
+                        Tipo de operação
+                    </label>
+
+                    <select id="lg-categoryFilter" class="form-control">
+                        <option value="TODAS">
+                            Todas as Categorias
+                        </option>
+                    </select>
+                </div><div class="filter-group">
+                    <label for="lg-supplierFilter">
+                        Fornecedor
+                    </label>
+
+                    <select id="lg-supplierFilter" class="form-control">
+                        <option value="TODOS">
+                            Todos os Fornecedores
+                        </option>
+                    </select>
+                </div><div class="filter-group">
+                    <label for="lg-serviceFilter">
+                        Produto ou serviço
+                    </label>
+
+                    <select id="lg-serviceFilter" class="form-control">
+                        <option value="TODOS">
+                            Todos
+                        </option>
+
+                        <option value="PRODUTOS">
+                            Produtos
+                        </option>
+
+                        <option value="SERVICOS">
+                            Serviços
+                        </option>
+                    </select>
+                </div><div class="filter-group">
+                    <label for="lg-projectFilter">
+                        Projeto
+                    </label>
+
+                    <select id="lg-projectFilter" class="form-control">
+                        <option value="TODOS">
+                            Todos os Projetos
+                        </option>
+                    </select>
+                </div><div class="filter-group">
+                    <label for="lg-regionFilter">
+                        Região
+                    </label>
+
+                    <select id="lg-regionFilter" class="form-control">
+                        <option value="TODAS">
+                            Todas as Regiões
+                        </option>
+                    </select>
+                </div></div><p>Estes filtros afetam pedidos no Dashboard, na Logística, nas Tabelas e no Roteirizador. Não são aplicados à quilometragem ou ao combustível.</p></details></section><div class="app-view active" id="dashboardView"><div class="workspace-page active" id="workspaceDashboard"><header class="workspace-heading"><div class="workspace-title-icon">▦</div><div><p class="eyebrow">VISÃO GERAL</p><h1>Dashboard</h1><p class="subtitle">Visão consolidada dos indicadores e carregamento dos arquivos.</p></div><div class="workspace-heading-actions"><button class="button" id="update">
        Atualizar dashboard
-      </button></div></header><section class="panel filters dashboard-date-filters"><div class="filter-bar-title"><strong>Período do Dashboard</strong><button class="button secondary" id="dashClear">Limpar</button></div><div><label for="dashYear">Ano</label><select id="dashYear"><option value="">Todos os anos</option></select></div><div><label for="dashMonth">Mês</label><select id="dashMonth"><option value="">Todos os meses</option><option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option><option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option><option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option></select></div><div><label for="dashWeek">Semana</label><select id="dashWeek"><option value="">Todas as semanas</option></select></div><div><label for="dashStart">Data inicial</label><input id="dashStart" type="date"></div><div><label for="dashEnd">Data final</label><input id="dashEnd" type="date"></div><p class="dashboard-date-note">Todos os KPIs seguem este período. Pedidos: data de agendamento. Frota e abastecimentos: data do apontamento. Os filtros desta área são independentes dos filtros das outras abas.</p></section><section class="dashboard-kpi-section"><div class="dashboard-section-title"><div><p class="eyebrow">INDICADORES DO PERÍODO</p><h2>Visão da operação</h2></div><span class="overview-pill" id="dashScope">Todos os períodos</span></div><div class="dashboard-kpis"><article class="metric-card metric-neutral"><div class="metric-top"><span>Valor abastecido</span><i aria-hidden="true"></i></div><strong id="value" class="">—</strong><small>Investimento total em combustível</small></article><article class="metric-card metric-neutral"><div class="metric-top"><span>Litros abastecidos</span><i aria-hidden="true"></i></div><strong id="liters" class="">—</strong><small>Informados ou estimados pelo preço/L</small></article><article class="metric-card metric-neutral"><div class="metric-top"><span>Abastecimentos</span><i aria-hidden="true"></i></div><strong id="refuels" class="">—</strong><small>Registros importados</small></article><article class="metric-card metric-neutral"><div class="metric-top"><span>Itens de pedidos</span><i aria-hidden="true"></i></div><strong id="logCount" class="">—</strong><small>Linhas da base logística</small></article><article class="metric-card metric-good"><div class="metric-top"><span>KM percorridos</span><i aria-hidden="true"></i></div><strong id="distance" class="">—</strong><small>Soma das jornadas válidas</small></article><article class="metric-card metric-neutral"><div class="metric-top"><span>KM/L indicativo</span><i aria-hidden="true"></i></div><strong id="kml" class="">—</strong><small>KM / litros abastecidos no mesmo período</small></article><article class="metric-card metric-neutral"><div class="metric-top"><span>Pedidos únicos</span><i aria-hidden="true"></i></div><strong id="dashOrders" class="">—</strong><small>Números distintos na base</small></article><article class="metric-card metric-good"><div class="metric-top"><span>Itens finalizados</span><i aria-hidden="true"></i></div><strong id="dashFinalized" class="">—</strong><small>Status FINALIZADO ou ENTREGUE</small></article><article class="metric-card metric-good"><div class="metric-top"><span>Conclusão dos itens</span><i aria-hidden="true"></i></div><strong id="dashCompletion" class="">—</strong><small>Finalizados / total de itens</small></article><article class="metric-card metric-neutral"><div class="metric-top"><span>Itens sem conclusão</span><i aria-hidden="true"></i></div><strong id="dashPending" class="">—</strong><small>Demais status da base</small></article><article class="metric-card metric-bad"><div class="metric-top"><span>Agendamentos vencidos</span><i aria-hidden="true"></i></div><strong id="dashOverdue" class="">—</strong><small>Sem conclusão e com data anterior a hoje</small></article><article class="metric-card metric-bad"><div class="metric-top"><span>Alterações indicadas</span><i aria-hidden="true"></i></div><strong id="dashChanges" class="">—</strong><small>Maior sufixo por pedido-base/fornecedor</small></article><article class="metric-card metric-good"><div class="metric-top"><span>Jornadas válidas</span><i aria-hidden="true"></i></div><strong id="dashQuality" class="">—</strong><small>Dias/veículo com saída e chegada válidas</small></article><article class="metric-card metric-bad"><div class="metric-top"><span>Pendências de jornada</span><i aria-hidden="true"></i></div><strong id="dashIssues" class="">—</strong><small>Dias/veículo excluídos do cálculo de KM</small></article><article class="metric-card metric-neutral"><div class="metric-top"><span>Valor dos itens</span><i aria-hidden="true"></i></div><strong id="dashOrderValue" class="">—</strong><small>Soma dos valores na base de pedidos</small></article><article class="metric-card metric-neutral"><div class="metric-top"><span>Período da frota</span><i aria-hidden="true"></i></div><strong id="period" class="period-value">—</strong><small>Primeiro e último apontamento</small></article></div><p class="dashboard-footnote" id="dashboardUpdated">Carregue os arquivos para começar. Cores indicam resultados concluídos e pendências; valores financeiros são neutros.</p></section><div class="workspace-hint workspace-hint-primary"><span class="workspace-hint-icon">↗</span><div><strong>Central de indicadores</strong><span>Os pedidos são carregados ao selecionar o arquivo. Para os indicadores da frota, selecione os quatro arquivos e clique em Atualizar dashboard.</span></div></div><section class="upload panel upload-sources upload-sources-vehicles">
+      </button></div></header><section hidden class="panel filters dashboard-date-filters legacy-filters"><div class="filter-bar-title"><strong>Período do Dashboard</strong><button class="button secondary" id="dashClear">Limpar</button></div><div><label for="dashYear">Ano</label><select id="dashYear"><option value="">Todos os anos</option></select></div><div><label for="dashMonth">Mês</label><select id="dashMonth"><option value="">Todos os meses</option><option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option><option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option><option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option></select></div><div><label for="dashWeek">Semana</label><select id="dashWeek"><option value="">Todas as semanas</option></select></div><div><label for="dashStart">Data inicial</label><input id="dashStart" type="date"></div><div><label for="dashEnd">Data final</label><input id="dashEnd" type="date"></div><p class="dashboard-date-note">Todos os KPIs seguem este período. Pedidos: data de agendamento. Frota e abastecimentos: data do apontamento. Os filtros são compartilhados com as outras abas.</p></section><section class="dashboard-kpi-section"><div class="dashboard-section-title"><div><p class="eyebrow">INDICADORES DO PERÍODO</p><h2>Visão da operação</h2></div><span class="overview-pill" id="dashScope">Todos os períodos</span></div><div class="dashboard-kpis"><article class="metric-card metric-neutral"><div class="metric-top"><span>Valor abastecido</span><i aria-hidden="true"></i></div><strong id="value" class="">—</strong><small>Investimento total em combustível</small></article><article class="metric-card metric-neutral"><div class="metric-top"><span>Litros abastecidos</span><i aria-hidden="true"></i></div><strong id="liters" class="">—</strong><small>Informados ou estimados pelo preço/L</small></article><article class="metric-card metric-neutral"><div class="metric-top"><span>Abastecimentos</span><i aria-hidden="true"></i></div><strong id="refuels" class="">—</strong><small>Registros importados</small></article><article class="metric-card metric-neutral"><div class="metric-top"><span>Itens de pedidos</span><i aria-hidden="true"></i></div><strong id="logCount" class="">—</strong><small>Linhas da base logística</small></article><article class="metric-card metric-good"><div class="metric-top"><span>KM percorridos</span><i aria-hidden="true"></i></div><strong id="distance" class="">—</strong><small>Soma das jornadas válidas</small></article><article class="metric-card metric-neutral"><div class="metric-top"><span>KM/L indicativo</span><i aria-hidden="true"></i></div><strong id="kml" class="">—</strong><small>KM / litros abastecidos no mesmo período</small></article><article class="metric-card metric-neutral"><div class="metric-top"><span>Pedidos únicos</span><i aria-hidden="true"></i></div><strong id="dashOrders" class="">—</strong><small>Números distintos na base</small></article><article class="metric-card metric-good"><div class="metric-top"><span>Itens finalizados</span><i aria-hidden="true"></i></div><strong id="dashFinalized" class="">—</strong><small>Status FINALIZADO ou ENTREGUE</small></article><article class="metric-card metric-good"><div class="metric-top"><span>Conclusão dos itens</span><i aria-hidden="true"></i></div><strong id="dashCompletion" class="">—</strong><small>Finalizados / total de itens</small></article><article class="metric-card metric-neutral"><div class="metric-top"><span>Itens sem conclusão</span><i aria-hidden="true"></i></div><strong id="dashPending" class="">—</strong><small>Demais status da base</small></article><article class="metric-card metric-bad"><div class="metric-top"><span>Agendamentos vencidos</span><i aria-hidden="true"></i></div><strong id="dashOverdue" class="">—</strong><small>Sem conclusão e com data anterior a hoje</small></article><article class="metric-card metric-bad"><div class="metric-top"><span>Alterações indicadas</span><i aria-hidden="true"></i></div><strong id="dashChanges" class="">—</strong><small>Maior sufixo por pedido-base/fornecedor</small></article><article class="metric-card metric-good"><div class="metric-top"><span>Jornadas válidas</span><i aria-hidden="true"></i></div><strong id="dashQuality" class="">—</strong><small>Dias/veículo com saída e chegada válidas</small></article><article class="metric-card metric-bad"><div class="metric-top"><span>Pendências de jornada</span><i aria-hidden="true"></i></div><strong id="dashIssues" class="">—</strong><small>Dias/veículo excluídos do cálculo de KM</small></article><article class="metric-card metric-neutral"><div class="metric-top"><span>Valor dos itens</span><i aria-hidden="true"></i></div><strong id="dashOrderValue" class="">—</strong><small>Soma dos valores na base de pedidos</small></article><article class="metric-card metric-neutral"><div class="metric-top"><span>Período da frota</span><i aria-hidden="true"></i></div><strong id="period" class="period-value">—</strong><small>Primeiro e último apontamento</small></article></div><p class="dashboard-footnote" id="dashboardUpdated">Carregue os arquivos para começar. Cores indicam resultados concluídos e pendências; valores financeiros são neutros.</p></section><div class="workspace-hint workspace-hint-primary"><span class="workspace-hint-icon">↗</span><div><strong>Central de indicadores</strong><span>Os pedidos são carregados ao selecionar o arquivo. Para os indicadores da frota, selecione os quatro arquivos e clique em Atualizar dashboard.</span></div></div><section class="upload panel upload-sources upload-sources-vehicles">
 <div class="upload-section-title">
 <div>
 <p class="eyebrow">
@@ -186,7 +256,7 @@
 <p class="upload-status" id="status">
       Pedidos podem ser carregados separadamente. Para atualizar a frota, selecione os quatro arquivos dos veículos.
      </p>
-</section></div><div class="workspace-page" id="workspaceFuel"><header class="workspace-heading"><div class="workspace-title-icon">⛽</div><div><p class="eyebrow">CONTROLE DE COMBUSTÍVEL</p><h1>Abastecimento</h1><p class="subtitle">Custos, litros, consumo e histórico de abastecimentos.</p></div></header><div class="workspace-hint"><span class="workspace-hint-icon">✦</span><div><strong>Filtros compartilhados</strong><span>Altere ano, veículo, período ou datas acima. Os indicadores da frota e dos abastecimentos serão atualizados juntos. A Logística tem seus próprios filtros por agendamento.</span></div></div><section class="charts workspace-charts"><article class="panel chart-card">
+</section></div><div class="workspace-page" id="workspaceFuel"><header class="workspace-heading"><div class="workspace-title-icon">⛽</div><div><p class="eyebrow">CONTROLE DE COMBUSTÍVEL</p><h1>Abastecimento</h1><p class="subtitle">Custos, litros, consumo e histórico de abastecimentos.</p></div></header><div class="workspace-hint"><span class="workspace-hint-icon">✦</span><div><strong>Filtros da operação</strong><span>O recorte selecionado no topo é mantido em todas as abas. Os refinamentos de pedidos não alteram os valores da frota ou dos abastecimentos.</span></div></div><section class="charts workspace-charts"><article class="panel chart-card">
 <div class="chart-title-row">
 <h2 id="titleMonthValue">
          Valor por mês
@@ -251,103 +321,35 @@
 </div>
 </article></section></div><div class="workspace-page" id="workspaceLogistics"><header class="workspace-heading"><div class="workspace-title-icon">▤</div><div><p class="eyebrow">GESTÃO DOS PEDIDOS</p><h1>Logística</h1><p class="subtitle">Pedidos, agendamentos, prazos e valores com filtros combinados.</p></div></header><div id="orderDashboard">
 
-    <div class="container"><div class="card integration-note"><strong>Filtros da Logística</strong><p>Todos os filtros abaixo são combinados e atualizam os gráficos, indicadores e tabelas desta aba. Datas usam AGENDAMENTO. A base é carregada na Visão Geral, em Arquivo dos pedidos. Este painel e o roteirizador usam automaticamente esse mesmo arquivo.</p><p>Agendamentos únicos não comprovam visitas realizadas. Prazo médio é emissão até agendamento dos itens finalizados, não prazo real de entrega. Produtos/serviços são classificados pelo texto da descrição. As regiões seguem o cadastro de cidades deste dashboard.</p><p id="lg-filterScope" aria-live="polite"></p><p id="lg-dateQuality" aria-live="polite"></p></div>
+    <div class="container"><div class="card integration-note"><strong>Filtros da Logística</strong><p>Os filtros no topo são compartilhados entre as abas. Os refinamentos de pedidos também acompanham você. Datas de pedidos usam AGENDAMENTO. A base é carregada na Visão Geral, em Arquivo dos pedidos. Este painel e o roteirizador usam automaticamente esse mesmo arquivo.</p><p>Agendamentos únicos não comprovam visitas realizadas. Prazo médio é emissão até agendamento dos itens finalizados, não prazo real de entrega. Produtos/serviços são classificados pelo texto da descrição. As regiões seguem o cadastro de cidades deste dashboard.</p><p id="lg-filterScope" aria-live="polite"></p><p id="lg-dateQuality" aria-live="polite"></p></div>
         
 
         
 
         <div class="card">
 
-            <div class="filter-bar-title"><strong>Filtros</strong><button id="lg-btnClear" class="button secondary">Limpar</button></div><div class="filters-grid"><div class="filter-group"><label for="lg-monthFilter">Mês</label><input id="lg-monthFilter" type="month" class="form-control"></div><div class="filter-group"><label for="lg-weekFilter">Semana</label><select id="lg-weekFilter" class="form-control"><option value="">Todas as semanas</option></select></div><div class="filter-group"><label for="lg-weekdayFilter">Dia da semana</label><select id="lg-weekdayFilter" class="form-control"><option value="">Todos os dias</option><option value="1">Segunda-feira</option><option value="2">Terça-feira</option><option value="3">Quarta-feira</option><option value="4">Quinta-feira</option><option value="5">Sexta-feira</option><option value="6">Sábado</option><option value="0">Domingo</option></select></div>
+            <div hidden class="legacy-filters"><div class="filter-bar-title"><strong>Filtros</strong><button id="lg-btnClear" class="button secondary">Limpar</button></div><div class="filters-grid"><div class="filter-group"><label for="lg-monthFilter">Mês</label><input id="lg-monthFilter" type="month" class="form-control"></div><div class="filter-group"><label for="lg-weekFilter">Semana</label><select id="lg-weekFilter" class="form-control"><option value="">Todas as semanas</option></select></div><div class="filter-group"><label for="lg-weekdayFilter">Dia da semana</label><select id="lg-weekdayFilter" class="form-control"><option value="">Todos os dias</option><option value="1">Segunda-feira</option><option value="2">Terça-feira</option><option value="3">Quarta-feira</option><option value="4">Quinta-feira</option><option value="5">Sexta-feira</option><option value="6">Sábado</option><option value="0">Domingo</option></select></div>
 
                 
                 
 
                 
-                <div class="filter-group">
-                    <label for="lg-statusFilter">
-                        Status (Coluna W)
-                    </label>
-
-                    <select id="lg-statusFilter" class="form-control">
-                        <option value="TODOS">
-                            Todos os Status
-                        </option>
-                    </select>
-                </div>
+                
 
                 
-                <div class="filter-group">
-                    <label for="lg-categoryFilter">
-                        Categoria / Tipo (Coluna F)
-                    </label>
-
-                    <select id="lg-categoryFilter" class="form-control">
-                        <option value="TODAS">
-                            Todas as Categorias
-                        </option>
-                    </select>
-                </div>
+                
 
                 
-                <div class="filter-group">
-                    <label for="lg-supplierFilter">
-                        Fornecedor (Coluna I - NOME)
-                    </label>
-
-                    <select id="lg-supplierFilter" class="form-control">
-                        <option value="TODOS">
-                            Todos os Fornecedores
-                        </option>
-                    </select>
-                </div>
+                
 
                 
-                <div class="filter-group">
-                    <label for="lg-serviceFilter">
-                        Tipo de Item
-                    </label>
-
-                    <select id="lg-serviceFilter" class="form-control">
-                        <option value="TODOS">
-                            Todos
-                        </option>
-
-                        <option value="PRODUTOS">
-                            Produtos
-                        </option>
-
-                        <option value="SERVICOS">
-                            Serviços
-                        </option>
-                    </select>
-                </div>
+                
 
                 
-                <div class="filter-group">
-                    <label for="lg-projectFilter">
-                        Projeto (Coluna D)
-                    </label>
-
-                    <select id="lg-projectFilter" class="form-control">
-                        <option value="TODOS">
-                            Todos os Projetos
-                        </option>
-                    </select>
-                </div>
+                
 
                 
-                <div class="filter-group">
-                    <label for="lg-regionFilter">
-                        Região do Fornecedor
-                    </label>
-
-                    <select id="lg-regionFilter" class="form-control">
-                        <option value="TODAS">
-                            Todas as Regiões
-                        </option>
-                    </select>
-                </div>
+                
 
 
                 
@@ -377,7 +379,7 @@
 
         
 
-        <div id="lg-statusBanner" class="status-banner" style="display: none;">
+        </div><div id="lg-statusBanner" class="status-banner" style="display: none;">
 
             <span id="lg-statusIcon">
                 🟢
@@ -493,7 +495,7 @@
                     font-size: 1rem;
                     margin-bottom: 16px;
                 ">
-                    Volume de Itens por Status (Coluna W)
+                    Volume de Itens por Status
                 </h3>
 
                 <div class="chart-container">
@@ -639,7 +641,7 @@
 
     
 
-</div></div><div class="workspace-page" id="workspaceTables"><header class="workspace-heading"><div class="workspace-title-icon">▤</div><div><p class="eyebrow">BASES E CONFERÊNCIA</p><h1>Tabelas</h1><p class="subtitle">Bases completas e detalhes das análises em um só lugar.</p></div></header><section class="panel raw-data-panel"><div class="panel-head"><h2>Dados dos arquivos importados</h2><button class="button secondary" id="exportRaw">Exportar base</button></div><div class="table-controls"><label>Base<select id="rawDataset"><option value="orders">Pedidos</option><option value="fuel">Abastecimentos</option><option value="journey">Jornadas / KM</option></select></label><label>Buscar<input id="rawSearch" type="search" placeholder="Pedido, fornecedor, placa..."></label><span id="rawCount"></span></div><div class="table-wrap"><table><thead><tr id="rawHead"></tr></thead><tbody id="rawBody"></tbody></table></div><div class="table-pagination"><button class="button secondary" id="rawPrev">Anterior</button><span id="rawPage"></span><button class="button secondary" id="rawNext">Próxima</button></div></section><p class="table-context">As tabelas de análise abaixo acompanham os filtros de sua aba de origem: Frota/Abastecimento ou Logística. A base completa acima tem busca própria e não é limitada pelos filtros dos gráficos.</p><details class="table-detail"><summary>Abastecimentos filtrados</summary><section class="panel table-panel" id="abastecimento">
+</div></div><div class="workspace-page" id="workspaceTables"><header class="workspace-heading"><div class="workspace-title-icon">▤</div><div><p class="eyebrow">BASES E CONFERÊNCIA</p><h1>Tabelas</h1><p class="subtitle">Bases completas e detalhes das análises em um só lugar.</p></div></header><section class="panel raw-data-panel"><div class="panel-head"><h2>Dados dos arquivos importados</h2><button class="button secondary" id="exportRaw">Exportar base</button></div><div class="table-controls"><label>Base<select id="rawDataset"><option value="orders">Pedidos</option><option value="fuel">Abastecimentos</option><option value="journey">Jornadas / KM</option></select></label><label>Buscar<input id="rawSearch" type="search" placeholder="Pedido, fornecedor, placa..."></label><span id="rawCount"></span></div><div class="table-wrap"><table><thead><tr id="rawHead"></tr></thead><tbody id="rawBody"></tbody></table></div><div class="table-pagination"><button class="button secondary" id="rawPrev">Anterior</button><span id="rawPage"></span><button class="button secondary" id="rawNext">Próxima</button></div></section><p class="table-context">As tabelas de análise abaixo acompanham os filtros de sua aba de origem: Frota/Abastecimento ou Logística. A base acima acompanha o período e os filtros aplicáveis; a busca textual refina esse mesmo recorte.</p><details class="table-detail"><summary>Abastecimentos filtrados</summary><section class="panel table-panel" id="abastecimento">
 <div class="panel-head">
 <h2>
        Abastecimentos
@@ -694,7 +696,7 @@
 </tbody>
 </table>
 </div>
-</section></details><details class="table-detail"><summary>Prévia de pedidos por emissão</summary><section class="panel table-panel" id="logisticaPreview">
+</section></details><details class="table-detail"><summary>Prévia de pedidos por agendamento</summary><section class="panel table-panel" id="logisticaPreview">
 <div class="panel-head">
 <h2>
        Prévia da base logística
@@ -796,7 +798,7 @@
 
             </div>
 
-        </div></details></div><div class="workspace-page" id="workspaceGuide" aria-hidden="true"><div id="guideRoot"></div></div><div class="workspace-page" id="workspaceFleet"><header class="workspace-heading"><div class="workspace-title-icon">▤</div><div><p class="eyebrow">ANÁLISE OPERACIONAL</p><h1>Frota</h1><p class="subtitle">Quilometragem, desempenho, pedidos e distribuição logística.</p></div></header><div class="workspace-hint"><span class="workspace-hint-icon">✦</span><div><strong>Filtros compartilhados</strong><span>Altere ano, veículo, período ou datas acima. Os indicadores da frota e dos abastecimentos serão atualizados juntos. A Logística tem seus próprios filtros por agendamento.</span></div></div><section class="panel analysis-context"><h2>Base da análise</h2><p id="analysisScope" aria-live="polite"></p><p id="qualitySummary" aria-live="polite"></p><details><summary>Como interpretar os números</summary><p>KM: soma das viagens com saída e chegada no mesmo dia, em ordem cronológica e com hodômetro válido. O filtro de mês recorta as semanas que atravessam meses. Semana de segunda a domingo, conforme calendário ISO. Datas inicial/final, ano, mês e semana são combinados.</p><p>KM/L indicativo = KM válido ÷ litros abastecidos no mesmo grupo. Compra de combustível e consumo do tanque ocorrem em momentos diferentes: grupos sem abastecimento ficam sem esse indicador. Não é uma medição de eficiência real. Quando não há litros ou preço/L informados, os litros são estimados pelo preço anual de referência: 2025 = R$ 6,49/L; 2026 = R$ 7,49/L. Para outros anos, o preço padrão é R$ 7,49/L. Confira esses valores com a base antes de interpretar o indicador.</p><p>Por dia da semana: soma de todas as segundas, terças e demais dias dentro dos filtros. Os pedidos são contados por linha e filtrados pela emissão; o filtro de placa se aplica apenas à frota, pois a base de pedidos não tem vínculo comprovado com o veículo.</p></details></section><section class="charts workspace-charts"><article class="panel chart-card">
+        </div></details></div><div class="workspace-page" id="workspaceGuide" aria-hidden="true"><div id="guideRoot"></div></div><div class="workspace-page" id="workspaceFleet"><header class="workspace-heading"><div class="workspace-title-icon">▤</div><div><p class="eyebrow">ANÁLISE OPERACIONAL</p><h1>Frota</h1><p class="subtitle">Quilometragem, desempenho, pedidos e distribuição logística.</p></div></header><div class="workspace-hint"><span class="workspace-hint-icon">✦</span><div><strong>Filtros da operação</strong><span>O recorte selecionado no topo é mantido em todas as abas. Os refinamentos de pedidos não alteram os valores da frota ou dos abastecimentos.</span></div></div><section class="panel analysis-context"><h2>Base da análise</h2><p id="analysisScope" aria-live="polite"></p><p id="qualitySummary" aria-live="polite"></p><details><summary>Como interpretar os números</summary><p>KM: soma das viagens com saída e chegada no mesmo dia, em ordem cronológica e com hodômetro válido. O filtro de mês recorta as semanas que atravessam meses. Semana de segunda a domingo, conforme calendário ISO. Datas inicial/final, ano, mês e semana são combinados.</p><p>KM/L indicativo = KM válido ÷ litros abastecidos no mesmo grupo. Compra de combustível e consumo do tanque ocorrem em momentos diferentes: grupos sem abastecimento ficam sem esse indicador. Não é uma medição de eficiência real. Quando não há litros ou preço/L informados, os litros são estimados pelo preço anual de referência: 2025 = R$ 6,49/L; 2026 = R$ 7,49/L. Para outros anos, o preço padrão é R$ 7,49/L. Confira esses valores com a base antes de interpretar o indicador.</p><p>Por dia da semana: soma de todas as segundas, terças e demais dias dentro dos filtros. Os pedidos são contados por linha e filtrados pelo agendamento; o filtro de placa se aplica apenas à frota, pois a base de pedidos não tem vínculo comprovado com o veículo.</p></details></section><section class="charts workspace-charts"><article class="panel chart-card">
 <h2 id="titleDistanceVehicle">
         KM por veículo e mês
        </h2>

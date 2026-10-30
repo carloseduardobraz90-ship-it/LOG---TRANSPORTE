@@ -481,18 +481,21 @@ function destroy(n) {
 }
 
 function dashboardDateMatch(date){
- if(!date||isNaN(date))return false;const k=key(date),month=$('analysisMonth')?.value,week=$('analysisWeek')?.value,weekday=$('analysisWeekday')?.value;
- return ($('year').value==='todos'||date.getFullYear()===$('year').value*1)&&(!month||k.slice(0,7)===month)&&(!week||isoWeekKey(date)===week)&&(!weekday||date.getDay()===Number(weekday))&&(!$('start').value||k>=$('start').value)&&(!$('end').value||k<=$('end').value);
+ const year=$('year').value,month=$('analysisMonth').value,week=$('analysisWeek').value,weekday=$('analysisWeekday').value,start=$('start').value,end=$('end').value;
+ if(!date||isNaN(date))return year==='todos'&&!month&&!week&&!weekday&&!start&&!end;
+ const k=key(date);return (year==='todos'||date.getFullYear()===Number(year))&&(!month||k.slice(0,7)===month)&&(!week||isoWeekKey(date)===week)&&(!weekday||date.getDay()===Number(weekday))&&(!start||k>=start)&&(!end||k<=end);
 }
+function sharedOrderRows(rows){return window.PharmainoxLogistics?.filterRows?window.PharmainoxLogistics.filterRows(rows,window.PharmainoxFilters?.orderFilters()||{}):rows.filter(r=>dashboardDateMatch(r._scheduleDate));}
+
 function refreshAnalysisWeeks(){
  const select=$('analysisWeek');if(!select)return;const previous=select.value,month=$('analysisMonth').value;
- const dates=[...S.journey.map(r=>r.date),...S.fuel.map(r=>r.date),...S.log.map(r=>r._date)].filter(d=>d&&!isNaN(d)&&(!month||key(d).slice(0,7)===month)&&($('year').value==='todos'||d.getFullYear()===$('year').value*1));
+ const dates=[...S.journey.map(r=>r.date),...S.fuel.map(r=>r.date),...S.log.map(r=>r._scheduleDate)].filter(d=>d&&!isNaN(d)&&(!month||key(d).slice(0,7)===month)&&($('year').value==='todos'||d.getFullYear()===$('year').value*1));
  const weeks=[...new Set(dates.map(isoWeekKey))].sort();select.innerHTML='<option value="">Todas as semanas</option>'+weeks.map(w=>'<option value="'+w+'">'+periodLabel(w,'week')+'</option>').join('');select.value=weeks.includes(previous)?previous:'';
 }
 function apply(){
  const vehicle=$('vehicle').value,matches=r=>dashboardDateMatch(r.date)&&(vehicle==='todos'||r.vehicle===vehicle);
  S.filteredFuel=S.fuel.filter(matches);S.filteredJourney=S.journey.filter(matches);
- S.filteredLog=S.log.filter(r=>dashboardDateMatch(r._date));
+ S.filteredLog=sharedOrderRows(S.log);
  S.filteredDaily=buildDailyMetrics(S.journey,S.fuel).filter(matches);
 }
 
@@ -610,6 +613,7 @@ function renderVehicleAnalysis(daily,mode){
 }
 
 function update() {
+  window.PharmainoxFilters?.refreshOptions();
   apply();
   const f=S.filteredFuel,l=S.filteredLog,daily=S.filteredDaily,summary=summarizeConsumption(daily),mode=$('periodicity')?.value||'month';
   $('value').textContent=money(summary.totalValue); $('liters').textContent=summary.totalLiters>0?`${fmt(summary.totalLiters)} L`:'—'; $('refuels').textContent=f.length.toLocaleString('pt-BR'); $('logCount').textContent=l.length.toLocaleString('pt-BR'); $('distance').textContent=summary.validDays?fmt(summary.totalDistance)+' km':'—'; $('kml').textContent=fmt(summary.avgKmL);
@@ -636,6 +640,8 @@ function update() {
   const incompleteNote=summary.incompleteDays?`${summary.validDays} dia(s) calculado(s) · ${summary.incompleteDays} dia(s) com jornada incompleta`:`${summary.validDays} dia(s) calculado(s)`;$('distance').title=incompleteNote;$('kml').title=`Relação KM válido / litros abastecidos no recorte. Não mede consumo real do tanque. ${incompleteNote}`;
   renderDashboardOverview();
   renderRawTable();
+  window.PharmainoxLogistics?.refresh();
+  window.PharmainoxFilters?.renderScope();
 
 }
 
@@ -783,7 +789,7 @@ function groupRouteStops(dateKey) {
   // REGRA OFICIAL DA ROTA:
   // 1) Data vem exclusivamente de AGENDAMENTO (V).
   // 2) Pedidos com TIPO = COLETA ou ENTREGA entram na rota; RECEBIMENTO fica fora.
-  const rows = S.log.filter(r => key(r._scheduleDate) === dateKey && isRouteType(r._type));
+  const rows = sharedOrderRows(S.log).filter(r => key(r._scheduleDate) === dateKey && isRouteType(r._type));
   const grouped = new Map();
 
   rows.forEach(r => {
@@ -1745,6 +1751,7 @@ async function renderRoute() {
   if (!initMap()) return;
   const runId = ++S.routeRunId;
   const dateKey = $('routeDate').value;
+  $('routeDistance').textContent='—'; $('routeDuration').textContent='—';
   clearMap();
   $('openGoogleRoute').disabled = true;
   $('openGoogleRoute').onclick = null;
@@ -1773,7 +1780,7 @@ async function renderRoute() {
   const excluded = new Set(loadRouteExcluded(dateKey));
   const activeGrouped = grouped.filter(s => !excluded.has(getRouteStopKey(s)));
   const baseValid = activeGrouped.filter(s => s.resolution.state === 'ok');
-  const scheduledRows = S.log.filter(r => key(r._scheduleDate) === dateKey && isRouteType(r._type));
+  const scheduledRows = sharedOrderRows(S.log).filter(r => key(r._scheduleDate) === dateKey && isRouteType(r._type));
   const uniqueOrders = new Set(scheduledRows.map(r => r._order).filter(Boolean));
   const ordersCount = uniqueOrders.size || scheduledRows.length;
 
@@ -1955,7 +1962,7 @@ function populateRouteDate() {
   // O seletor de dia da rota mostra apenas datas de AGENDAMENTO
   // que possuem pelo menos um pedido com TIPO = COLETA ou ENTREGA.
   const dates = [...new Set(
-    S.log
+    sharedOrderRows(S.log)
       .filter(r => isRouteType(r._type))
       .map(r => key(r._scheduleDate))
       .filter(Boolean)
@@ -2226,7 +2233,7 @@ function switchAppView(view, navKey = '') {
   const showRoutes = view === 'routes';
   const page = ['dashboard','abastecimento','logistica','frota','tabelas','guia'].includes(navKey) ? navKey : 'dashboard';
   $('dashboardView')?.classList.toggle('active', !showRoutes);
-  const sharedFilters=document.querySelector('.shared-filters');if(sharedFilters)sharedFilters.hidden=showRoutes||!['abastecimento','frota'].includes(page);
+  const sharedFilters=document.querySelector('.shared-filters');if(sharedFilters)sharedFilters.hidden=page==='guia'&&!showRoutes;
   $('routesView')?.classList.toggle('active', showRoutes);
   const pageIds = { dashboard: 'workspaceDashboard', abastecimento: 'workspaceFuel', logistica: 'workspaceLogistics', frota: 'workspaceFleet', tabelas: 'workspaceTables', guia: 'workspaceGuide' };
   Object.entries(pageIds).forEach(([key, id]) => {
@@ -2265,11 +2272,9 @@ function dashboardOrderSummary(rows,now=new Date()){
  const changes=new Map();for(const r of rows){const order=String(r._order||''),m=order.match(/\.(\d+)$/);if(!m)continue;const id=r._supplierCode+'|'+order.replace(/(?:\.\d+)+$/,'');changes.set(id,Math.max(changes.get(id)||0,+m[1]));}
  return {orders:orders.size,finalized,pending,completion:rows.length?finalized/rows.length:NaN,overdue:rows.filter(r=>!done(r)&&r._scheduleDate&&key(r._scheduleDate)<today).length,changes:[...changes.values()].reduce((s,n)=>s+n,0),value:rows.reduce((s,r)=>{const n=number(get(r,['vlr.total','vlrtotal','valor total']));return s+(Number.isFinite(n)?n:0)},0)};
 }
-function dashboardFilterValues(){return {year:$('dashYear')?.value||'',month:$('dashMonth')?.value||'',week:$('dashWeek')?.value||'',start:$('dashStart')?.value||'',end:$('dashEnd')?.value||''};}
-function dashboardMatchesDate(date,f=dashboardFilterValues()){
- const active=Object.values(f).some(Boolean);if(!date||isNaN(date))return !active;const k=key(date);
- return (!f.year||date.getFullYear()===Number(f.year))&&(!f.month||date.getMonth()+1===Number(f.month))&&(!f.week||isoWeekKey(date)===f.week)&&(!f.start||k>=f.start)&&(!f.end||k<=f.end);
-}
+function dashboardFilterValues(){return {year:$('year').value==='todos'?'':$('year').value,month:$('analysisMonth').value,week:$('analysisWeek').value,weekday:$('analysisWeekday').value,start:$('start').value,end:$('end').value,vehicle:$('vehicle').value==='todos'?'':$('vehicle').value};}
+function dashboardMatchesDate(date){return dashboardDateMatch(date);}
+
 function refreshDashboardDateOptions(){
  const all=[...S.journey.map(r=>r.date),...S.fuel.map(r=>r.date),...S.log.map(r=>r._scheduleDate)].filter(d=>d&&!isNaN(d));
  const year=$('dashYear'),week=$('dashWeek');if(!year||!week)return;const oldYear=year.value;
@@ -2280,17 +2285,20 @@ function refreshDashboardDateOptions(){
 
 function renderDashboardOverview(){
  refreshDashboardDateOptions();
- const filters=dashboardFilterValues(),fuel=S.fuel.filter(r=>dashboardMatchesDate(r.date,filters)),journey=S.journey.filter(r=>dashboardMatchesDate(r.date,filters)),log=S.log.filter(r=>dashboardMatchesDate(r._scheduleDate,filters));
- const daily=buildDailyMetrics(S.journey,S.fuel).filter(r=>dashboardMatchesDate(r.date,filters)),sum=summarizeConsumption(daily),orders=dashboardOrderSummary(log);
+ const filters=dashboardFilterValues(),vehicleMatch=r=>!filters.vehicle||r.vehicle===filters.vehicle,fuel=S.fuel.filter(r=>dashboardMatchesDate(r.date)&&vehicleMatch(r)),journey=S.journey.filter(r=>dashboardMatchesDate(r.date)&&vehicleMatch(r)),log=sharedOrderRows(S.log);
+ const daily=buildDailyMetrics(S.journey,S.fuel).filter(r=>dashboardMatchesDate(r.date)&&vehicleMatch(r)),sum=summarizeConsumption(daily),orders=dashboardOrderSummary(log);
  const set=(id,value,tone)=>{const el=$(id);if(!el)return;el.textContent=value;const card=el.closest?.('.metric-card');if(card&&tone)card.className='metric-card metric-'+tone;};
  set('value',money(sum.totalValue));set('liters',sum.totalLiters?fmt(sum.totalLiters)+' L':'—');set('refuels',fmt(fuel.length));set('logCount',fmt(log.length));set('distance',sum.validDays?fmt(sum.totalDistance)+' km':'—',sum.validDays?'good':'neutral');set('kml',fmt(sum.avgKmL));
  set('dashOrders',fmt(orders.orders));set('dashFinalized',fmt(orders.finalized),orders.finalized?'good':'neutral');set('dashCompletion',Number.isFinite(orders.completion)?fmt(orders.completion*100)+'%':'—',orders.finalized?'good':'neutral');set('dashPending',fmt(orders.pending));set('dashOverdue',fmt(orders.overdue),orders.overdue?'bad':'good');set('dashChanges',fmt(orders.changes),orders.changes?'bad':'good');set('dashQuality',sum.totalDays?fmt(sum.validDays/sum.totalDays*100)+'%':'—',sum.totalDays?(sum.incompleteDays?'neutral':'good'):'neutral');set('dashIssues',fmt(sum.incompleteDays),sum.incompleteDays?'bad':'good');set('dashOrderValue',money(orders.value));
  const dates=[...journey,...fuel].map(r=>r.date).filter(Boolean).sort((a,b)=>a-b);set('period',dates.length?dates[0].toLocaleDateString('pt-BR')+' — '+dates.at(-1).toLocaleDateString('pt-BR'):'—');
- set('dashScope',Object.values(filters).some(Boolean)?'Período filtrado':'Todos os períodos');
+ set('dashScope',Object.values(filters).some(Boolean)?'Filtros da operação ativos':'Toda a operação');
  set('dashboardUpdated','Dados no período selecionado · '+fmt(log.length)+' itens logísticos · '+fmt(journey.length)+' apontamentos de jornada · '+fmt(fuel.length)+' abastecimentos. Verde: conclusão e jornadas válidas. Vermelho: pendências e alterações; valores financeiros sem classificação de desempenho.');
 }
 function rawSourceRows(){const type=$('rawDataset')?.value||'orders';if(type==='orders')return S.log.map(r=>Object.fromEntries(Object.entries(r).filter(([k])=>!k.startsWith('_'))));const kind=type==='fuel'?'fuel':'journey';const raw=S.vehicleUploads.filter(f=>f.type===kind&&!f.error).flatMap(f=>f.parsedRows||[]);return raw.length?raw:(kind==='fuel'?S.fuel:S.journey);}
-function filteredRawRows(){const q=cleanKey($('rawSearch')?.value||'');const rows=rawSourceRows();return q?rows.filter(r=>cleanKey(Object.values(r).join(' ')).includes(q)):rows;}
+function filteredRawRows(){const q=cleanKey($('rawSearch')?.value||''),type=$('rawDataset')?.value||'orders',vehicle=$('vehicle').value;let rows=rawSourceRows();
+ if(type==='orders')rows=sharedOrderRows(rows);else rows=rows.filter(r=>{const d=r.date instanceof Date?r.date:parseDate(get(r,['data e hora inicial e final','data','data hora','data/hora']));const v=String(r.vehicle||get(r,['veiculo','placa'])||'').toUpperCase().trim();return dashboardDateMatch(d)&&(vehicle==='todos'||v===vehicle)});
+ return q?rows.filter(r=>cleanKey(Object.values(r).join(' ')).includes(q)):rows;}
+
 function renderRawTable(){if(!$('rawHead'))return;const rows=filteredRawRows(),size=100,max=Math.max(1,Math.ceil(rows.length/size));S.rawPage=Math.max(1,Math.min(S.rawPage||1,max));const sample=rows.slice((S.rawPage-1)*size,S.rawPage*size),headers=[...new Set(rows.flatMap(r=>Object.keys(r)))];
  $('rawHead').innerHTML=headers.map(k=>'<th>'+escapeHtml(k)+'</th>').join('');$('rawBody').innerHTML=sample.map(r=>'<tr>'+headers.map(k=>'<td>'+escapeHtml(r[k] instanceof Date?r[k].toLocaleString('pt-BR'):String(r[k]??''))+'</td>').join('')+'</tr>').join('')||'<tr><td>Nenhum registro encontrado.</td></tr>';
  $('rawCount').textContent=fmt(rows.length)+' registros';$('rawPage').textContent='Página '+S.rawPage+' de '+max+' · até 100 linhas por página';$('rawPrev').disabled=S.rawPage<=1;$('rawNext').disabled=S.rawPage>=max;

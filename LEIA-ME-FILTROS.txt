@@ -1,0 +1,14 @@
+VERSÃO 30/10/2026 — FILTROS UNIFICADOS
+
+Publique o conteúdo completo deste ZIP no lugar da versão anterior.
+
+Uma única barra: ano, mês, semana, dia da semana, datas inicial/final, veículo e agrupamento. As escolhas permanecem ao trocar de aba.
+Refinamentos de pedidos: status, tipo, fornecedor, produto/serviço, projeto e região. Aplicam-se aos pedidos do Dashboard, Logística, Tabelas e Roteirizador.
+Veículo não filtra pedidos porque a base não comprova vínculo entre placa e pedido.
+Roteirizador mantém seleção de um dia dentro do recorte compartilhado.
+Tabelas e exportações seguem os filtros aplicáveis; busca textual é adicional.
+O guia é didático e não usa o recorte operacional.
+Cores fixas por placa e significado de status.
+
+Novos arquivos: filtros-unificados.js e filtros-unificados.css.
+Preserve também guia-graficos.js, guia-graficos.css e relatorio-completo.html.

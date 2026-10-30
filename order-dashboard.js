@@ -2636,18 +2636,19 @@ function lgFilterRows(rows,f){return rows.filter(row=>{
  if(f.project&&f.project!=='TODOS'&&read(['PROJETO'])!==f.project)return false;
  if(f.region&&f.region!=='TODAS'&&obterLocalFornecedor(row).regiao!==f.region)return false;
  if(f.supplier&&f.supplier!=='TODOS'&&normalizarChave(normalizarFornecedor(read(['NOME','NOME_','FORNECEDOR','FORNECEDOR_'])))!==normalizarChave(f.supplier))return false;
- const d=lgDate(row);if(f.month||f.week||f.weekday!==''&&f.weekday!==undefined||f.start||f.end){if(!d)return false;const k=lgKey(d);if(f.month&&k.slice(0,7)!==f.month)return false;if(f.week&&lgWeek(d)!==f.week)return false;if(f.weekday!==''&&f.weekday!==undefined&&d.getDay()!==Number(f.weekday))return false;if(f.start&&k<f.start)return false;if(f.end&&k>f.end)return false;}
+ const d=lgDate(row);if(f.year&&f.year!=='todos'&&(!d||d.getFullYear()!==Number(f.year)))return false;if(f.month||f.week||f.weekday!==''&&f.weekday!==undefined||f.start||f.end){if(!d)return false;const k=lgKey(d);if(f.month&&k.slice(0,7)!==f.month)return false;if(f.week&&lgWeek(d)!==f.week)return false;if(f.weekday!==''&&f.weekday!==undefined&&d.getDay()!==Number(f.weekday))return false;if(f.start&&k<f.start)return false;if(f.end&&k>f.end)return false;}
  return true;
 });}
-function lgCurrentFilters(){return {status:lgVal('statusFilter'),category:lgVal('categoryFilter'),service:lgVal('serviceFilter'),project:lgVal('projectFilter'),region:lgVal('regionFilter'),supplier:lgVal('supplierFilter'),month:lgVal('monthFilter'),week:lgVal('weekFilter'),weekday:lgVal('weekdayFilter'),start:lgVal('dtInicio'),end:lgVal('dtFim')};}
+function lgCurrentFilters(){return window.PharmainoxFilters?.orderFilters()||{status:lgVal('statusFilter'),category:lgVal('categoryFilter'),service:lgVal('serviceFilter'),project:lgVal('projectFilter'),region:lgVal('regionFilter'),supplier:lgVal('supplierFilter'),weekday:''};}
+
 function processarEAtualizar(){
  const filters=lgCurrentFilters();dadosFiltrados=lgFilterRows(dadosBrutos,filters);
  const renderers=[atualizarKPIs,atualizarGraficos,atualizarGraficoEvolucaoValor,atualizarGraficoVisitasSemana,atualizarGraficoVisitasDia,atualizarControleAlteracoes,atualizarTabela];
  renderers.forEach(render=>render(dadosFiltrados));atualizarStatusFiltro(dadosFiltrados.length);
  const eligible=dadosFiltrados.filter(r=>extrairValorColuna(r,['STATUS','SITUACAO']).toUpperCase()==='FINALIZADO'&&parseDataBR(extrairValorColuna(r,['EMISSAO']))&&lgDate(r)&&lgDate(r)>=parseDataBR(extrairValorColuna(r,['EMISSAO'])));
  if(!eligible.length)document.getElementById('kpiLeadTime').innerText='—';
- const labels={status:'Status',category:'Tipo',service:'Item',project:'Projeto',region:'Região',supplier:'Fornecedor',month:'Mês',week:'Semana',weekday:'Dia',start:'De',end:'Até'};
- const active=Object.entries(filters).filter(([k,v])=>v!==''&&v!=='TODOS'&&v!=='TODAS').map(([k,v])=>labels[k]+': '+(k==='week'?lgWeekLabel(v):k==='weekday'?['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'][Number(v)]:v));
+ const labels={year:'Ano',status:'Status',category:'Tipo',service:'Item',project:'Projeto',region:'Região',supplier:'Fornecedor',month:'Mês',week:'Semana',weekday:'Dia',start:'De',end:'Até'};
+ const active=Object.entries(filters).filter(([k,v])=>v!==''&&v!=='TODOS'&&v!=='TODAS'&&v!=='todos').map(([k,v])=>labels[k]+': '+(k==='week'?lgWeekLabel(v):k==='weekday'?['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'][Number(v)]:v));
  document.getElementById('filterScope').textContent=(active.length?active.join(' · '):'Todos os registros, sem filtros')+' · '+dadosFiltrados.length+' linha(s) no recorte.';
  const noDate=dadosBrutos.filter(r=>!lgDate(r)).length;document.getElementById('dateQuality').textContent=noDate+' linha(s) na base sem agendamento válido: não entram em gráficos temporais e são excluídas ao aplicar filtros de datas. '+eligible.length+' item(ns) com datas válidas no prazo médio.';
 }
