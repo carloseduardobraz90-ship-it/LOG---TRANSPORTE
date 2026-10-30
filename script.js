@@ -2224,11 +2224,11 @@ function isRouteViewActive() {
 
 function switchAppView(view, navKey = '') {
   const showRoutes = view === 'routes';
-  const page = ['dashboard','abastecimento','logistica','frota','tabelas'].includes(navKey) ? navKey : 'dashboard';
+  const page = ['dashboard','abastecimento','logistica','frota','tabelas','guia'].includes(navKey) ? navKey : 'dashboard';
   $('dashboardView')?.classList.toggle('active', !showRoutes);
   const sharedFilters=document.querySelector('.shared-filters');if(sharedFilters)sharedFilters.hidden=showRoutes||!['abastecimento','frota'].includes(page);
   $('routesView')?.classList.toggle('active', showRoutes);
-  const pageIds = { dashboard: 'workspaceDashboard', abastecimento: 'workspaceFuel', logistica: 'workspaceLogistics', frota: 'workspaceFleet', tabelas: 'workspaceTables' };
+  const pageIds = { dashboard: 'workspaceDashboard', abastecimento: 'workspaceFuel', logistica: 'workspaceLogistics', frota: 'workspaceFleet', tabelas: 'workspaceTables', guia: 'workspaceGuide' };
   Object.entries(pageIds).forEach(([key, id]) => {
     const el = $(id);
     el?.classList.toggle('active', !showRoutes && page === key);
@@ -2325,7 +2325,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   $('routeBackDashboard')?.addEventListener('click', () => switchAppView('dashboard', 'dashboard'));
   const initialPage = location.hash.slice(1);
-  if (['dashboard', 'abastecimento', 'logistica', 'frota', 'tabelas', 'roteirizador'].includes(initialPage)) {
+  if (['dashboard', 'abastecimento', 'logistica', 'frota', 'tabelas', 'roteirizador', 'guia'].includes(initialPage)) {
     switchAppView(initialPage === 'roteirizador' ? 'routes' : 'dashboard', initialPage);
   }
   $('fitRouteMap')?.addEventListener('click', () => {

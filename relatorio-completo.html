@@ -1,0 +1,925 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Detalhamento do sistema — Pharmainox</title><style>body{font:16px/1.65 system-ui,Arial;color:#203046;background:#f3f6fa;margin:0}main{max-width:1120px;margin:32px auto;background:white;padding:48px;border-radius:12px}h1{font-size:32px;color:#123d69;line-height:1.2}h2{margin-top:48px;border-bottom:2px solid #dbe8f5;padding-bottom:10px;color:#123d69}h3{margin-top:30px;color:#1f527d}table{border-collapse:collapse;width:100%;font-size:14px;margin:20px 0;display:block;overflow:auto}th,td{border:1px solid #d5dfe9;padding:10px 12px;vertical-align:top;text-align:left}th{background:#e9f1fa}tr:nth-child(even){background:#f7f9fc}code{font-size:13px;background:#edf2f7;padding:2px 4px;overflow-wrap:anywhere}p,li{overflow-wrap:anywhere}a{color:#1662a5}.toc{background:#edf4fc;padding:20px;border-radius:8px}.toc ul{list-style:none;padding-left:18px}@media(max-width:700px){main{margin:0;padding:22px}h1{font-size:26px}}@media print{body{background:white}main{margin:0;padding:0;max-width:none}h2,h3{break-after:avoid}tr{break-inside:avoid}a{color:inherit}}</style><main><div class="toc">
+<ul>
+<li><a href="#detalhamento-do-sistema-de-logistica-e-transporte-pharmainox">Detalhamento do sistema de logística e transporte — Pharmainox</a><ul>
+<li><a href="#1-escopo-e-como-ler-este-documento">1. Escopo e como ler este documento</a></li>
+<li><a href="#2-de-onde-vem-as-informacoes">2. De onde vêm as informações</a><ul>
+<li><a href="#21-as-tres-bases-operacionais">2.1 As três bases operacionais</a></li>
+<li><a href="#22-cadastros-auxiliares-e-servicos">2.2 Cadastros auxiliares e serviços</a></li>
+</ul>
+</li>
+<li><a href="#3-importacao-reconhecimento-e-tratamento-dos-arquivos">3. Importação, reconhecimento e tratamento dos arquivos</a><ul>
+<li><a href="#31-como-o-leitor-abre-a-planilha">3.1 Como o leitor abre a planilha</a></li>
+<li><a href="#32-como-identifica-o-tipo-da-base">3.2 Como identifica o tipo da base</a></li>
+<li><a href="#33-exigencias-do-botao-atualizar-dashboard">3.3 Exigências do botão Atualizar dashboard</a></li>
+<li><a href="#34-duplicidades">3.4 Duplicidades</a></li>
+</ul>
+</li>
+<li><a href="#4-o-significado-dos-campos">4. O significado dos campos</a><ul>
+<li><a href="#41-pedidos-e-logistica">4.1 Pedidos e logística</a></li>
+<li><a href="#42-jornada-e-combustivel">4.2 Jornada e combustível</a></li>
+</ul>
+</li>
+<li><a href="#5-filtros-quais-telas-cada-um-altera">5. Filtros: quais telas cada um altera</a></li>
+<li><a href="#6-como-os-quilometros-sao-calculados-e-validados">6. Como os quilômetros são calculados e validados</a><ul>
+<li><a href="#61-formacao-de-um-diaveiculo">6.1 Formação de um dia/veículo</a></li>
+<li><a href="#62-o-que-invalida-o-dia">6.2 O que invalida o dia</a></li>
+</ul>
+</li>
+<li><a href="#7-litros-precos-e-kml">7. Litros, preços e KM/L</a><ul>
+<li><a href="#71-prioridades-dos-litros-e-do-preco">7.1 Prioridades dos litros e do preço</a></li>
+<li><a href="#72-formula-e-condicoes-do-kml">7.2 Fórmula e condições do KM/L</a></li>
+</ul>
+</li>
+<li><a href="#8-dashboard-explicacao-dos-16-indicadores">8. Dashboard: explicação dos 16 indicadores</a></li>
+<li><a href="#9-graficos-de-abastecimento-e-frota-todos-os-11">9. Gráficos de Abastecimento e Frota: todos os 11</a><ul>
+<li><a href="#91-valor-por-diasemanamesano-monthvalue">9.1 Valor por dia/semana/mês/ano — monthValue</a></li>
+<li><a href="#92-litros-calculados-por-periodo-monthliters">9.2 Litros calculados por período — monthLiters</a></li>
+<li><a href="#93-valor-por-veiculo-vehiclevalue">9.3 Valor por veículo — vehicleValue</a></li>
+<li><a href="#94-litros-por-veiculo-vehicleliters">9.4 Litros por veículo — vehicleLiters</a></li>
+<li><a href="#95-kml-indicativo-por-periodo-dailyconsumption">9.5 KM/L indicativo por período — dailyConsumption</a></li>
+<li><a href="#96-abastecimentos-por-dia-da-semana-weekday">9.6 Abastecimentos por dia da semana — weekday</a></li>
+<li><a href="#97-km-por-veiculo-e-periodo-distancevehicle">9.7 KM por veículo e período — distanceVehicle</a></li>
+<li><a href="#98-kml-por-veiculo-e-periodo-kmlvehicle">9.8 KM/L por veículo e período — kmlVehicle</a></li>
+<li><a href="#99-km-rodados-por-periodo-dailydistance">9.9 KM rodados por período — dailyDistance</a></li>
+<li><a href="#910-km-por-dia-da-semana-e-veiculo-distanceweekday">9.10 KM por dia da semana e veículo — distanceWeekday</a></li>
+<li><a href="#911-kml-por-dia-da-semana-e-veiculo-kmlweekday">9.11 KM/L por dia da semana e veículo — kmlWeekday</a></li>
+<li><a href="#912-rotulos-cores-e-valores-visuais">9.12 Rótulos, cores e valores visuais</a></li>
+</ul>
+</li>
+<li><a href="#10-logistica-classificacao-cinco-indicadores-e-cinco-graficos">10. Logística: classificação, cinco indicadores e cinco gráficos</a><ul>
+<li><a href="#101-produto-servico-categoria-e-regiao">10.1 Produto, serviço, categoria e região</a></li>
+<li><a href="#102-os-cinco-indicadores">10.2 Os cinco indicadores</a></li>
+<li><a href="#103-volume-de-itens-por-status-lg-chartstatus">10.3 Volume de itens por status — lg-chartStatus</a></li>
+<li><a href="#104-distribuicao-por-categoria-lg-chartcategoria">10.4 Distribuição por categoria — lg-chartCategoria</a></li>
+<li><a href="#105-agendamentos-unicos-por-fornecedor-e-semana-lg-chartvisitassemana">10.5 Agendamentos únicos por fornecedor e semana — lg-chartVisitasSemana</a></li>
+<li><a href="#106-agendamentos-unicos-por-dia-da-semana-lg-chartvisitasdia">10.6 Agendamentos únicos por dia da semana — lg-chartVisitasDia</a></li>
+<li><a href="#107-evolucao-do-valor-finalizado-por-semana-lg-chartevolucaovalor">10.7 Evolução do valor finalizado por semana — lg-chartEvolucaoValor</a></li>
+</ul>
+</li>
+<li><a href="#11-alteracoes-de-ponto-o-que-esta-sendo-somado">11. Alterações de ponto: o que está sendo somado</a></li>
+<li><a href="#12-tabelas-e-exportacoes">12. Tabelas e exportações</a><ul>
+<li><a href="#121-base-completa-dos-arquivos-importados">12.1 Base completa dos arquivos importados</a></li>
+<li><a href="#122-abastecimentos-filtrados">12.2 Abastecimentos filtrados</a></li>
+<li><a href="#123-conferencia-diaria">12.3 Conferência diária</a></li>
+<li><a href="#124-comparacao-por-periodo-e-veiculo">12.4 Comparação por período e veículo</a></li>
+<li><a href="#125-detalhamento-de-pedidos">12.5 Detalhamento de pedidos</a></li>
+</ul>
+</li>
+<li><a href="#13-roteirizador-selecao-dos-pedidos-e-indicadores">13. Roteirizador: seleção dos pedidos e indicadores</a><ul>
+<li><a href="#131-quais-registros-entram">13.1 Quais registros entram</a></li>
+<li><a href="#132-indicadores-da-rota">13.2 Indicadores da rota</a></li>
+</ul>
+</li>
+<li><a href="#14-enderecos-busca-validacao-e-coordenadas">14. Endereços: busca, validação e coordenadas</a><ul>
+<li><a href="#141-prioridade-para-resolver-fornecedor">14.1 Prioridade para resolver fornecedor</a></li>
+<li><a href="#142-o-que-significa-endereco-valido">14.2 O que significa endereço válido</a></li>
+<li><a href="#143-como-localiza-no-mapa">14.3 Como localiza no mapa</a></li>
+</ul>
+</li>
+<li><a href="#15-como-a-rota-os-quilometros-e-o-tempo-sao-montados">15. Como a rota, os quilômetros e o tempo são montados</a><ul>
+<li><a href="#google-maps">Google Maps</a></li>
+</ul>
+</li>
+<li><a href="#16-a-ia-de-enderecos-e-o-que-ela-valida">16. A IA de endereços e o que ela valida</a></li>
+<li><a href="#17-validacoes-existentes-e-lacunas-de-conferencia">17. Validações existentes e lacunas de conferência</a></li>
+<li><a href="#18-diferencas-e-pontos-que-merecem-atencao">18. Diferenças e pontos que merecem atenção</a></li>
+<li><a href="#19-roteiro-para-conferir-os-resultados-na-pratica">19. Roteiro para conferir os resultados na prática</a></li>
+<li><a href="#20-mapa-de-referencia-do-codigo">20. Mapa de referência do código</a></li>
+<li><a href="#21-verificacao-dos-exemplos">21. Verificação dos exemplos</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<h1 id="detalhamento-do-sistema-de-logistica-e-transporte-pharmainox">Detalhamento do sistema de logística e transporte — Pharmainox</h1>
+<p>Análise do código entregue em <code>teste-site-log-transporte.zip</code>, realizada em 29/10/2026.</p>
+<h2 id="1-escopo-e-como-ler-este-documento">1. Escopo e como ler este documento</h2>
+<p>Este documento explica o comportamento implementado na versão do ZIP: fontes de informação, campos, filtros, indicadores, gráficos, tabelas, roteirização e validações. As referências como <code>script.js:499</code> indicam o arquivo e a linha do código analisado. As linhas são da cópia extraída do ZIP.</p>
+<p>O levantamento é uma análise do código. O ZIP não contém as bases operacionais completas de pedidos, jornadas e abastecimentos usadas pelo usuário. Portanto, as fórmulas podem ser descritas, mas os saldos reais da operação não podem ser conciliados com esses arquivos. Exemplos numéricos neste documento são didáticos.</p>
+<p>Arquivos efetivamente carregados por <code>index.html</code>: <code>fornecedores.js</code>, <code>script.js</code>, <code>order-dashboard.js</code>, <code>style.css</code> e <code>order-dashboard.css</code>, além das bibliotecas externas. <code>index.before-source-fix.html</code> e <code>script-backup-conflito.txt</code> são cópias alternativas e não são os arquivos executados pela página principal. Essa distinção evita documentar regras antigas como se fossem atuais. O Worker de IA é um serviço separado; seu código no ZIP não comprova qual versão está publicada.</p>
+<h2 id="2-de-onde-vem-as-informacoes">2. De onde vêm as informações</h2>
+<h3 id="21-as-tres-bases-operacionais">2.1 As três bases operacionais</h3>
+<table>
+<thead>
+<tr>
+<th>Base</th>
+<th>Origem no uso do sistema</th>
+<th>O que alimenta</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pedidos/logística</td>
+<td>Arquivo(s) CSV ou Excel selecionado(s) pelo usuário</td>
+<td>Itens, pedidos únicos, valores, status, prazo médio, agendamentos, alterações e fornecedores da rota</td>
+</tr>
+<tr>
+<td>Jornada/KM</td>
+<td>Apontamentos por veículo com placa, data/hora, hodômetro e estado SAINDO/CHEGANDO</td>
+<td>Quilometragem, dias válidos, pendências e numerador do KM/L</td>
+</tr>
+<tr>
+<td>Abastecimento</td>
+<td>Apontamentos por veículo com valor, data, quilometragem e, quando existentes, litros/preço por litro</td>
+<td>Gasto, litros, número de abastecimentos e denominador do KM/L</td>
+</tr>
+</tbody>
+</table>
+<p>Não há, nos arquivos ativos analisados, consulta automática ao ERP ou ao AppSheet para buscar essas bases. Elas entram pela seleção de arquivos. Comentários sobre AppSheet descrevem o formato esperado, não uma conexão automática.</p>
+<h3 id="22-cadastros-auxiliares-e-servicos">2.2 Cadastros auxiliares e serviços</h3>
+<table>
+<thead>
+<tr>
+<th>Componente</th>
+<th>Função</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fornecedores.js</code> / <code>window.FORNECEDORES</code></td>
+<td>Cadastro de fornecedores indexado por código, utilizado para resolver endereços da rota</td>
+</tr>
+<tr>
+<td><code>enderecos_manuais_pharmainox.json</code></td>
+<td>Cadastro inicial de correções manuais e possíveis coordenadas</td>
+</tr>
+<tr>
+<td>Memória do navegador, objeto <code>S</code></td>
+<td>Guarda as bases importadas e resultados durante a sessão</td>
+</tr>
+<tr>
+<td><code>localStorage</code></td>
+<td>Persiste endereços, coordenadas, cache geográfico, ordem manual e exclusões por dia</td>
+</tr>
+<tr>
+<td>SheetJS/XLSX</td>
+<td>Lê CSV/Excel e gera exportações XLSX</td>
+</tr>
+<tr>
+<td>Chart.js</td>
+<td>Desenha gráficos com os resultados calculados pelo JavaScript</td>
+</tr>
+<tr>
+<td>Leaflet</td>
+<td>Exibe mapa e marcadores</td>
+</tr>
+<tr>
+<td>Nominatim e Photon</td>
+<td>Transformam textos de endereço em coordenadas</td>
+</tr>
+<tr>
+<td>OSRM</td>
+<td>Calcula sequência, distância, duração e desenho rodoviário da rota</td>
+</tr>
+<tr>
+<td>Google Maps</td>
+<td>Abre links de navegação gerados pelo sistema</td>
+</tr>
+<tr>
+<td>Gemini via Cloudflare Worker</td>
+<td>Sugere variantes de texto para pesquisar endereços</td>
+</tr>
+</tbody>
+</table>
+<p>A IA não é a fonte das somas financeiras, dos quilômetros ou dos gráficos. Os dados operacionais ficam em memória; o código não grava as planilhas completas no <code>localStorage</code>. Reabrir/recarregar a página exige importar novamente as bases. Os cadastros locais de endereços não são automaticamente sincronizados entre computadores.</p>
+<p>Referências: <code>index.html:14–26</code>; <code>script.js:111–132</code>, <code>455–465</code>, <code>682–745</code>, <code>885–957</code>, <code>2299–2312</code>.</p>
+<h2 id="3-importacao-reconhecimento-e-tratamento-dos-arquivos">3. Importação, reconhecimento e tratamento dos arquivos</h2>
+<h3 id="31-como-o-leitor-abre-a-planilha">3.1 Como o leitor abre a planilha</h3>
+<p>CSV: lê o texto e compara a quantidade de ponto e vírgula e vírgula na primeira linha. Usa ponto e vírgula se sua quantidade for maior ou igual. Depois converte a primeira aba em registros, preenchendo células vazias com texto vazio.</p>
+<p>Excel: lê o arquivo com conversão de células de data habilitada e utiliza somente a primeira aba. Não percorre automaticamente todas as abas. O sistema depende de cabeçalhos reconhecíveis; linha de título antes dos cabeçalhos pode prejudicar a leitura.</p>
+<h3 id="32-como-identifica-o-tipo-da-base">3.2 Como identifica o tipo da base</h3>
+<p>O reconhecimento utiliza os cabeçalhos do primeiro registro, não o nome do arquivo:</p>
+<ul>
+<li><strong>Jornada:</strong> sinais de PLACA, KILOMETRAGEM/QUILOMETRAGEM, DATA e campo do estado do veículo, sem cabeçalho de valor de abastecimento reconhecido.</li>
+<li><strong>Abastecimento:</strong> sinais de VEICULO, quilometragem, VALOR_TOTAL/VALOR_ABASTECIDO e DATA.</li>
+<li><strong>Pedidos:</strong> cabeçalho de pedido, fornecedor e pelo menos um sinal de AGENDAMENTO ou TIPO.</li>
+<li><strong>Desconhecido:</strong> não atende às combinações anteriores.</li>
+</ul>
+<p>O reconhecimento é por sinais de cabeçalhos; não é uma validação completa de cada célula. Alguns nomes equivalentes são aceitos nas conversões, mas não necessariamente no reconhecimento inicial. Por exemplo, uma base somente com <code>VALOR TOTAL</code>, com espaço, pode ser lida pelo conversor monetário e ainda assim não satisfazer o reconhecimento que procura <code>valor_total</code> ou <code>valor_abastecido</code>.</p>
+<h3 id="33-exigencias-do-botao-atualizar-dashboard">3.3 Exigências do botão Atualizar dashboard</h3>
+<p>O fluxo ativo exige exatamente quatro arquivos válidos de veículos: dois de jornada e dois de abastecimento, além de pelo menos um arquivo de pedidos. Esses quatro arquivos devem formar dois pares completos: uma jornada e um abastecimento para cada um dos dois veículos.</p>
+<p>Na seleção, mais de um veículo identificado no mesmo arquivo gera erro. As placas são convertidas para maiúsculas e têm espaços nas extremidades removidos; não existe padronização geral que remova todos os hífens/espaços internos. A mesma placa escrita de maneiras diferentes pode não formar um par.</p>
+<p>É possível carregar os pedidos e utilizar Logística/Roteirizador antes de concluir a importação dos quatro arquivos de frota. Os pedidos são processados ao selecionar os arquivos; a frota é consolidada no botão Atualizar.</p>
+<p>O código também contém <code>validateVehicleFile</code> e <code>validateExpectedVehicle</code>, mas o fluxo atual do seletor usa as validações próprias dos eventos no final de <code>script.js</code>. A existência dessas funções auxiliares não significa que todas sejam chamadas nessa tela.</p>
+<h3 id="34-duplicidades">3.4 Duplicidades</h3>
+<p>No processamento pelo botão Atualizar:</p>
+<table>
+<thead>
+<tr>
+<th>Base</th>
+<th>Chave usada para eliminar repetição</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Abastecimento</td>
+<td>Data/hora + veículo + hodômetro + valor arredondado para duas casas</td>
+</tr>
+<tr>
+<td>Jornada</td>
+<td>Data/hora + veículo + estado normalizado + hodômetro</td>
+</tr>
+<tr>
+<td>Pedidos</td>
+<td>Não há eliminação geral de linhas duplicadas</td>
+</tr>
+</tbody>
+</table>
+<p>Dois abastecimentos que coincidam nesses campos são tratados como um, mesmo que exista diferença em outro campo, como litros. Em pedidos, repetir o mesmo arquivo ou importar bases sobrepostas pode duplicar itens e valores. A contagem de pedidos únicos pode continuar igual, porque usa um conjunto de números distintos.</p>
+<p>Os cartões de arquivos mostram a quantidade lida antes de certas exclusões e deduplicações. Essa quantidade pode ser diferente da quantidade efetivamente utilizada nos cálculos.</p>
+<p>Referências: <code>script.js:196–274</code>, <code>304–418</code>, <code>455–465</code>, <code>2301–2309</code>.</p>
+<h2 id="4-o-significado-dos-campos">4. O significado dos campos</h2>
+<h3 id="41-pedidos-e-logistica">4.1 Pedidos e logística</h3>
+<table>
+<thead>
+<tr>
+<th>Campo</th>
+<th>Significado no código e utilização</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PEDIDO_/PEDIDO</td>
+<td>Identificador do pedido; usado em conjuntos de pedidos únicos, sufixos de alteração e lista da rota</td>
+</tr>
+<tr>
+<td>ITEM_/ITEM</td>
+<td>Identificador do item mostrado entre parênteses na tabela logística</td>
+</tr>
+<tr>
+<td>TIPO</td>
+<td>Categoria operacional, como COLETA, ENTREGA e RECEBIMENTO; define o gráfico de categoria e a elegibilidade da rota</td>
+</tr>
+<tr>
+<td>DESCRICAO</td>
+<td>Texto usado para classificar produto ou serviço</td>
+</tr>
+<tr>
+<td>EMISSAO</td>
+<td>Data de origem do pedido; utilizada no prazo médio e no recorte legado dos pedidos associado à análise de frota</td>
+</tr>
+<tr>
+<td>PREVISAO</td>
+<td>É carregada na normalização, mas não é usada para calcular o prazo médio, o vencimento do Dashboard ou a semana do valor finalizado</td>
+</tr>
+<tr>
+<td>AGENDAMENTO</td>
+<td>Data que recorta os pedidos no Dashboard e na Logística; também seleciona o dia da rota</td>
+</tr>
+<tr>
+<td>ENTREGA/COLETA</td>
+<td>É carregada como data de entrega/coleta; não é a data usada no prazo médio implementado</td>
+</tr>
+<tr>
+<td>NOME/NOME_</td>
+<td>Nome apresentado e utilizado para agrupar fornecedores em indicadores da Logística</td>
+</tr>
+<tr>
+<td>FORNECEDOR</td>
+<td>Código usado para consultar o cadastro de endereços e agrupar paradas da rota</td>
+</tr>
+<tr>
+<td>CIDADE</td>
+<td>Município da base; alimenta a classificação regional e pode complementar a pesquisa de endereço</td>
+</tr>
+<tr>
+<td>COMPRADOR</td>
+<td>Informação exibida na parada; nomes repetidos são reunidos em conjunto</td>
+</tr>
+<tr>
+<td>PROJETO</td>
+<td>Informação de filtro e apresentação; não é calculada a partir do pedido</td>
+</tr>
+<tr>
+<td>STATUS</td>
+<td>Situação escrita na base; é contada e comparada com textos específicos</td>
+</tr>
+<tr>
+<td>VLR.TOTAL/VLRTOTAL/VALOR TOTAL/VALOR</td>
+<td>Valor informado na linha, conforme as alternativas aceitas por cada função</td>
+</tr>
+</tbody>
+</table>
+<p>O sistema soma os valores já existentes nas linhas. Não calcula automaticamente preço unitário × quantidade, nem aplica impostos, descontos ou frete para reconstruir o total. Não confere a nota fiscal ou o pagamento para confirmar esse valor.</p>
+<p>Na normalização principal, alguns campos têm leitura por posição se o cabeçalho não for encontrado: pedido B, tipo F, emissão G, previsão H, nome I, fornecedor J, cidade K, comprador U, agendamento V, status W e entrega/coleta X. Esses recursos dependem da ordem original das colunas. Projeto é buscado pelo cabeçalho, sem esse recurso posicional.</p>
+<p>A aba Logística usa um leitor próprio por nomes normalizados de cabeçalhos. Por isso, um campo recuperado por posição na base principal pode não ser encontrado por essa aba. Uma coluna <code>STATUS DO PEDIDO</code>, por exemplo, é aceita no filtro de status da Logística, mas não em todas as suas fórmulas.</p>
+<h3 id="42-jornada-e-combustivel">4.2 Jornada e combustível</h3>
+<ul>
+<li><strong>Data/hora:</strong> organiza cronologicamente as saídas e chegadas. O horário faz diferença para validar o par.</li>
+<li><strong>Veículo/placa:</strong> identifica o grupo de cálculo. O nome do arquivo não identifica o veículo.</li>
+<li><strong>Hodômetro/KM:</strong> é uma leitura acumulada do veículo. Não se somam leituras como 100.000 e 100.200; calcula-se a diferença do par, 200 km.</li>
+<li><strong>Estado:</strong> apenas SAINDO e CHEGANDO são preservados na normalização de jornada, depois de remover diferenças de caixa e acentos.</li>
+<li><strong>Valor abastecido:</strong> soma monetária da compra de combustível.</li>
+<li><strong>Litros:</strong> quantidade informada, ou calculada por valor/preço.</li>
+<li><strong>Preço/L:</strong> informado, deduzido de valor/litros ou fixado por referência anual.</li>
+<li><strong>Arquivo/linha de origem:</strong> metadados guardados na normalização para rastreabilidade. Algumas tabelas exibem os nomes dos arquivos; não há tela que exponha todos os metadados internos.</li>
+</ul>
+<p>Referências: <code>script.js:139–187</code>, <code>285–452</code>; <code>order-dashboard.js:175–475</code>, <code>2353–2450</code>.</p>
+<h2 id="5-filtros-quais-telas-cada-um-altera">5. Filtros: quais telas cada um altera</h2>
+<table>
+<thead>
+<tr>
+<th>Área</th>
+<th>Data usada</th>
+<th>Filtros e alcance</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Dashboard</td>
+<td>Agendamento nos pedidos; data do apontamento em frota/combustível</td>
+<td>Ano, mês, semana ISO e datas inicial/final próprios; os indicadores gerais são recalculados independentemente dos filtros das outras abas</td>
+</tr>
+<tr>
+<td>Abastecimento e Frota</td>
+<td>Data de abastecimento e data da jornada</td>
+<td>Compartilham ano, veículo, mês, semana, dia da semana e intervalo; periodicidade altera o agrupamento em dia/semana/mês/ano</td>
+</tr>
+<tr>
+<td>Logística</td>
+<td>AGENDAMENTO</td>
+<td>Status, tipo, produto/serviço, projeto, região, fornecedor, mês, semana, dia da semana e intervalo</td>
+</tr>
+<tr>
+<td>Roteirizador</td>
+<td>AGENDAMENTO do dia escolhido</td>
+<td>Não herda os filtros analíticos das outras abas; aplica suas regras próprias de tipo e exclusões</td>
+</tr>
+<tr>
+<td>Base completa em Tabelas</td>
+<td>Sem recorte temporal dos gráficos</td>
+<td>Base selecionada e busca textual próprias</td>
+</tr>
+</tbody>
+</table>
+<p>Os filtros de uma área são combinados por <strong>E</strong>. Escolher mês e semana não seleciona a semana inteira fora do mês: seleciona apenas a interseção. Intervalos são inclusivos. Não foi encontrada validação que rejeite início posterior ao fim; uma combinação impossível tende a resultar em nenhum registro.</p>
+<p>Semana ISO começa na segunda-feira e termina no domingo. O ano ISO de uma semana pode ser diferente do ano civil da data perto do início/fim do ano. As opções são formadas com as datas presentes nas bases, sem preencher necessariamente semanas sem movimento.</p>
+<p><strong>Sem data:</strong> no Dashboard, pedidos/abastecimentos sem data podem continuar nas contagens sem filtros ativos. Com qualquer filtro de período ativo, saem do recorte. Frota/Abastecimento exigem data reconhecida em seu filtro mesmo sem recorte específico. Na Logística, linhas sem agendamento podem entrar nos totais gerais sem filtros de data, mas não nos gráficos temporais e não quando se aplica filtro temporal.</p>
+<p>O filtro de veículo não atribui pedidos a um motorista ou placa: os pedidos não têm vínculo comprovado com os veículos no código. A normalização mantém um recorte de pedidos por emissão para componentes legados da análise; isso não substitui o recorte por agendamento da Logística.</p>
+<p>Referências: <code>script.js:483–496</code>, <code>574–587</code>, <code>2268–2289</code>; <code>order-dashboard.js:2625–2676</code>.</p>
+<h2 id="6-como-os-quilometros-sao-calculados-e-validados">6. Como os quilômetros são calculados e validados</h2>
+<h3 id="61-formacao-de-um-diaveiculo">6.1 Formação de um dia/veículo</h3>
+<p>O sistema reúne apontamentos por <strong>placa + data</strong>, incluindo o combustível comprado naquele dia. Ordena os eventos de jornada por horário e procura pares de SAINDO → CHEGANDO.</p>
+<p>Uma diferença é aceita quando a chegada ocorre depois da saída, os dois hodômetros são numéricos e não negativos e o hodômetro de chegada é maior ou igual ao de saída. Diferença zero é permitida. Vários pares no mesmo dia podem ser somados.</p>
+<p>Exemplo: 08h/100.000 km → 11h/100.080 km e 13h/100.080 km → 17h/100.200 km. Resultado: 80 + 120 = <strong>200 km</strong> e duas viagens.</p>
+<h3 id="62-o-que-invalida-o-dia">6.2 O que invalida o dia</h3>
+<table>
+<thead>
+<tr>
+<th>Situação</th>
+<th>Resultado</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Hodômetro ausente, não numérico ou negativo</td>
+<td>Registra “KM ausente ou inválido” e limpa a saída pendente</td>
+</tr>
+<tr>
+<td>Nova saída antes de fechar a anterior</td>
+<td>Registra “Saída sem chegada” e passa a considerar a nova saída como pendente</td>
+</tr>
+<tr>
+<td>Chegada sem saída pendente</td>
+<td>Registra “Chegada sem saída”</td>
+</tr>
+<tr>
+<td>Chegada no mesmo horário ou antes da saída</td>
+<td>Registra “Horário ou KM inconsistente”</td>
+</tr>
+<tr>
+<td>Hodômetro da chegada menor que o da saída</td>
+<td>Registra “Horário ou KM inconsistente”</td>
+</tr>
+<tr>
+<td>Última saída fica sem retorno</td>
+<td>Registra “Saída sem chegada”</td>
+</tr>
+<tr>
+<td>Nenhum par aproveitável</td>
+<td>Dia não calculado</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Regra decisiva:</strong> o dia só é “Calculado” se houver ao menos um par válido e nenhuma ocorrência de erro. Um par correto e outro incorreto no mesmo dia fazem o <strong>dia inteiro</strong> sair da soma de quilômetros. Não se aproveita apenas a parte boa desse dia.</p>
+<p>Saída em um dia e chegada no dia seguinte não são pareadas, pois os grupos são diários. A jornada entre datas diferentes resulta em pendências nos grupos correspondentes. Não há ajuste automático para viagem que cruza a meia-noite.</p>
+<p>“Dias válidos” significa dias/veículo: dois carros válidos no mesmo dia representam dois. Dias somente com combustível não entram no denominador da qualidade das jornadas; seus litros e valores, porém, entram nos grupos financeiros e podem influenciar o KM/L agregado.</p>
+<p>Não há limite máximo implementado de quilômetros por viagem, velocidade média ou variação plausível de hodômetro. Um salto muito alto, mas cronologicamente correto e crescente, pode ser aceito.</p>
+<p>Referências: <code>script.js:499–527</code>.</p>
+<h2 id="7-litros-precos-e-kml">7. Litros, preços e KM/L</h2>
+<h3 id="71-prioridades-dos-litros-e-do-preco">7.1 Prioridades dos litros e do preço</h3>
+<ol>
+<li>Se <strong>litros informados &gt; 0</strong>, utiliza essa quantidade.</li>
+<li>Sem litros positivos, com <strong>preço/L informado &gt; 0</strong> e valor positivo, calcula litros = valor ÷ preço informado.</li>
+<li>Sem ambos, utiliza o preço anual fixado no código: <strong>2025 = R$ 6,49/L; 2026 = R$ 7,49/L; demais anos = R$ 7,49/L</strong>. Calcula litros = valor ÷ referência.</li>
+<li>Sem valor positivo e sem litros positivos suficientes, a quantidade pode ficar não calculável.</li>
+</ol>
+<p>O preço apresentado segue esta prioridade: preço positivo informado; senão valor/litros quando ambos positivos; senão referência anual. Os preços anuais são constantes do programa, não uma consulta automática a postos ou à ANP.</p>
+<p>Exemplo: R$ 749,00 em 2026, sem litros/preço, produz <strong>100 L estimados</strong>. Se os litros informados forem 95, usa 95 L. Se litros e preço forem informados mas incompatíveis com o valor, o código não bloqueia nem reconcilia essa diferença.</p>
+<p>O sinalizador “Estimado por preço anual” é verdadeiro quando não há litros nem preço positivos informados. Litros calculados a partir de um preço informado não recebem esse sinalizador, embora também sejam uma divisão.</p>
+<h3 id="72-formula-e-condicoes-do-kml">7.2 Fórmula e condições do KM/L</h3>
+<p><strong>KM/L do grupo = soma de KM dos dias válidos ÷ soma dos litros abastecidos no grupo.</strong></p>
+<p>O grupo pode ser um dia, semana, mês, ano, veículo, dia da semana ou o recorte inteiro. Não é a média simples dos KM/L individuais.</p>
+<p>Para mostrar o KM/L agregado, o grupo precisa ter pelo menos um dia de jornada válido, nenhum dia de jornada incompleto, nenhum abastecimento sem litros calculáveis e litros totais positivos. Caso contrário mostra traço/lacuna. Os quilômetros dos dias válidos ainda podem ser exibidos quando o KM/L agregado é bloqueado por uma pendência.</p>
+<p>Exemplo: veículo A fez 200 km e abasteceu 20 L, resultando em 10 km/L; B fez 100 km e abasteceu 5 L, resultando em 20 km/L. O agregado é 300/25 = <strong>12 km/L</strong>. A média simples dos dois indicadores seria 15 km/L e não corresponde à fórmula do sistema. Sempre use as somas originais.</p>
+<p>Comprar combustível e consumir combustível acontecem em momentos diferentes. O sistema não controla nível inicial/final do tanque nem abastecimentos completos sucessivos. Por isso, o indicador é uma relação indicativa do período, não uma medição comprovada de eficiência do motor. Um dia com abastecimento sem jornada pode entrar no denominador agregado. Já o KM/L diário exige jornada válida naquele próprio dia.</p>
+<p>Valores financeiros numéricos negativos não são rejeitados de maneira geral; podem reduzir a soma. Não existe validação geral de valor × preço/L = litros. O conversor genérico trata <code>1.234</code> como 1,234 decimal; o conversor de hodômetro possui uma regra específica para tratar <code>626.134</code> como 626134 km. Não se deve aplicar a regra do hodômetro à interpretação de dinheiro.</p>
+<p>Referências: <code>script.js:94–108</code>, <code>139–153</code>, <code>304–347</code>, <code>513–527</code>.</p>
+<h2 id="8-dashboard-explicacao-dos-16-indicadores">8. Dashboard: explicação dos 16 indicadores</h2>
+<p>Todos usam os filtros próprios do Dashboard. Nos pedidos, o período é o <strong>agendamento</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>Indicador</th>
+<th>Fórmula/origem</th>
+<th>Validação e interpretação</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Valor abastecido</td>
+<td>Soma dos valores finitos dos abastecimentos nos grupos diários do período</td>
+<td>Compras de combustível; não custo total do transporte. Registros sem data não formam grupo diário</td>
+</tr>
+<tr>
+<td>Litros abastecidos</td>
+<td>Soma dos litros positivos calculáveis</td>
+<td>Pode misturar litros informados e estimados; sem total positivo mostra traço</td>
+</tr>
+<tr>
+<td>Abastecimentos</td>
+<td>Quantidade de registros de combustível no recorte</td>
+<td>Contagem de linhas normalizadas/deduplicadas, não soma de litros</td>
+</tr>
+<tr>
+<td>Itens de pedidos</td>
+<td>Quantidade de linhas da base de pedidos no recorte</td>
+<td>Não soma a quantidade física de peças</td>
+</tr>
+<tr>
+<td>KM percorridos</td>
+<td>Soma de <code>kmDriven</code> dos dias/veículo válidos</td>
+<td>Dias com qualquer pendência são excluídos</td>
+</tr>
+<tr>
+<td>KM/L indicativo</td>
+<td>KM válidos/litros do grupo</td>
+<td>Fica indisponível nas condições descritas na seção 7</td>
+</tr>
+<tr>
+<td>Pedidos únicos</td>
+<td>Quantidade de textos de pedido distintos e não vazios</td>
+<td>Sufixos diferentes continuam sendo pedidos distintos aqui; fornecedor não compõe a chave</td>
+</tr>
+<tr>
+<td>Itens finalizados</td>
+<td>Linhas cujo status, em maiúsculas, seja FINALIZADO ou ENTREGUE</td>
+<td>Conta itens/linhas, não pedidos completos</td>
+</tr>
+<tr>
+<td>Conclusão dos itens</td>
+<td>Finalizados ÷ total de linhas × 100</td>
+<td>Com base vazia, traço; não é ponderado por valor nem quantidade</td>
+</tr>
+<tr>
+<td>Itens sem conclusão</td>
+<td>Total de linhas − finalizados</td>
+<td>Qualquer outro status, inclusive cancelado ou vazio, entra como sem conclusão</td>
+</tr>
+<tr>
+<td>Agendamentos vencidos</td>
+<td>Linhas sem conclusão e com agendamento anterior à data atual</td>
+<td>Data de hoje não é vencida; não utiliza PREVISAO; depende do relógio local do navegador</td>
+</tr>
+<tr>
+<td>Alterações indicadas</td>
+<td>Soma do maior sufixo numérico de cada pedido-base + código do fornecedor</td>
+<td>Não é histórico de eventos de alteração; detalhes na seção 11</td>
+</tr>
+<tr>
+<td>Jornadas válidas</td>
+<td>Dias/veículo válidos ÷ dias/veículo com jornada × 100</td>
+<td>O cartão mostra percentual, embora o subtítulo descreva dias válidos</td>
+</tr>
+<tr>
+<td>Pendências de jornada</td>
+<td>Dias/veículo com jornada menos dias/veículo válidos</td>
+<td>Conta grupos diários problemáticos, não o número de mensagens de erro</td>
+</tr>
+<tr>
+<td>Valor dos itens</td>
+<td>Soma dos campos VLR.TOTAL/VLRTOTAL/VALOR TOTAL reconhecidos</td>
+<td>Não exige finalização; não elimina linhas duplicadas; alternativas de cabeçalho são mais restritas que na Logística</td>
+</tr>
+<tr>
+<td>Período da frota</td>
+<td>Primeira e última data entre jornadas e abastecimentos do recorte</td>
+<td>Não é o período dos pedidos nem necessariamente o intervalo inteiro selecionado</td>
+</tr>
+</tbody>
+</table>
+<p>As cores são sinais de apresentação: verde para conclusão/jornadas válidas e vermelho para pendências/alterações. Financeiro é neutro. Não há meta, orçamento ou limite de consumo configurado que transforme gasto alto em desempenho bom ou ruim.</p>
+<p>Há uma diferença de abrangência possível: sem filtros ativos, a contagem de abastecimentos pode incluir linha sem data, mas valores/litros do resumo diário não incluem essa linha. Isso pode causar divergência entre contagem e soma, sem que seja uma diferença de soma matemática.</p>
+<p>Referências: <code>script.js:2262–2290</code>.</p>
+<h2 id="9-graficos-de-abastecimento-e-frota-todos-os-11">9. Gráficos de Abastecimento e Frota: todos os 11</h2>
+<p>Os gráficos abaixo usam os filtros compartilhados dessas duas abas. As séries são criadas novamente a cada atualização. A periodicidade escolhida define os grupos temporais, não uma média automática.</p>
+<h3 id="91-valor-por-diasemanamesano-monthvalue">9.1 Valor por dia/semana/mês/ano — <code>monthValue</code></h3>
+<p>Gráfico de barras. Eixo horizontal: períodos presentes no conjunto de dados; eixo vertical: reais. Soma <code>value</code> de cada abastecimento filtrado por período. Uma barra de R$ 1.500 significa compras registradas naquele grupo, não custo de viagens finalizadas. Não utiliza valores dos pedidos. Campos não finitos são ignorados na agregação.</p>
+<h3 id="92-litros-calculados-por-periodo-monthliters">9.2 Litros calculados por período — <code>monthLiters</code></h3>
+<p>Gráfico de linha. Soma <code>liters</code> por período a partir dos abastecimentos filtrados. As quantidades podem ter sido informadas ou estimadas pelo preço. A linha não mede o nível do tanque nem o consumo diário real. O conjunto de rótulos temporais é compartilhado com valor/KM; períodos sem litros na série podem aparecer com zero.</p>
+<h3 id="93-valor-por-veiculo-vehiclevalue">9.3 Valor por veículo — <code>vehicleValue</code></h3>
+<p>Gráfico de rosca. Cada fatia é a soma do valor abastecido para uma placa no recorte. O tamanho da fatia representa participação no valor total. O código fornece valores monetários; não calcula rótulos de percentual próprios. Maior fatia não comprova menor eficiência: o veículo pode ter rodado mais.</p>
+<h3 id="94-litros-por-veiculo-vehicleliters">9.4 Litros por veículo — <code>vehicleLiters</code></h3>
+<p>Barras com a soma de litros calculáveis por placa. Não soma número de abastecimentos e não utiliza hodômetro para deduzir litros. Pode combinar dados informados e estimados.</p>
+<h3 id="95-kml-indicativo-por-periodo-dailyconsumption">9.5 KM/L indicativo por período — <code>dailyConsumption</code></h3>
+<p>Linha calculada por <code>summarizeConsumption</code> para cada período. Une os veículos incluídos pelo filtro. Se qualquer dia/veículo do grupo estiver incompleto, ou houver combustível sem litros calculáveis, o ponto fica vazio. Não usa zero para representar uma relação impossível e não conecta lacunas deliberadamente (<code>spanGaps: false</code>).</p>
+<h3 id="96-abastecimentos-por-dia-da-semana-weekday">9.6 Abastecimentos por dia da semana — <code>weekday</code></h3>
+<p>Barras de segunda a domingo. Conta um por registro de abastecimento em cada dia da semana. Todas as segundas do recorte são somadas. Não soma reais nem litros. Três abastecimentos de volumes diferentes contam três ocorrências.</p>
+<h3 id="97-km-por-veiculo-e-periodo-distancevehicle">9.7 KM por veículo e período — <code>distanceVehicle</code></h3>
+<p>Barras por período com uma série para cada veículo. Soma os quilômetros dos dias válidos daquela placa. Se não houver dia válido, retorna ausência de dado. Se existir dia válido com zero km, o zero é legítimo. Dias ruins são excluídos, mas não anulam os dias bons do mesmo período para a soma de KM.</p>
+<h3 id="98-kml-por-veiculo-e-periodo-kmlvehicle">9.8 KM/L por veículo e período — <code>kmlVehicle</code></h3>
+<p>Barras com KM válido/litros por placa e período. Não divide a distância de um veículo pelo combustível do outro. As condições de bloqueio são verificadas dentro de cada grupo placa/período. Um carro pode ter indicador e o outro ficar sem resultado.</p>
+<h3 id="99-km-rodados-por-periodo-dailydistance">9.9 KM rodados por período — <code>dailyDistance</code></h3>
+<p>Barras que somam os quilômetros dos dias válidos de todos os veículos filtrados. O nome interno contém “daily”, mas o agrupamento muda para semana, mês ou ano conforme a seleção. Períodos sem KM calculado não são preenchidos obrigatoriamente no eixo desse gráfico.</p>
+<h3 id="910-km-por-dia-da-semana-e-veiculo-distanceweekday">9.10 KM por dia da semana e veículo — <code>distanceWeekday</code></h3>
+<p>Barras por placa, com segunda a domingo no eixo horizontal. Soma KM dos dias válidos de cada dia da semana ao longo de todo o recorte. Uma segunda-feira com 50 km e outra com 80 km geram 130 km. Não é média de uma segunda típica.</p>
+<h3 id="911-kml-por-dia-da-semana-e-veiculo-kmlweekday">9.11 KM/L por dia da semana e veículo — <code>kmlWeekday</code></h3>
+<p>Para cada placa e dia da semana, soma KM válidos e litros de todos os dias correspondentes e divide as somas. Uma única jornada incompleta no conjunto de segundas de uma placa pode retirar seu indicador de segunda-feira. Combustível comprado em outro dia da semana não é transferido para o dia em que foi consumido.</p>
+<h3 id="912-rotulos-cores-e-valores-visuais">9.12 Rótulos, cores e valores visuais</h3>
+<p>Os números em cima dos gráficos são formatados com até duas casas, reais, litros, km ou km/L conforme o identificador interno. O valor interno pode ter mais casas. O plugin deixa de escrever rótulos quando rótulos × séries excedem 48, para evitar excesso visual. Isso não elimina dados da série. Clicar na legenda pode ocultar uma série visualmente, sem alterar os registros importados.</p>
+<p>Referências: <code>script.js:539–572</code>, <code>589–636</code>.</p>
+<h2 id="10-logistica-classificacao-cinco-indicadores-e-cinco-graficos">10. Logística: classificação, cinco indicadores e cinco gráficos</h2>
+<h3 id="101-produto-servico-categoria-e-regiao">10.1 Produto, serviço, categoria e região</h3>
+<p><strong>Tipo/categoria</strong> vem de TIPO. <strong>Produto/serviço</strong> é outra classificação: retira acentos da DESCRICAO, converte para maiúsculas e procura o trecho <code>SERVICO</code>. Se encontrar, classifica SERVICOS; qualquer outro caso, inclusive descrição vazia, vira PRODUTOS. Não consulta cadastro fiscal, NCM ou uma coluna própria de serviço.</p>
+<p>O nome de fornecedor utilizado nos agrupamentos tem espaços repetidos removidos e elimina o complemento final entre parênteses que comece com CNPJ. Isso ajuda a reunir o mesmo nome com/sem CNPJ. Entretanto, os conjuntos de visitas/alterações preservam caixa do nome; variações de maiúsculas e minúsculas ainda podem separar agrupamentos. O filtro por fornecedor compara uma chave mais normalizada, podendo selecionar variantes que depois aparecem separadas no agrupamento.</p>
+<p>A região é derivada de uma tabela de municípios escrita no próprio <code>order-dashboard.js</code>, e não de uma consulta geográfica ao vivo. São Paulo/Tatuapé recebem “São Paulo Capital”; uma lista explícita recebe “Região Metropolitana de São Paulo”; demais municípios cadastrados de SP recebem “Interior de São Paulo”. Alguns outros estados recebem o nome do estado; os demais recebem “Fora de São Paulo”. Cidade ausente ou não cadastrada recebe “Não identificado”. Esse resultado pode refletir cobertura incompleta do cadastro, não um erro no endereço real.</p>
+<p>Referências: <code>order-dashboard.js:152–172</code>, <code>448–475</code>, <code>879–959</code>.</p>
+<h3 id="102-os-cinco-indicadores">10.2 Os cinco indicadores</h3>
+<table>
+<thead>
+<tr>
+<th>Indicador</th>
+<th>Como calcula</th>
+<th>O que não significa</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pedidos únicos</td>
+<td>Conjunto dos textos distintos PEDIDO_/PEDIDO/SOLICITACAO não vazios</td>
+<td>Não remove sufixos, não separa por fornecedor e não conta itens físicos</td>
+</tr>
+<tr>
+<td>Total de itens</td>
+<td>Número de linhas filtradas</td>
+<td>Não é soma de quantidade de peças, kg ou unidades</td>
+</tr>
+<tr>
+<td>Prazo médio emissão → agendamento</td>
+<td>Média aritmética dos dias entre essas duas datas nas linhas FINALIZADO válidas</td>
+<td>Não mede prazo até entrega real, dias úteis ou atraso contra previsão</td>
+</tr>
+<tr>
+<td>Alterações indicadas pelo sufixo</td>
+<td>Soma dos maiores sufixos por fornecedor e pedido-base</td>
+<td>Não conta registros de um histórico de mudanças</td>
+</tr>
+<tr>
+<td>Valor dos itens no recorte</td>
+<td>Soma VLR.TOTAL/VLRTOTAL/VALOR TOTAL/VALOR das linhas filtradas</td>
+<td>Não é apenas valor finalizado, pago ou faturado</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Prazo médio em detalhe:</strong> exige status FINALIZADO, emissão reconhecida, agendamento reconhecido e agendamento &gt;= emissão. Calcula <code>ceil((agendamento − emissão)/86.400.000)</code> por linha e depois soma/quantidade de linhas elegíveis. Mostra uma casa decimal; sem elegíveis, o atualizador final troca o resultado por traço. ENTREGUE não é elegível nessa regra. Datas são tratadas sem horário na função da Logística. O cálculo é em dias corridos e não exclui fins de semana/feriados.</p>
+<p>Exemplo: dois itens de um pedido com prazo 10 dias e um item de outro com prazo 4 dias geram (10+10+4)/3 = <strong>8,0 dias</strong>, não 7 dias. É uma média por linha/item. Um pedido com muitos itens pesa mais na média.</p>
+<p>Como o período é recortado pelo agendamento, um item emitido no mês anterior pode compor o prazo do mês atual. Não há comparação com a data de entrega/coleta para comprovar execução.</p>
+<p>Referências: <code>order-dashboard.js:1402–1620</code>, <code>2643–2652</code>.</p>
+<h3 id="103-volume-de-itens-por-status-lg-chartstatus">10.3 Volume de itens por status — <code>lg-chartStatus</code></h3>
+<p>Barras. Lê STATUS ou SITUACAO e acrescenta uma unidade por linha. Campo vazio vira “Sem Status”. O agrupamento utiliza o texto lido: diferenças de caixa/grafia podem produzir barras diferentes. A soma das barras corresponde ao total de linhas do recorte, sem deduplicar pedido ou fornecedor. O eixo não representa dinheiro.</p>
+<h3 id="104-distribuicao-por-categoria-lg-chartcategoria">10.4 Distribuição por categoria — <code>lg-chartCategoria</code></h3>
+<p>Rosca. Acrescenta uma unidade por linha para o conteúdo de TIPO; vazio vira “Outros”. Assim, COLETA, ENTREGA e RECEBIMENTO podem aparecer como fatias. Não é a classificação SERVICOS/PRODUTOS, embora esse filtro também possa reduzir os dados antes do gráfico.</p>
+<h3 id="105-agendamentos-unicos-por-fornecedor-e-semana-lg-chartvisitassemana">10.5 Agendamentos únicos por fornecedor e semana — <code>lg-chartVisitasSemana</code></h3>
+<p>Primeiro forma uma chave <strong>nome normalizado do fornecedor + dia de AGENDAMENTO</strong>. Todas as linhas com a mesma chave viram uma visita. Depois soma essas visitas por fornecedor e semana ISO. Exibe os <strong>15 fornecedores com mais visitas no recorte</strong>, com séries de semanas.</p>
+<p>Exemplo: dez linhas de pedidos da mesma empresa agendadas na terça contam <strong>uma visita</strong>. A mesma empresa na terça e na quinta conta duas. Dois códigos com o mesmo nome podem ser reunidos; duas grafias diferentes do nome podem ser separadas. Não distingue duas viagens reais no mesmo dia à mesma empresa.</p>
+<p>Sem filtro explícito de tipo/status, esse cálculo considera todos os tipos e status presentes nos dados filtrados. Um RECEBIMENTO pode contar como agendamento aqui, embora fique fora da rota. Esse gráfico mede agenda consolidada, não visitas comprovadas por rastreamento ou baixa de entrega.</p>
+<h3 id="106-agendamentos-unicos-por-dia-da-semana-lg-chartvisitasdia">10.6 Agendamentos únicos por dia da semana — <code>lg-chartVisitasDia</code></h3>
+<p>Barras de domingo a sábado. Parte das mesmas chaves fornecedor/dia, mas soma por dia da semana para todos os fornecedores do recorte. Não fica limitado ao top 15 do gráfico semanal. Por isso, somar visualmente apenas o top 15 pode não bater com o total deste gráfico.</p>
+<h3 id="107-evolucao-do-valor-finalizado-por-semana-lg-chartevolucaovalor">10.7 Evolução do valor finalizado por semana — <code>lg-chartEvolucaoValor</code></h3>
+<p>Linha. Mantém somente status FINALIZADO, exige agendamento reconhecido e soma o valor de cada linha pela semana ISO de <strong>AGENDAMENTO</strong>. Não acumula saldo de uma semana para a próxima: cada ponto é o valor daquela semana. Não utiliza data de faturamento, pagamento ou baixa. ENTREGUE é excluído, embora o Dashboard o considere conclusão.</p>
+<p>Semanas sem registros elegíveis não são automaticamente criadas com zero. A linha pode ligar diretamente duas semanas com movimento separadas por semanas ausentes. Descrever esse gráfico como faturamento ou valor realmente entregue seria mais amplo que o cálculo implementado.</p>
+<p>Referências: <code>order-dashboard.js:1628–1846</code>, <code>1882–2163</code>, <code>2654–2663</code>.</p>
+<h2 id="11-alteracoes-de-ponto-o-que-esta-sendo-somado">11. Alterações de ponto: o que está sendo somado</h2>
+<p>O código interpreta o número final após ponto como contador indicado de alteração:</p>
+<ul>
+<li><code>12345</code> → sem sufixo, contribuição zero.</li>
+<li><code>12345.1</code> → sufixo 1.</li>
+<li><code>12345.3</code> → sufixo 3.</li>
+<li><code>12345.1.2</code> → base <code>12345</code>, último sufixo 2.</li>
+</ul>
+<p>Para cada par fornecedor/pedido-base, guarda o <strong>maior último sufixo</strong> presente no recorte. Depois soma esses máximos. Se houver 12345.1, 12345.2 e 12345.3 do mesmo fornecedor, soma <strong>3</strong>, não 1+2+3=6. Se houver somente 12345.3, também soma 3, mesmo sem as versões anteriores. Repetir itens do mesmo par não aumenta esse máximo.</p>
+<p>O ranking é uma tabela dos <strong>cinco fornecedores</strong> com maior soma. O indicador total considera todos os fornecedores; pode ser maior que a soma das cinco linhas apresentadas.</p>
+<p>Diferença entre áreas: o Dashboard usa código do fornecedor como parte da chave; a Logística usa nome normalizado. Dois códigos com mesmo nome ou nomes diferentes para um mesmo código podem levar a resultados diferentes.</p>
+<p>Não existe comparação de snapshots para descobrir quando o agendamento foi modificado, nem um log de eventos de reprogramação. O sufixo é interpretado como indicador porque esse é o padrão suposto no código. Pedido que use ponto por outro motivo também pode ser interpretado dessa maneira. Filtrar uma semana não transforma o sufixo em quantidade de alterações ocorridas naquela semana.</p>
+<p>Referências: <code>script.js:2262–2266</code>; <code>order-dashboard.js:1914–2011</code>, <code>2167–2226</code>.</p>
+<h2 id="12-tabelas-e-exportacoes">12. Tabelas e exportações</h2>
+<h3 id="121-base-completa-dos-arquivos-importados">12.1 Base completa dos arquivos importados</h3>
+<p>Seleciona Pedidos, Abastecimentos ou Jornadas/KM. Tem busca textual sem distinção de caixa/acentos e paginação de <strong>100 linhas</strong>. Os cabeçalhos são a união das chaves presentes nos registros. Não é limitada pelos filtros dos gráficos.</p>
+<p>Em pedidos, mostra a base normalizada sem campos internos começados por <code>_</code>. Para frota, prioriza os registros brutos dos arquivos reconhecidos; eles podem conter linhas que foram descartadas na normalização ou repetidas antes da deduplicação. A base completa não é necessariamente a mesma população de um gráfico.</p>
+<p>“Exportar base” exporta todas as linhas da base atual que passam na busca, não apenas a página visível. O nome gerado é <code>base_pedidos.xlsx</code>, <code>base_fuel.xlsx</code> ou <code>base_journey.xlsx</code>.</p>
+<h3 id="122-abastecimentos-filtrados">12.2 Abastecimentos filtrados</h3>
+<p>Colunas: data, veículo, valor, preço/L, litros, hodômetro e origem dos litros. Mostra até <strong>300 registros</strong>, em ordem decrescente de data. O gráfico e o total podem utilizar mais de 300. A exportação <code>abastecimentos_filtrados.xlsx</code> usa todos os registros filtrados, sem esse corte visual; contém data, veículo, valor, preço, litros e KM.</p>
+<h3 id="123-conferencia-diaria">12.3 Conferência diária</h3>
+<p>Cada linha representa data/veículo. Mostra dia da semana, saída, hodômetro inicial, chegada, hodômetro final, KM válidos, valor, litros, KM/L, situação e arquivos de origem. O KM inicial é da primeira saída e o final da última chegada, mas o total de KM vem da soma dos pares validados, não de uma subtração única geral. Em dia inválido, os horários/hodômetros podem aparecer enquanto o total de KM fica vazio.</p>
+<h3 id="124-comparacao-por-periodo-e-veiculo">12.4 Comparação por período e veículo</h3>
+<p>Cada linha reúne período/placa, KM válidos, valor, litros, KM/L, dias válidos/dias com jornada, número de abastecimentos e observação. A observação prioriza jornada incompleta, depois combustível sem litros, depois ausência de jornada, ausência de combustível e estimativa de litros. Uma única mensagem não significa que todas as outras condições foram verificadas como boas.</p>
+<p>“Exportar análise” gera <code>analise_logistica.xlsx</code>, com abas <strong>Resumo</strong> e <strong>Conferencia diaria</strong>. A exportação inclui valores numéricos para permitir conferência em planilha.</p>
+<h3 id="125-detalhamento-de-pedidos">12.5 Detalhamento de pedidos</h3>
+<p>A tabela da Logística apresenta as primeiras <strong>100 linhas</strong> do recorte, na ordem da base. Colunas: pedido/item, fornecedor, cidade/UF, região, projeto, emissão, agendamento, prazo, valor e status. Os indicadores usam todas as linhas do recorte, mesmo que a tabela mostre só cem.</p>
+<p>O prazo da linha obedece à mesma condição FINALIZADO + datas válidas + agendamento &gt;= emissão. A leitura do valor dessa tabela não inclui a alternativa simples VALOR, embora o KPI financeiro inclua; um arquivo com esse único cabeçalho pode gerar valor no indicador e zero na tabela.</p>
+<p>Existe ainda uma tabela simples de pedidos filtrados no código principal: limitada a cem linhas e às oito primeiras colunas originais. Ela usa o recorte por emissão associado à análise principal, não a regra própria da tabela detalhada da Logística.</p>
+<p>Referências: <code>script.js:606–635</code>, <code>2292–2296</code>, <code>2312</code>, <code>2340–2342</code>; <code>order-dashboard.js:2284–2600</code>.</p>
+<h2 id="13-roteirizador-selecao-dos-pedidos-e-indicadores">13. Roteirizador: seleção dos pedidos e indicadores</h2>
+<h3 id="131-quais-registros-entram">13.1 Quais registros entram</h3>
+<p>Usa exclusivamente o dia de AGENDAMENTO escolhido e TIPO exatamente COLETA ou ENTREGA após normalização de caixa/acentos. RECEBIMENTO não entra. Não há filtro de status nessa seleção: um pedido já FINALIZADO/ENTREGUE, ou outro status, pode continuar aparecendo se data e tipo atenderem à regra.</p>
+<p>Agrupa por código do fornecedor. Se não houver código, usa o nome normalizado como chave. Cada grupo reúne linhas, pedidos, projetos e compradores distintos. Uma parada pode representar vários pedidos e itens. O roteiro não herda status, projeto ou região selecionados na Logística.</p>
+<h3 id="132-indicadores-da-rota">13.2 Indicadores da rota</h3>
+<table>
+<thead>
+<tr>
+<th>Indicador</th>
+<th>Cálculo real</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pedidos do dia</td>
+<td>Quantidade de números de pedido distintos nas linhas elegíveis; se não houver nenhum número preenchido, usa a quantidade de linhas</td>
+</tr>
+<tr>
+<td>Paradas</td>
+<td>Grupos de fornecedores ativos, após exclusões manuais</td>
+</tr>
+<tr>
+<td>Com endereço</td>
+<td>Ao final da localização, grupos com coordenadas utilizáveis; durante o processamento pode mostrar a quantidade com endereço textual resolvido</td>
+</tr>
+<tr>
+<td>Sem endereço</td>
+<td>Paradas ativas menos grupos com coordenadas utilizáveis; inclui falha de localização mesmo com texto de endereço preenchido</td>
+</tr>
+<tr>
+<td>Distância estimada</td>
+<td>Distância rodoviária retornada pelo OSRM, incluindo saída e retorno na Pharmainox</td>
+</tr>
+<tr>
+<td>Tempo estimado</td>
+<td>Duração rodoviária do OSRM; não inclui trânsito em tempo real nem tempo de atendimento/carga/descarga</td>
+</tr>
+</tbody>
+</table>
+<p>O subtítulo de “Pedidos do dia” menciona linhas, mas o cálculo prioriza pedidos únicos. Além disso, esse indicador é calculado <strong>antes das exclusões manuais de fornecedores</strong>. Retirar uma parada reduz paradas ativas, mas não necessariamente o número de pedidos do dia.</p>
+<p>Excluir uma parada afeta apenas a rota daquele dia, com persistência local; não apaga a linha da base e não retira seu valor/quantidade dos indicadores de outras abas. Restaurar fornecedores desfaz essas exclusões locais.</p>
+<p>Referências: <code>script.js:190–193</code>, <code>782–828</code>, <code>938–1008</code>, <code>1743–1860</code>.</p>
+<h2 id="14-enderecos-busca-validacao-e-coordenadas">14. Endereços: busca, validação e coordenadas</h2>
+<h3 id="141-prioridade-para-resolver-fornecedor">14.1 Prioridade para resolver fornecedor</h3>
+<ol>
+<li>Procura endereço manual válido pelo código.</li>
+<li>Sem manual, busca o código em <code>window.FORNECEDORES</code>.</li>
+<li>Remove entradas sem endereço considerado utilizável.</li>
+<li>Reúne endereços equivalentes segundo a normalização textual.</li>
+<li>Se sobrar um endereço, usa esse.</li>
+<li>Se houver vários, compara palavras do nome do pedido com o nome cadastrado e ordena por similaridade.</li>
+</ol>
+<p>Para aceitar automaticamente uma das várias opções, a melhor similaridade precisa ser pelo menos <strong>0,08</strong> e a diferença para a segunda pelo menos <strong>0,05</strong>. Caso contrário, marca ambiguidade. A similaridade é interseção de palavras/união de palavras, depois de remover acentos, pontuação e termos empresariais comuns.</p>
+<p>Estados possíveis: código não encontrado, endereço ausente, cadastro ambíguo, aguardando localização, localização falhou e resolvido. O sistema não transforma “resolvido” em prova fiscal de endereço ou confirmação de portaria.</p>
+<h3 id="142-o-que-significa-endereco-valido">14.2 O que significa endereço válido</h3>
+<p>Cadastro base: mínimo de oito caracteres, não pode ser “endereço não encontrado” e precisa conter número, S/N ou KM. Cadastro manual: mínimo de cinco caracteres e não pode ser a mensagem de ausência. São validações de formato; não demonstram que a empresa realmente funciona naquele ponto.</p>
+<p>O JSON que acompanha o projeto é mesclado ao cadastro local. Correções locais com data igual ou mais recente têm prioridade. Registros automáticos de coordenadas não devem substituir um endereço curado; suas coordenadas só são reaproveitadas quando o endereço é compatível.</p>
+<h3 id="143-como-localiza-no-mapa">14.3 Como localiza no mapa</h3>
+<p>Procura coordenadas salvas compatíveis com o endereço atual. Para coordenadas salvas, verifica números finitos e limites de latitude −90 a 90 e longitude −180 a 180. A chave do endereço evita usar automaticamente uma coordenada de um endereço anterior.</p>
+<p>Sem coordenadas reutilizáveis, monta variantes de pesquisa, tenta no máximo duas consultas no Nominatim e usa Photon como alternativa se não houver candidatos. Nominatim pesquisa Brasil e recebe espaçamento mínimo entre solicitações; cada consulta possui limite de tempo. Photon é uma alternativa de pesquisa textual.</p>
+<p>Ordena candidatos por importância, adicionando peso se o nome da cidade aparecer no resultado e para tipos como house/building/residential/commercial. Seleciona o melhor resultado disponível. <strong>Não há uma condição final que exija prova exata de rua, número, CNPJ ou correspondência perfeita da cidade.</strong> Um resultado apenas aproximado pode ser aceito.</p>
+<p>Sucessos são armazenados em cache sem expiração temporal explícita. Ausências de resultado recentes são lembradas por até 24 horas, evitando repetir imediatamente a pesquisa. Falha ou desatualização de cache pode afetar os pontos exibidos.</p>
+<p>Marcar no mapa permite registrar uma coordenada manual. Limpar o cache geográfico remove localizações automáticas e preserva pontos marcados manualmente conforme sua origem. Exportar/importar endereços em JSON é o mecanismo disponível para compartilhar correções entre máquinas; não é sincronização contínua.</p>
+<p>Referências: <code>script.js:643–779</code>, <code>1018–1085</code>, <code>1117–1266</code>, <code>1982–2208</code>, <code>2312</code>.</p>
+<h2 id="15-como-a-rota-os-quilometros-e-o-tempo-sao-montados">15. Como a rota, os quilômetros e o tempo são montados</h2>
+<p>O ponto fixo de saída/retorno é Pharmainox, Rua Maranhão, 2300, Jaguariúna, com coordenadas definidas no código.</p>
+<p>Sem ordem manual, o sistema tenta o serviço <code>trip</code> do OSRM para reorganizar a sequência. Essa tentativa é feita quando o conjunto, incluindo origem, tem até 60 pontos. Se falhar, utiliza a ordem disponível. Não há cálculo de capacidade de carga, prioridade de fornecedor, janela de atendimento, pedágio, jornada máxima do motorista ou restrição específica de caminhão no algoritmo local.</p>
+<p>Com ordem manual salva para o dia, respeita essa sequência e não solicita reorganização automática. O modo manual altera a ordem, mas o caminho entre as paradas continua sendo calculado pelas ruas.</p>
+<p>Depois calcula a rota OSRM e acrescenta o retorno à origem. Se a consulta completa falhar, tenta cada trecho separadamente e soma distâncias/durações; concatena o desenho rodoviário. Se algum trecho indispensável falhar, a rota não é concluída. O mapa só desenha a geometria recebida do serviço, sem usar reta como se fosse estrada.</p>
+<p>A distância do planejamento é diferente da quilometragem medida pelo hodômetro. Não existe conciliação automática entre o roteiro planejado e a jornada realizada; nenhuma fórmula compara os dois para calcular desvio.</p>
+<p>Sem parada localizada, não há rota utilizável. Fornecedores pendentes ficam fora do caminho e dos links até serem localizados. “Rota otimizada” indica sucesso do serviço de ordenação; não é prova de melhor rota possível considerando todas as necessidades da operação.</p>
+<h3 id="google-maps">Google Maps</h3>
+<p>O sistema monta a sequência origem → paradas → retorno e a divide em trechos com até <strong>três intermediárias</strong>, conforme a escolha implementada para links de celular. O destino de um trecho vira origem do seguinte. O botão principal abre o primeiro trecho; os outros precisam ser abertos na ordem exibida.</p>
+<p>Os links usam coordenadas, não uma nova busca por nome de fornecedor. O Google pode apresentar percurso/duração diferentes do OSRM, pois o link solicita uma navegação própria. Fornecedores sem coordenadas não entram nos links. Esse mecanismo é diferente de um único link extenso digitado manualmente na conversa.</p>
+<p>Referências: <code>script.js:824–828</code>, <code>1291–1444</code>, <code>1863–1939</code>.</p>
+<h2 id="16-a-ia-de-enderecos-e-o-que-ela-valida">16. A IA de endereços e o que ela valida</h2>
+<p>O navegador envia nome, endereço e cidade a um Cloudflare Worker. O Worker do ZIP usa o modelo configurado <code>gemini-2.5-flash-lite</code>, com chave guardada em variável secreta do ambiente. Isso descreve a configuração entregue, sem verificar implantação ou disponibilidade atuais.</p>
+<p>O objetivo é receber no máximo três variantes de texto para pesquisa. O fluxo filtra sugestões vazias/repetidas e limita o tamanho. Para aplicar uma sugestão, há geocodificação e confirmação explícita do usuário; não utiliza coordenadas inventadas pela IA diretamente.</p>
+<p>O Worker confere origem HTTP esperada, método POST/OPTIONS, presença da chave, JSON de entrada e endereço com pelo menos cinco caracteres. Limita os campos a 240 caracteres e verifica tamanho declarado por Content-Length. Possui tempo máximo para consultar a IA. A instrução ao modelo para não inventar dados é uma orientação de geração, não uma validação determinística de existência do endereço.</p>
+<p>O código menciona aplicar proteção contra abuso e limites no Cloudflare, mas não implementa internamente um contador de requisições por usuário. Não há autenticação de usuários da aplicação nesses arquivos. Restringir Origin/CORS não equivale a login. Esses limites explicam o alcance técnico do serviço, sem alterar o funcionamento das somas.</p>
+<p>Referências: <code>script.js:1–91</code>; <code>cloudflare-worker/worker.js</code>.</p>
+<h2 id="17-validacoes-existentes-e-lacunas-de-conferencia">17. Validações existentes e lacunas de conferência</h2>
+<table>
+<thead>
+<tr>
+<th>Tema</th>
+<th>Existe</th>
+<th>Não foi encontrada no fluxo analisado</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Arquivo</td>
+<td>Reconhecimento de estrutura, leitura e erros de importação</td>
+<td>Validação contábil/fiscal do conteúdo</td>
+</tr>
+<tr>
+<td>Frota</td>
+<td>Exatamente dois pares completos no botão Atualizar</td>
+<td>Importação flexível de qualquer quantidade de veículos por esse fluxo</td>
+</tr>
+<tr>
+<td>Placas</td>
+<td>Comparação de textos normalizados por caixa/espaços externos</td>
+<td>Validação de placa oficial ou cadastro de motorista</td>
+</tr>
+<tr>
+<td>Datas de logística</td>
+<td>Formatos BR, ISO e serial Excel em intervalo; conferência de dia/mês/ano</td>
+<td>Garantia de que o agendamento representa execução</td>
+</tr>
+<tr>
+<td>Datas da frota</td>
+<td>Interpretação por padrões e Date do JavaScript</td>
+<td>A mesma validação estrita de calendário da Logística; datas impossíveis podem ser normalizadas pelo construtor</td>
+</tr>
+<tr>
+<td>Jornada</td>
+<td>Ordem temporal, pares, hodômetros não negativos/crescentes</td>
+<td>Velocidade plausível, teto de KM, travessia de meia-noite</td>
+</tr>
+<tr>
+<td>Combustível</td>
+<td>Conversão de valores, prioridade de litros/preço e litros positivos para resumo</td>
+<td>Conciliação valor × preço × litros, tanque cheio, capacidade do tanque</td>
+</tr>
+<tr>
+<td>Pedidos</td>
+<td>Distinção por número em conjuntos específicos</td>
+<td>Deduplicação geral das linhas ou escolha automática da última revisão</td>
+</tr>
+<tr>
+<td>Finalização</td>
+<td>Comparação de status com textos determinados</td>
+<td>Confirmação de entrega por comprovante ou integração</td>
+</tr>
+<tr>
+<td>Visitas</td>
+<td>Unicidade por nome/data</td>
+<td>Viagem real comprovada, várias visitas no mesmo dia</td>
+</tr>
+<tr>
+<td>Alterações</td>
+<td>Máximo do sufixo por pedido-base/fornecedor</td>
+<td>Histórico real de quando/quem alterou a programação</td>
+</tr>
+<tr>
+<td>Endereços</td>
+<td>Forma mínima, cadastro, similaridade e coordenadas</td>
+<td>Correspondência fiscal exata e confirmação obrigatória de todos os resultados automáticos</td>
+</tr>
+<tr>
+<td>Rotas</td>
+<td>Roteamento rodoviário e retorno</td>
+<td>Trânsito ao vivo no OSRM, carga, janela de recebimento, escala e custos completos</td>
+</tr>
+</tbody>
+</table>
+<h2 id="18-diferencas-e-pontos-que-merecem-atencao">18. Diferenças e pontos que merecem atenção</h2>
+<ol>
+<li><strong>Conclusão varia entre áreas.</strong> Dashboard aceita FINALIZADO e ENTREGUE; prazo médio e evolução financeira da Logística aceitam somente FINALIZADO. Os mesmos dados podem gerar resultados distintos sem erro de soma.</li>
+<li><strong>Item é linha.</strong> Nenhum indicador de volume descrito soma quantidade física de peças. Duplicidades de importação aumentam linhas/valores.</li>
+<li><strong>Valor finalizado é por agendamento.</strong> Não é receita/faturamento/pagamento nem necessariamente execução naquela semana.</li>
+<li><strong>Prazo é emissão até agendamento.</strong> Não considera a data de entrega/coleta carregada, nem dias úteis.</li>
+<li><strong>Visita é agenda fornecedor/dia.</strong> Pode incluir recebimento e situações ainda não realizadas; não deve ser comparada diretamente a paradas de rota sem alinhar tipos e filtros.</li>
+<li><strong>Alterações são sufixos.</strong> O maior sufixo não prova quantos eventos ocorreram no recorte.</li>
+<li><strong>Sem vínculo pedido/veículo.</strong> Não há base para atribuir automaticamente valor de pedidos ou coletas a uma placa.</li>
+<li><strong>Toda a jornada diária pode ser descartada.</strong> Uma pendência invalida o dia inteiro, enquanto o combustível desse dia continua somado.</li>
+<li><strong>KM/L pode ficar vazio com KM positivo.</strong> É um bloqueio de qualidade do grupo, não necessariamente ausência de deslocamento.</li>
+<li><strong>Resumo e base bruta têm populações diferentes.</strong> Normalização, datas e deduplicação fazem diferença; tabelas ainda têm cortes visuais de 100/300 linhas.</li>
+<li><strong>Pedidos da rota não acompanham exclusões.</strong> O cartão de pedidos é montado antes de retirar fornecedores da rota.</li>
+<li><strong>Rótulo “sem endereço” é mais amplo.</strong> Pode indicar endereço conhecido sem coordenada encontrada.</li>
+<li><strong>Revisões não são escolhidas automaticamente.</strong> Base e revisões podem coexistir e somar valores; só a análise de sufixo agrupa a família.</li>
+<li><strong>Cabeçalhos não são uniformes entre funções.</strong> VALOR pode alimentar o KPI logístico e não a tabela/valor do Dashboard; recursos posicionais do módulo principal não se repetem em todas as leituras.</li>
+<li><strong>Atualização não é transacional.</strong> O botão limpa as bases em memória antes de concluir todas as validações/leitura. Uma falha durante essa etapa pode deixar bases vazias/parciais enquanto a tela ainda mostra informação anterior até outra atualização.</li>
+<li><strong>Bibliotecas/serviços externos são dependências.</strong> Falhas de carregamento, acesso ou quota podem impedir gráficos, leitura de arquivos, geocodificação ou rota sem modificar a fórmula do indicador.</li>
+</ol>
+<p>Esses pontos são observações sobre o código entregue. Não foram realizadas correções no sistema nem consultas às bases de produção.</p>
+<h2 id="19-roteiro-para-conferir-os-resultados-na-pratica">19. Roteiro para conferir os resultados na prática</h2>
+<ol>
+<li>Use uma cópia da planilha e escolha um intervalo pequeno, preferencialmente um dia.</li>
+<li>Anote a área e seus filtros. Confirme se a data de referência é agendamento, emissão ou apontamento.</li>
+<li>Para itens/valores, filtre as mesmas linhas na planilha e some o campo total por linha; confira duplicidades e revisões.</li>
+<li>Para pedidos únicos, conte os textos distintos sem remover sufixos. Para alterações, separe fornecedor/pedido-base e use o maior último sufixo.</li>
+<li>Para visitas, remova duplicidades por nome normalizado do fornecedor/data de agendamento; não use número do pedido como chave.</li>
+<li>Para prazo, mantenha somente FINALIZADO com emissão/agendamento válidos e ordem correta; calcule dias por item e tire a média por linhas.</li>
+<li>Para KM, ordene placa/data/hora, feche cada saída com chegada do mesmo dia e verifique todas as pendências antes de aproveitar o dia.</li>
+<li>Para litros, marque quais foram informados e quais vieram de valor/preço anual. Não confira uma estimativa como se fosse medição do posto.</li>
+<li>Para KM/L, some KM e litros do mesmo grupo e confira os bloqueios de qualidade antes de dividir.</li>
+<li>Para rota, use apenas COLETA/ENTREGA na data escolhida, verifique exclusões, fornecedores pendentes e saída/retorno. Compare a distância planejada com o hodômetro apenas como análise separada.</li>
+</ol>
+<h2 id="20-mapa-de-referencia-do-codigo">20. Mapa de referência do código</h2>
+<table>
+<thead>
+<tr>
+<th>Assunto</th>
+<th>Referência principal</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Arquivos carregados pela página</td>
+<td><code>index.html:14–26</code></td>
+</tr>
+<tr>
+<td>Preço anual e conversões</td>
+<td><code>script.js:94–108</code>, <code>139–187</code></td>
+</tr>
+<tr>
+<td>Reconhecimento/importação</td>
+<td><code>script.js:196–465</code>, <code>2299–2312</code></td>
+</tr>
+<tr>
+<td>Filtros Frota/Abastecimento</td>
+<td><code>script.js:483–496</code></td>
+</tr>
+<tr>
+<td>Pareamento da jornada e qualidade</td>
+<td><code>script.js:499–527</code></td>
+</tr>
+<tr>
+<td>Construção dos 11 gráficos de frota/combustível</td>
+<td><code>script.js:589–636</code></td>
+</tr>
+<tr>
+<td>Cadastro e resolução de fornecedor</td>
+<td><code>script.js:643–828</code></td>
+</tr>
+<tr>
+<td>Localização geográfica</td>
+<td><code>script.js:1018–1266</code></td>
+</tr>
+<tr>
+<td>Links Google e cálculo rodoviário</td>
+<td><code>script.js:1291–1444</code></td>
+</tr>
+<tr>
+<td>Indicadores e processamento da rota</td>
+<td><code>script.js:1743–1939</code></td>
+</tr>
+<tr>
+<td>KPIs e período próprio do Dashboard</td>
+<td><code>script.js:2262–2290</code></td>
+</tr>
+<tr>
+<td>Base completa e exportações</td>
+<td><code>script.js:2292–2296</code>, <code>2312</code>, <code>2340–2342</code></td>
+</tr>
+<tr>
+<td>Cabeçalhos, moeda, datas e classificação de item da Logística</td>
+<td><code>order-dashboard.js:152–475</code></td>
+</tr>
+<tr>
+<td>Classificação regional</td>
+<td><code>order-dashboard.js:879–959</code></td>
+</tr>
+<tr>
+<td>KPIs da Logística e prazo</td>
+<td><code>order-dashboard.js:1402–1620</code></td>
+</tr>
+<tr>
+<td>Status e categoria</td>
+<td><code>order-dashboard.js:1628–1846</code></td>
+</tr>
+<tr>
+<td>Fornecedores, sufixos, visitas e top 5</td>
+<td><code>order-dashboard.js:1882–2226</code></td>
+</tr>
+<tr>
+<td>Tabela de pedidos</td>
+<td><code>order-dashboard.js:2284–2600</code></td>
+</tr>
+<tr>
+<td>Filtros e gráficos temporais ativos da Logística</td>
+<td><code>order-dashboard.js:2625–2676</code></td>
+</tr>
+<tr>
+<td>Sugestões de IA</td>
+<td><code>script.js:1–91</code>, <code>cloudflare-worker/worker.js</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Nota técnica sobre versões:</strong> para as regras temporais e importação logística, este documento usa as implementações finais em <code>order-dashboard.js:2625–2676</code>. Ler apenas funções antigas ou arquivos de backup pode produzir uma descrição diferente do sistema efetivamente carregado.</p>
+<h2 id="21-verificacao-dos-exemplos">21. Verificação dos exemplos</h2>
+<p>Foram executadas funções do próprio código em ambiente JavaScript isolado, com dados didáticos, para conferir: pareamento de jornadas, descarte integral de dia com pendência, estimativa anual de litros, KM/L por divisão de somas, status de conclusão, máximo de sufixo, pedidos distintos, visitas únicas, rejeição de data impossível na Logística e classificação de descrição vazia como produto. Os resultados corresponderam às regras descritas. Essa conferência de funções não substitui teste visual do site ou conciliação das bases de produção.</p></main></html>

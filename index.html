@@ -24,6 +24,8 @@
 </script>
 <link rel="stylesheet" href="order-dashboard.css"/>
 <script defer src="order-dashboard.js?v=20261021-datas"></script>
+<link rel="stylesheet" href="guia-graficos.css">
+<script defer src="guia-graficos.js"></script>
 </head>
 <body>
 <aside class="sidebar">
@@ -54,6 +56,7 @@
 <a data-app-view="dashboard" data-nav-key="tabelas" href="#tabelas">Tabelas</a><a data-app-view="routes" data-nav-key="roteirizador" href="#roteirizador">
      Roteirizador
     </a>
+<a data-app-view="dashboard" data-nav-key="guia" href="#guia">Como ler os gráficos</a>
 </nav>
 </aside>
 <main class="main" id="dashboard">
@@ -793,7 +796,7 @@
 
             </div>
 
-        </div></details></div><div class="workspace-page" id="workspaceFleet"><header class="workspace-heading"><div class="workspace-title-icon">▤</div><div><p class="eyebrow">ANÁLISE OPERACIONAL</p><h1>Frota</h1><p class="subtitle">Quilometragem, desempenho, pedidos e distribuição logística.</p></div></header><div class="workspace-hint"><span class="workspace-hint-icon">✦</span><div><strong>Filtros compartilhados</strong><span>Altere ano, veículo, período ou datas acima. Os indicadores da frota e dos abastecimentos serão atualizados juntos. A Logística tem seus próprios filtros por agendamento.</span></div></div><section class="panel analysis-context"><h2>Base da análise</h2><p id="analysisScope" aria-live="polite"></p><p id="qualitySummary" aria-live="polite"></p><details><summary>Como interpretar os números</summary><p>KM: soma das viagens com saída e chegada no mesmo dia, em ordem cronológica e com hodômetro válido. O filtro de mês recorta as semanas que atravessam meses. Semana de segunda a domingo, conforme calendário ISO. Datas inicial/final, ano, mês e semana são combinados.</p><p>KM/L indicativo = KM válido ÷ litros abastecidos no mesmo grupo. Compra de combustível e consumo do tanque ocorrem em momentos diferentes: grupos sem abastecimento ficam sem esse indicador. Não é uma medição de eficiência real. Quando não há litros ou preço/L informados, os litros são estimados pelo preço anual de referência: 2025 = R$ 6,49/L; 2026 = R$ 7,49/L. Para outros anos, o preço padrão é R$ 7,49/L. Confira esses valores com a base antes de interpretar o indicador.</p><p>Por dia da semana: soma de todas as segundas, terças e demais dias dentro dos filtros. Os pedidos são contados por linha e filtrados pela emissão; o filtro de placa se aplica apenas à frota, pois a base de pedidos não tem vínculo comprovado com o veículo.</p></details></section><section class="charts workspace-charts"><article class="panel chart-card">
+        </div></details></div><div class="workspace-page" id="workspaceGuide" aria-hidden="true"><div id="guideRoot"></div></div><div class="workspace-page" id="workspaceFleet"><header class="workspace-heading"><div class="workspace-title-icon">▤</div><div><p class="eyebrow">ANÁLISE OPERACIONAL</p><h1>Frota</h1><p class="subtitle">Quilometragem, desempenho, pedidos e distribuição logística.</p></div></header><div class="workspace-hint"><span class="workspace-hint-icon">✦</span><div><strong>Filtros compartilhados</strong><span>Altere ano, veículo, período ou datas acima. Os indicadores da frota e dos abastecimentos serão atualizados juntos. A Logística tem seus próprios filtros por agendamento.</span></div></div><section class="panel analysis-context"><h2>Base da análise</h2><p id="analysisScope" aria-live="polite"></p><p id="qualitySummary" aria-live="polite"></p><details><summary>Como interpretar os números</summary><p>KM: soma das viagens com saída e chegada no mesmo dia, em ordem cronológica e com hodômetro válido. O filtro de mês recorta as semanas que atravessam meses. Semana de segunda a domingo, conforme calendário ISO. Datas inicial/final, ano, mês e semana são combinados.</p><p>KM/L indicativo = KM válido ÷ litros abastecidos no mesmo grupo. Compra de combustível e consumo do tanque ocorrem em momentos diferentes: grupos sem abastecimento ficam sem esse indicador. Não é uma medição de eficiência real. Quando não há litros ou preço/L informados, os litros são estimados pelo preço anual de referência: 2025 = R$ 6,49/L; 2026 = R$ 7,49/L. Para outros anos, o preço padrão é R$ 7,49/L. Confira esses valores com a base antes de interpretar o indicador.</p><p>Por dia da semana: soma de todas as segundas, terças e demais dias dentro dos filtros. Os pedidos são contados por linha e filtrados pela emissão; o filtro de placa se aplica apenas à frota, pois a base de pedidos não tem vínculo comprovado com o veículo.</p></details></section><section class="charts workspace-charts"><article class="panel chart-card">
 <h2 id="titleDistanceVehicle">
         KM por veículo e mês
        </h2>

@@ -1,0 +1,13 @@
+ATUALIZAÇÃO — GUIA DOS GRÁFICOS
+
+Publique todo o conteúdo desta pasta no mesmo local dos arquivos atuais do site, mantendo os nomes e subpastas.
+
+Arquivos alterados: index.html e script.js (integração da navegação).
+Novos: guia-graficos.js, guia-graficos.css, relatorio-completo.html e este documento.
+
+Menu: Como ler os gráficos. Link direto: #guia.
+Cada gráfico da operação possui o botão Como ler este gráfico.
+As miniaturas usam exemplos fictícios claramente identificados. Não há alteração nas fórmulas, dados importados, cadastros ou cálculos de rota.
+O relatório técnico completo abre a partir do guia.
+
+Os demais arquivos foram mantidos como no ZIP fornecido. Não copie a pasta .git de versões antigas para a hospedagem.
